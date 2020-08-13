@@ -1,0 +1,6 @@
+*
+!dist/**/*
+dist/cjs/test
+!package.json
+!LICENCE.txt
+!README.md
