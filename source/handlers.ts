@@ -1,6 +1,6 @@
 import { CtxRequestHandler, Ref, GlobalRef } from "./types";
 import { DeepDestructable, Destructable } from "./destructable";
-import { depMap } from "../utils/dep-map";
+import { depMap } from 'dependent-type/dist/cjs/map';
 import { toCond } from "../utils/guards";
 
 /** @summary Filters X by C */
@@ -15,7 +15,7 @@ declare const F_Destructable: unique symbol;
 declare const F_Ref: unique symbol;
 
 type ToRef<X extends any[]> = Ref<any>[] & { [P in number & keyof X]: Ref<X[P]> };
-declare module '../utils/dependent-type' {
+declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
     [F_F]: X extends C ? X : BadApp<Fun<typeof F_F, C>, X>;
     [F_C]: C,

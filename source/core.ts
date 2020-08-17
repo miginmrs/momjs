@@ -6,10 +6,10 @@ import {
 } from './types'
 import { RequestHandlers } from './handlers';
 import { Destructable, FunctionalObs } from './destructable';
-import { KeysOfType, TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from '../utils/dependent-type';
+import { KeysOfType, TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
-import { depMap } from '../utils/dep-map';
+import { depMap } from 'dependent-type/dist/cjs/map';
 
 
 
@@ -40,7 +40,7 @@ type RefHelper<C extends ParentOfC, X extends number> = App<Fun<C[1][X], C[0][X]
 type RefTypeError<C, X> = BadApp<Fun<typeof F_Custom_Ref, C>, X>;
 type CondRefHelper<C, X> = X extends number ? C extends ParentOfC ? RefHelper<C, X> : RefTypeError<C, X> : RefTypeError<C, X>;
 type GlobalRefHelper<indices extends number, C extends ParentOfC> = { [i in indices]: i extends number ? RefHelper<C, i> : RefTypeError<C, i> } & any[]
-declare module '../utils/dependent-type' {
+declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
     [F_Custom_Ref]: CondRefHelper<C, X>;
     [F_I_X]: { i: X };
