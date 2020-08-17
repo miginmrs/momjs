@@ -6,10 +6,9 @@ import {
 } from './types'
 import { RequestHandlers } from './handlers';
 import { Destructable, FunctionalObs } from './destructable';
-import { TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from '../utils/dependent-type';
+import { KeysOfType, TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from '../utils/dependent-type';
 import { NonUndefined } from 'utility-types';
-import { KeysOfType, KeysOfTypeObj } from '../utils/filter';
-import { byKey, toCond } from '../utils/guards';
+import { byKey } from '../utils/guards';
 import { depMap } from '../utils/dep-map';
 
 

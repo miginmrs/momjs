@@ -1,4 +1,7 @@
-import { KeysOfType } from "./filter";
+export type KeysOfTypeObj<O, T> = {
+	[K in keyof O]: [O[K]] extends [T] ? K : never
+};
+export type KeysOfType<O, T> = KeysOfTypeObj<O, T>[keyof O]
 
 export interface TypeFuncs<C, X> { }
 

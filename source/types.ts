@@ -1,8 +1,7 @@
 import { RequestHandlers } from './handlers';
 import { Destructable, FunctionalObs } from './destructable';
 import { TeardownLogic } from 'rxjs';
-import { App, TypeFuncs, Fun, AppX, DepConstaint } from '../utils/dependent-type';
-import { KeysOfType } from '../utils/filter';
+import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from '../utils/dependent-type';
 
 export type LocalRef<T> = { $: number, _: T };
 export type GlobalRef<T> = { id: string, _: T };

@@ -22,11 +22,9 @@ describe("Store", function () {
     };
     let x1: ReturnType<typeof init>[0];
     let obs: ReturnType<typeof init>[1];
-    const getVal = () => store.getValue(x1)[0];
     before(function () {
       [x1, obs] = init();
     });
-
     it("should start by id = 1", function () {
       expect(x1.id).equal('1');
     });
