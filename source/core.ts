@@ -133,6 +133,21 @@ export class Store {
     }
     return v;
   }
+  emptyContext(): Context {
+    const getter = <T extends object, V extends T = T>(r: Ref<T>) => {
+      if (!('id' in r)) throw new Error('There is no local context');
+      return this.map.get(r.id)![0] as Destructable<V, any, any, any>;
+    }
+    return { deref: this.deref(getter), xderef: this.xderef(getter), ref: this.ref, ...this.extra };
+  }
+  xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => Destructable<V, any, any, any>): xderef => <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>(
+    r: Ref<T[1]>, ...ctrs: xDerefCtrs<dom, list, T, Tk, cim, k, X>): xDerefReturn<dom, list, T, Tk, cim, k, X> => {
+    return this.checkTypes(getter(r), ctrs);
+  };
+  deref = (getter: <T extends object>(r: Ref<T>) => Destructable<T, any, any, any>): deref => <T extends object, ADC extends [any[], any, any][]>(
+    r: Ref<T>, ...ctrs: refCtrs<T, ADC>) => {
+    return this.checkTypes(getter(r), ctrs, 0);
+  };
   unserialize<
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -150,18 +165,10 @@ export class Store {
       const modelsNotChanged = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, i>(handler(ctx), modelsNotChanged, session, i), m };
     }
-    const _deref = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<V, any, any, any>;
-    const xderef: xderef = <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>(
-      r: Ref<T[1]>, ...ctrs: xDerefCtrs<dom, list, T, Tk, cim, k, X>): xDerefReturn<dom, list, T, Tk, cim, k, X> => {
-      return this.checkTypes(_deref(r), ctrs);
-    };
-    const deref: deref = <T extends object, ADC extends [any[], any, any][]>(
-      r: Ref<T>, ...ctrs: refCtrs<T, ADC>) => {
-      return this.checkTypes(_deref(r), ctrs, 0);
-    };
+    const getter = <T extends object, V extends T = T>(r: Ref<T>): Destructable<V, any, any, any> => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<V, any, any, any>;
     const ref = this.ref;
     const ctx = {
-      deref, xderef, ref, ...this.extra
+      deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
     };
     const subscriptions: Subscription[] = [];
     const temp: Subscription[] = [];
@@ -196,7 +203,7 @@ export class Store {
     cim extends Omit<TVCDA_CIM, 'T'>,
     k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>,
     X extends dom>(
-      handler: {
+      handler: (ctx: Context)=>{
         ctr: DestructableCtr<dom, cim, k>,
         compare?: RequestHandlerCompare<dom, cim, k>,
         destroy?: RequestHandlerDestroy<dom, cim, k>
@@ -205,7 +212,7 @@ export class Store {
       c: AppX<'C', cim, k, X>,
   ) {
     const id = `${this.next++}`;
-    const obs = this._push(handler, functional, id, c)
+    const obs = this._push(handler(this.emptyContext()), functional, id, c)
     const subs = this.map.get(id)![1] = obs.subscribe();
     return { id, obs, subs };
   }
