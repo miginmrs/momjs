@@ -10,9 +10,9 @@ export declare const F_C: unique symbol;
 /** @summary Identity */
 export declare const F_ID: unique symbol;
 
-declare const F_ArrArgs: unique symbol;
-declare const F_Destructable: unique symbol;
-declare const F_Ref: unique symbol;
+export declare const F_ArrArgs: unique symbol;
+export declare const F_Destructable: unique symbol;
+export declare const F_Ref: unique symbol;
 
 type ToRef<X extends any[]> = Ref<any>[] & { [P in number & keyof X]: Ref<X[P]> };
 declare module 'dependent-type' {

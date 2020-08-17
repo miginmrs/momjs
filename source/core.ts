@@ -33,7 +33,7 @@ type ObsCache<
   };
 
 export declare const F_Custom_Ref: unique symbol;
-declare const F_I_X: unique symbol;
+export declare const F_I_X: unique symbol;
 // Record<indices, [any, TVCDA_CIM]>
 type ParentOfC = { 0: any, 1: any, 2: any };
 type RefHelper<C extends ParentOfC, X extends number> = App<Fun<C[1][X], C[0][X][0]>, C[2][X]> & C[0][X][1];
