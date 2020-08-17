@@ -15,11 +15,13 @@ export type TVCDA = keyof TVCDA_CIM;
 export type CDA_Im = Omit<TVCDA_CIM, 'T' | 'V'>;
 export type CDA = keyof CDA_Im;
 
+type xDerefCtrsI<dom, indices extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<indices, CDA_Im>, k extends { [i in indices]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X, i extends indices> = [{
+  <X extends dom>(args: AppX<'A', cim[i], k[i], X>, data: AppX<'D', cim[i], k[i], X>, c: AppX<'C', cim[i], k[i], X>): App<Fun<Tk, T[0]>, X> & T[1]
+  (args: cim[i]['A'][1], data: cim[i]['D'][1], c: cim[i]['C'][1]): T[1]
+}, AppX<'C', cim[i], k[i], X>];
 export type xDerefCtrs<dom, indices extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<indices, CDA_Im>, k extends { [i in indices]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>
-  = any[] & { [i in indices]: [{
-    <X extends dom>(args: AppX<'A', cim[i], k[i], X>, data: AppX<'D', cim[i], k[i], X>, c: AppX<'C', cim[i], k[i], X>): App<Fun<Tk, T[0]>, X> & T[1]
-    (args: cim[i]['A'][1], data: cim[i]['D'][1], c: cim[i]['C'][1]): T[1]
-  }, AppX<'C', cim[i], k[i], X>] };
+  = xDerefCtrsI<dom, indices, T, Tk, cim, k, X, indices>[] & { [i in indices]: xDerefCtrsI<dom, indices, T, Tk, cim, k, X, i> };
+
 export type xDerefReturn<dom, indices extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<indices, CDA_Im>, k extends { [i in indices]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X> = {
   [i in indices]: Destructable<App<Fun<Tk, T[0]>, X> & T[1], AppX<'C', cim[i], k[i], X>, AppX<'D', cim[i], k[i], X>, AppX<'A', cim[i], k[i], X>> }[indices];
 

@@ -61,6 +61,9 @@ class BiMap {
   };
 }
 
+type NxDerefReturn<dom, indices extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<indices, CDA_Im>, k extends { [i in indices]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X> =
+  xDerefReturn<dom, indices, T, Tk, cim, k, X> | null;
+
 export class Store {
   private map = new BiMap;
   private next = BigInt(1);
@@ -116,6 +119,20 @@ export class Store {
     this.map.set(id, [obs, null]);
     return obs;
   }
+  ref: ref = <T>(obs: Destructable<T, any, any, any>): GlobalRef<T> => {
+    const id = this.map.find(obs)!;
+    return { id } as GlobalRef<T>;
+  };
+  checkTypes = <C, Ctr extends Function, X>(v: X & { ctr: Ctr, c: C }, ...args: [[Ctr, C][]] | [Ctr[], 0]) => {
+    const err = () => new Error('Type Mismatch : ' + v.ctr.name + ' not in ' + JSON.stringify(
+      depMap(args[0], (x: [Ctr, C] | Ctr) => x instanceof Function ? x.name : x[0].name)));
+    if (args.length === 1) {
+      if (args[0].length && !args[0].some(([ctr, c]) => v.ctr === ctr && v.c === c)) throw err();
+    } else {
+      if (args[0].length && !args[0].some(ctr => v.ctr === ctr)) throw err();
+    }
+    return v;
+  }
   unserialize<
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -133,26 +150,16 @@ export class Store {
       const modelsNotChanged = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, i>(handler(ctx), modelsNotChanged, session, i), m };
     }
+    const _deref = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<V, any, any, any>;
     const xderef: xderef = <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>(
       r: Ref<T[1]>, ...ctrs: xDerefCtrs<dom, list, T, Tk, cim, k, X>): xDerefReturn<dom, list, T, Tk, cim, k, X> => {
-      const v = ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<TypeFuncs<T[0], X>[Tk] & T[1], any, any, any>;
-      if (ctrs.length && !ctrs.some(([ctr, c]) => v.ctr === ctr && v.c === c)) {
-        throw new Error('Type Mismatch');
-      }
-      return v;
+      return this.checkTypes(_deref(r), ctrs);
     };
     const deref: deref = <T extends object, ADC extends [any[], any, any][]>(
       r: Ref<T>, ...ctrs: refCtrs<T, ADC>) => {
-      const v = ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<T, any, any, any>;
-      if (ctrs.length && !ctrs.some(ctr => v.ctr === ctr)) {
-        throw new Error('Type Mismatch : ' + v.ctr.name + ' not in ' + JSON.stringify(ctrs.map(x => x.name)));
-      }
-      return v;
+      return this.checkTypes(_deref(r), ctrs, 0);
     };
-    const ref: ref = <T>(obs: Destructable<T, any, any, any>): GlobalRef<T> => {
-      const id = this.map.find(obs)!;
-      return { id } as GlobalRef<T>;
-    };
+    const ref = this.ref;
     const ctx = {
       deref, xderef, ref, ...this.extra
     };
