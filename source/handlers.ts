@@ -1,5 +1,5 @@
 import { CtxRequestHandler, Ref, GlobalRef } from "./types";
-import { DeepDestructable, Destructable } from "./destructable";
+import { Destructable, DeepDestructable } from "./destructable";
 import { depMap } from 'dependent-type/dist/cjs/map';
 import { toCond } from "../utils/guards";
 
@@ -33,28 +33,23 @@ export type ArrayTypeKeys = { T: typeof F_ArrArgs, V: typeof F_ID, C: typeof F_C
 const ArrayCtr = <X extends any[]>(x: X) => x
 export { ArrayCtr };
 
-export namespace RequestHandlers {
-  export const Array: CtxRequestHandler<any[], ArrayCim, ArrayTypeKeys> = ({ deref, ref }) => ({
-    decode: (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, c: null }),
-    encode: <C extends any[]>(_: string, { args }: { args: DeepDestructable<C> }) => toCond<any[], C, ToRef<C>>(
-      depMap<number & keyof C, [
-        [C, Destructable<C[number], any, any, any>],
-        [C, GlobalRef<C[number]>]
-      ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
-    ctr: ArrayCtr,
-  });
-}
+export const ArrayHandler: CtxRequestHandler<any[], ArrayCim, ArrayTypeKeys> = ({ deref, ref }) => ({
+  decode: (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, c: null }),
+  encode: <C extends any[]>(_: string, { args }: { args: DeepDestructable<C> }) => toCond<any[], C, ToRef<C>>(
+    depMap<number & keyof C, [
+      [C, Destructable<C[number], any, any, any>],
+      [C, GlobalRef<C[number]>]
+    ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
+  ctr: ArrayCtr,
+});
 export type Json = null | number | string | Json[] | { [k in string]: Json };
 export type JsonObject = Json[] | { [k in string]: Json };
 export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null, null], D: [never, JsonObject], A: [[], []] };
 export type JsonTypeKeys = { T: typeof F_ID, V: typeof F_ID, C: typeof F_C, D: typeof F_ID, A: typeof F_C };
 const JsonCtr = <X extends JsonObject>(_: [], data: X) => data;
 export { JsonCtr };
-export namespace RequestHandlers {
-  export const Json: CtxRequestHandler<JsonObject, JsonCim, JsonTypeKeys> = () => ({
-    decode: (_id, data) => ({ args: [], data, c: null }),
-    encode: (_: string, { data }) => data,
-    ctr: JsonCtr,
-  });
-}
-export type RequestHandlers = typeof RequestHandlers;
+export const JsonHandler: CtxRequestHandler<JsonObject, JsonCim, JsonTypeKeys> = () => ({
+  decode: (_id, data) => ({ args: [], data, c: null }),
+  encode: (_: string, { data }) => data,
+  ctr: JsonCtr,
+});

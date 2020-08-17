@@ -1,4 +1,4 @@
-import { RequestHandlers } from './handlers';
+import { RequestHandlers } from '.';
 import { Destructable, FunctionalObs } from './destructable';
 import { TeardownLogic } from 'rxjs';
 import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';

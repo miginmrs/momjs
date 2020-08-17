@@ -4,12 +4,12 @@ import {
   TVCDA, ModelsDefinition, xDerefCtrs, ContextualRequestHanlers, ModelDefinition, CDA, CDA_Im, xDerefReturn,
   xderef, refCtrs, DestructableCtr, RequestHandlerDestroy, RequestHandlerCompare, ref,
 } from './types'
-import { RequestHandlers } from './handlers';
 import { Destructable, FunctionalObs } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
 import { depMap } from 'dependent-type/dist/cjs/map';
+import { RequestHandlers } from '.';
 
 
 

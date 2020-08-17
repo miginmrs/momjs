@@ -3,7 +3,7 @@
   "version": "0.0.1-SNAPSHOT-7",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
-  "sideEffects": false,
+  "sideEffects": true,
   "scripts": {
     "test": "mocha -r ts-node/register test/**/*.ts",
     "test:js": "mocha dist/cjs/test/**/*.js",
