@@ -1,7 +1,7 @@
-import { CtxRequestHandler, Ref, GlobalRef } from "./types";
-import { Destructable, DeepDestructable } from "./destructable";
+import { CtxRequestHandler, Ref, GlobalRef } from './types';
+import { Destructable, DeepDestructable } from './destructable';
 import { depMap } from 'dependent-type/dist/cjs/map';
-import { toCond } from "../utils/guards";
+import { toCond } from '../utils/guards';
 
 /** @summary Filters X by C */
 export declare const F_F: unique symbol;
@@ -34,7 +34,7 @@ const ArrayCtr = <X extends any[]>(x: X) => x
 export { ArrayCtr };
 
 export const ArrayHandler: CtxRequestHandler<any[], ArrayCim, ArrayTypeKeys> = ({ deref, ref }) => ({
-  decode: (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, c: null }),
+  decode: (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null }),
   encode: <C extends any[]>(_: string, { args }: { args: DeepDestructable<C> }) => toCond<any[], C, ToRef<C>>(
     depMap<number & keyof C, [
       [C, Destructable<C[number], any, any, any>],
@@ -49,7 +49,7 @@ export type JsonTypeKeys = { T: typeof F_ID, V: typeof F_ID, C: typeof F_C, D: t
 const JsonCtr = <X extends JsonObject>(_: [], data: X) => data;
 export { JsonCtr };
 export const JsonHandler: CtxRequestHandler<JsonObject, JsonCim, JsonTypeKeys> = () => ({
-  decode: (_id, data) => ({ args: [], data, c: null }),
+  decode: (_id, data) => ({ args: [] as [], data }),
   encode: (_: string, { data }) => data,
   ctr: JsonCtr,
 });

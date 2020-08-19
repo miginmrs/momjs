@@ -1,4 +1,6 @@
 *
+!source/**/*
+!utils/**/*
 !dist/**/*
 dist/cjs/test
 !package.json

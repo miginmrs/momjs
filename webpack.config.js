@@ -36,7 +36,7 @@ module.exports = env => {
     },
     output: {
       filename,
-      library: "rxjsEtc",
+      library: "rxAsync",
       libraryTarget: "umd",
       path: path.resolve(__dirname, "./bundles")
     },

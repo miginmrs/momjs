@@ -1,15 +1,18 @@
-import { Observable, Subscription } from 'rxjs';
+import { Observable, Subscription, combineLatest } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, Context, CtxRequestHandler, RequestHandler, TVCDA_CIM, TVCDADepConstaint,
   TVCDA, ModelsDefinition, xDerefCtrs, ContextualRequestHanlers, ModelDefinition, CDA, CDA_Im, xDerefReturn,
   xderef, refCtrs, DestructableCtr, RequestHandlerDestroy, RequestHandlerCompare, ref,
 } from './types'
-import { Destructable, FunctionalObs } from './destructable';
+import { Destructable, EntryObs, DeepDestructable } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, DepConstaint, keytype, App, Fun, BadApp } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
 import { depMap } from 'dependent-type/dist/cjs/map';
-import { RequestHandlers } from '.';
+import { RequestHandlers, ObsWithOrigin } from '.';
+import { combine, on } from '../utils/rx-utils';
+import { map, distinctUntilChanged, shareReplay, finalize, tap } from 'rxjs/operators';
+import { alternMap } from 'altern-map';
 
 
 
@@ -47,22 +50,28 @@ declare module 'dependent-type' {
   }
 }
 
-class BiMap {
-  private byId = new Map<string, [Destructable<any, any, any, any>, Subscription | null]>();
+export class BiMap {
+  private byId = new Map<string, [ObsWithOrigin<any>, Subscription | null]>();
   private byObs = new Map<Destructable<any, any, any, any>, string>();
+  private oldId = new WeakMap<Destructable<any, any, any, any>, string>();
   get(id: string) { return this.byId.get(id); }
-  delete(id: string) { return this.byId.delete(id); }
-  set(id: string, value: [Destructable<any, any, any, any>, Subscription | null]) {
-    this.byObs.set(value[0], id);
+  delete(id: string) {
+    const stored = this.byId.get(id);
+    if (stored) this.byObs.delete(stored[0].origin);
+    return this.byId.delete(id);
+  }
+  set(id: string, value: [ObsWithOrigin<any>, Subscription | null]) {
+    this.byObs.set(value[0].origin, id);
+    this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
   find(obs: Destructable<any, any, any, any>) {
     return this.byObs.get(obs);
   };
+  reuseId(obs: Destructable<any, any, any, any>) {
+    return this.oldId.get(obs);
+  };
 }
-
-type NxDerefReturn<dom, indices extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<indices, CDA_Im>, k extends { [i in indices]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X> =
-  xDerefReturn<dom, indices, T, Tk, cim, k, X> | null;
 
 export class Store {
   private map = new BiMap;
@@ -86,20 +95,20 @@ export class Store {
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i]> = models[i], { reuseId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
     const id = reuseId ?? `${this.next++}`;
-    const functional = handler.decode(id, model.data);
+    const entry = handler.decode(id, model.data);
     if (reuseId !== undefined) {
       const stored = this.map.get(reuseId);
       if (stored !== undefined) {
-        stored[0].subject.next(functional);
-        const res: ObsCache<indices, dcim, keys, X>[i] = { id: reuseId, obs: stored[0], subs: stored[1] };
+        stored[0].origin.subject.next(entry);
+        const res: ObsCache<indices, dcim, keys, X>[i] = { id: reuseId, obs: stored[0].origin, subs: stored[1] };
         return res as NonUndefined<typeof res>;
       }
     }
-    const obs = this._push(handler, functional, id, model.c);
+    const obs = this._insert(handler, entry, id, model.c);
     cache[i] = { obs, id, subs: null };
     return cache[i] as NonUndefined<typeof cache[i]>
   }
-  private _push<
+  private _insert<
     dom,
     cim extends Omit<TVCDA_CIM, 'T'>,
     k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>,
@@ -109,12 +118,12 @@ export class Store {
         compare?: RequestHandlerCompare<dom, cim, k>,
         destroy?: RequestHandlerDestroy<dom, cim, k>
       },
-      functional: FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> },
+      entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
       id: string,
       c: AppX<'C', cim, k, X>,
   ) {
-    const obs = new Destructable<AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>(handler.ctr, c, functional, handler.compare);
-    obs.addTearDown(handler.destroy?.(functional.data))
+    const obs = new Destructable<AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>(handler.ctr, c, entry, handler.compare);
+    obs.addTearDown(handler.destroy?.(entry.data))
     obs.addTearDown(() => this.map.delete(id));
     this.map.set(id, [obs, null]);
     return obs;
@@ -132,13 +141,10 @@ export class Store {
       if (args[0].length && !args[0].some(ctr => v.ctr === ctr)) throw err();
     }
     return v;
-  }
-  emptyContext(): Context {
-    const getter = <T extends object, V extends T = T>(r: Ref<T>) => {
-      if (!('id' in r)) throw new Error('There is no local context');
-      return this.map.get(r.id)![0] as Destructable<V, any, any, any>;
-    }
-    return { deref: this.deref(getter), xderef: this.xderef(getter), ref: this.ref, ...this.extra };
+  };
+  getter = <T extends object, V extends T = T>(r: Ref<T>) => {
+    if (!('id' in r)) throw new Error('There is no local context');
+    return this.map.get(r.id)![0] as Destructable<V, any, any, any>;
   }
   xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => Destructable<V, any, any, any>): xderef => <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>(
     r: Ref<T[1]>, ...ctrs: xDerefCtrs<dom, list, T, Tk, cim, k, X>): xDerefReturn<dom, list, T, Tk, cim, k, X> => {
@@ -148,6 +154,7 @@ export class Store {
     r: Ref<T>, ...ctrs: refCtrs<T, ADC>) => {
     return this.checkTypes(getter(r), ctrs, 0);
   };
+  emptyContext: Context = { deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra };
   unserialize<
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -180,7 +187,8 @@ export class Store {
       const references: GlobalRefHelper<indices, RefTypeData> = depMap<indices, [
         [never, { i: indices }], [RefTypeData, Res]
       ], [typeof F_I_X, typeof F_Custom_Ref]>(
-        models, <i extends indices>({ i }: { i: i }) => {
+        models, <i extends indices>({ i }: { i: i }, index: number) => {
+          i = index as i;
           const { obs, id, subs, m } = _push(i);
           const isNew = m.isNew !== false;
           if (isNew && subs !== null) throw new Error('Trying to subscribe to an already subscribed entity');
@@ -198,29 +206,63 @@ export class Store {
     }
   }
 
-  push<
+  append<
     dom,
     cim extends Omit<TVCDA_CIM, 'T'>,
     k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>,
     X extends dom>(
-      handler: (ctx: Context)=>{
+      handler: (ctx: Context) => {
         ctr: DestructableCtr<dom, cim, k>,
         compare?: RequestHandlerCompare<dom, cim, k>,
         destroy?: RequestHandlerDestroy<dom, cim, k>
       },
-      functional: FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> },
+      entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
       c: AppX<'C', cim, k, X>,
   ) {
     const id = `${this.next++}`;
-    const obs = this._push(handler(this.emptyContext()), functional, id, c)
+    const obs = this._insert(handler(this.emptyContext), entry, id, c)
     const subs = this.map.get(id)![1] = obs.subscribe();
     return { id, obs, subs };
   }
-
+  push<V>(obs: Destructable<V, any, any, any>) {
+    debugger;
+    const oldId = this.map.find(obs)
+    const id = oldId ?? this.map.reuseId(obs) ?? `${this.next++}`;
+    let link = obs as ObsWithOrigin<V>;
+    if (oldId === undefined) {
+      link = Object.assign(combine(obs, obs.origin.subject.pipe(
+        alternMap(({ args }) => combine(args.map(arg => this.push(arg).link))),
+        distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => v === y[i])),
+      )).pipe(
+        finalize(() => this.map.delete(id)),
+        map(([v]) => v),
+        shareReplay({ bufferSize: 1, refCount: true }),
+      ), { origin: obs });
+      this.map.set(id, [link, null]);
+    } else {
+      link = this.map.get(id)![0];
+    }
+    return { ref: { id } as GlobalRef<V>, link };
+  }
   serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom>(
-    obs: Destructable<AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>
+    obs: Destructable<AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
+    handler: (ctx: Context) => {
+      encode: <X extends dom>(id: string, args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> }) => AppX<'T', cim, k, X>,
+    },
   ): Observable<ModelDefinition<dom, cim, k, X>> {
-    obs.subject.pipe();
+    const encoder = handler(this.emptyContext);
+    const oldId = this.map.find(obs)
+    const id = oldId ?? `${this.next++}`;
+    let link = obs as Observable<unknown>;
+    if (oldId === undefined) {
+      this.map.set(id, [obs, null]);
+      obs.addTearDown(() => this.map.delete(id));
+      link = combine(obs, obs.subject).pipe(
+        alternMap(([, { args, data }]) => combine(args.map(arg => this.push(arg).link))),
+        distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => v === y[i]))
+      );
+    }
+    //return { ref: { id } as GlobalRef<V>, link };
     return 0 as any;
   }
   get(id: string) {

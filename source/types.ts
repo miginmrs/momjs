@@ -1,6 +1,6 @@
 import { RequestHandlers } from '.';
-import { Destructable, FunctionalObs } from './destructable';
-import { TeardownLogic } from 'rxjs';
+import { Destructable, EntryObs } from './destructable';
+import { TeardownLogic, Observable } from 'rxjs';
 import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
 
 export type LocalRef<T> = { $: number, _: T };
@@ -8,7 +8,7 @@ export type GlobalRef<T> = { id: string, _: T };
 export type Ref<T> = LocalRef<T> | GlobalRef<T>;
 
 export type TVCDA_CIM = {
-  T: [any, any], V: [any, object], C: [any, string | null], D: [any, any],
+  T: [any, any], V: [any, object], C: [any, unknown], D: [any, any],
   A: [any, any[]]
 };
 export type TVCDA = keyof TVCDA_CIM;
@@ -58,14 +58,14 @@ export type DestructableCtr<dom, cim extends Omit<TVCDA_CIM, 'T'>, k extends Dep
 
 export type RequestHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>> =
   Partial<RequestHandlerDestroy<dom, cim, k>> & {
-    decode: <X extends dom>(id: string, args: AppX<'T', cim, k, X>) => FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> },
-    encode: <X extends dom>(id: string, args: FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> }) => AppX<'T', cim, k, X>,
+    decode: <X extends dom>(id: string, args: AppX<'T', cim, k, X>) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
+    encode: <X extends dom>(id: string, args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>> & { c: AppX<'C', cim, k, X> }) => AppX<'T', cim, k, X>,
     ctr: DestructableCtr<dom, cim, k>,
     compare?: RequestHandlerCompare<dom, cim, k>,
     destroy?: RequestHandlerDestroy<dom, cim, k>
   };
 export type RequestHandlerCompare<dom, cim extends Pick<TVCDA_CIM, 'D' | 'A'>, k extends DepConstaint<'D' | 'A', dom, cim>> = {
-  <X extends dom>(x: FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>, y: FunctionalObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>): boolean,
+  <X extends dom>(x: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>, y: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>): boolean,
 }
 export type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>, k extends DepConstaint<'D', dom, cim>> = {
   <X extends dom>(x: AppX<'D', cim, k, X>): TeardownLogic,
@@ -105,3 +105,4 @@ export type ModelsDefinition<
   keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
   X extends { [P in indices]: any }
   > = { [P in indices]: ModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P]> & { i: P } } & any[];
+export type ObsWithOrigin<T> = Observable<T> & { origin: Destructable<T, any, any, any> }

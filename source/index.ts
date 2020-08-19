@@ -1,7 +1,7 @@
 import { CtxRequestHandler } from './types';
 import { ArrayCim, ArrayTypeKeys, ArrayHandler, JsonObject, JsonCim, JsonTypeKeys, JsonHandler } from './handlers';
 
-export * from './core';
+export * from './store';
 export * from './handlers';
 export * from './destructable';
 export * from './types';

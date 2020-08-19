@@ -1,18 +1,19 @@
 import { expect } from 'chai';
-import { Store } from '../source/core';
-import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim } from '../source/handlers';
-import { config } from 'rxjs';
+import { Store } from '../source/store';
+import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim, JsonCtr, ArrayCtr } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
-import { Ref } from '../source/types';
+import { Destructable } from '../source';
+import { Subscription } from 'rxjs';
+
 
 const testScheduler = new TestScheduler((actual, expected) => {
   expect(actual).deep.equal(expected);
 });
 
 
-describe("Store", function () {
+describe('Store', () => {
   const store = new Store({})
-  describe("first entry", function () {
+  describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
         type: 'Json', data: { x: 1 }, c: null, i: 0 as const
@@ -22,18 +23,18 @@ describe("Store", function () {
     };
     let x1: ReturnType<typeof init>[0];
     let obs: ReturnType<typeof init>[1];
-    before(function () {
+    before(() => {
       [x1, obs] = init();
     });
-    it("should start by id = 1", function () {
+    it('should start by id = 1', () => {
       expect(x1.id).equal('1');
     });
-    it("should store value", function () {
+    it('should store value', () => {
       var n: number = 0;
       obs.subscribe(({ x }) => n = x).unsubscribe()
       expect(n).equal(1);
     });
-    it("should push new values", function () {
+    it('should push new values', () => {
       var n: number[] = [];
       const subs = obs.subscribe(({ x }) => n.push(x));
       store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
@@ -42,24 +43,24 @@ describe("Store", function () {
       subs.unsubscribe();
       expect(n).deep.equal([1, 2]);
     });
-    it("should not be directly destroyed", function () {
+    it('should not be directly destroyed', () => {
       expect(obs.destroyed).equals(false);
     });
-    it("should be removed after unsubscription", function () {
+    it('should be removed after unsubscription', () => {
       store.getValue(x1)[1]!.unsubscribe();
       expect(store.get(x1.id)).equals(undefined);
     });
-    it("should be destroyed after unsubscription", function () {
+    it('should be destroyed after unsubscription', () => {
       expect(obs.destroyed).equals(true);
     });
-    it("should throw error when subscribed after destruction", function () {
+    it('should throw error when subscribed after destruction', () => {
       testScheduler.run(helpers => {
         const { expectObservable } = helpers;
-        expectObservable(obs).toBe('#', null, { message: "object unsubscribed", name: "ObjectUnsubscribedError" });
+        expectObservable(obs).toBe('#', null, { message: 'object unsubscribed', name: 'ObjectUnsubscribedError' });
       });
     });
   });
-  describe("second entry", function () {
+  describe('second entry', () => {
     const init = () => {
       const [x2, arr] = store.unserialize<0 | 1, [[JsonObject, JsonCim], [any[], ArrayCim]], [JsonTypeKeys, ArrayTypeKeys], [{ x: number }, [{ x: number }]]>(ref => [{
         type: 'Json', data: { x: 2 }, c: null, i: 0, isNew: true, reuseId: '1'
@@ -70,18 +71,37 @@ describe("Store", function () {
     };
     let x2: ReturnType<typeof init>[0];
     let arr: ReturnType<typeof init>[1];
-    before(function () {
+    before(() => {
       [x2, arr] = init();
     });
-    it("should keep first entry from destruction", function () {
+    it('should prevent first entry from destruction', () => {
       store.getValue(x2)[1]!.unsubscribe();
       const obs = store.getValue(arr)[0];
       expect(obs.destroyed).equals(false);
     });
-    it("should chain destruction", function () {
+    it('should chain destruction', () => {
       store.getValue(arr)[1]!.unsubscribe();
       expect(store.get(x2.id)).equals(undefined);
       expect(store.get(arr.id)).equals(undefined);
+    });
+  });
+  describe('push', () => {
+    let subs: Subscription;
+    it('should chain insertion', () => {
+      const json = new Destructable(JsonCtr, null, { args: [] as [], data: { msg: 'hi' } });
+      const obs = store.push(json).link;
+      const subs0 = obs.subscribe();
+      expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
+      const arr1 = new Destructable(ArrayCtr, null, { data: null, args: [json, json, json] });
+      const arr2 = new Destructable(ArrayCtr, null, { data: null, args: [arr1, json] as [typeof arr1, typeof json] })
+      const res = store.push(arr2);
+      subs = res.link.subscribe();
+      subs0.unsubscribe();
+      expect([...(store['map']['byId']).keys()]).deep.eq(['3', '4', '5']);
+    });
+    it('should chain destruction', () => {
+      subs.unsubscribe();
+      expect([...(store['map']['byId']).keys()]).deep.eq([]);
     });
   });
 });
