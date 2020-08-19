@@ -1,5 +1,4 @@
-import { RequestHandlers } from '.';
-import { Destructable, EntryObs } from './destructable';
+import { XDestructable, EntryObs } from './destructable';
 import { TeardownLogic, Observable } from 'rxjs';
 import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
 
@@ -37,7 +36,7 @@ export type deref = {
   <T, ADC extends [any, any, any][]>(ref: Ref<T>, ...ctrs: refCtrs<T, ADC>): refReturn<T, ADC>,
 };
 export type ref = {
-  <T>(obs: Destructable<T, any, any, any>): GlobalRef<T>,
+  <T>(obs: Destructable<T, any, any, any>): Ref<T>,
 };
 
 
@@ -64,6 +63,7 @@ export type RequestHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstai
     compare?: RequestHandlerCompare<dom, cim, k>,
     destroy?: RequestHandlerDestroy<dom, cim, k>
   };
+
 export type RequestHandlerCompare<dom, cim extends Pick<TVCDA_CIM, 'D' | 'A'>, k extends DepConstaint<'D' | 'A', dom, cim>> = {
   <X extends dom>(x: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>, y: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>): boolean,
 }
@@ -71,38 +71,45 @@ export type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>, k exten
   <X extends dom>(x: AppX<'D', cim, k, X>): TeardownLogic,
 }
 
-export type CtxRequestHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>> = (ctx: Context) => RequestHandler<dom, cim, k>;
-export type RequestRemoveCtx<O extends CtxRequestHandler<any, any, any>> = O extends (ctx: Context) => infer T ? T : never;
-export type CtxHandlerTVCDA<O extends CtxRequestHandler<any, any, any>> = O extends CtxRequestHandler<infer dom, infer cim, infer k> ? [dom, cim, k] : never;
+export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, ECtx> = (ctx: Context & ECtx) => RequestHandler<dom, cim, k>;
+export type RequestRemoveCtx<O extends CtxH<any, any, any, any>> = O extends (ctx: any) => infer T ? T : never;
+export type CtxHandlerTVCDA<O extends CtxH<any, any, any, any>> = O extends CtxH<infer dom, infer cim, infer k, infer Ctx> ? [dom, cim, k, Ctx] : never;
 
-export type TypedRequestParamsDefinition = {
-  [type in keyof RequestHandlers]: { type: type, args: CtxHandlerTVCDA<RequestHandlers[type]> }
+export type RHConstraint<RH> = {
+  [k in keyof RH]: RH[k] extends CtxH<infer dom, infer cim, infer k, infer Ctx> ? CtxH<dom, cim, k, Ctx> : never
 };
 
+export type TypedRequestParamsDefinition<RH extends RHConstraint<RH>> = {
+  [type in keyof RH]: { type: type, args: CtxHandlerTVCDA<RH[type]> }
+};
 
-export type ContextualRequestHanlers = {
-  [type in keyof RequestHandlers]: RequestRemoveCtx<RequestHandlers[type]>
+export type ContextualRH<RH extends RHConstraint<RH>> = {
+  [type in keyof RH]: RequestRemoveCtx<RH[type]>
 }
 
-
-export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom> = {
-  type: KeysOfType<RequestHandlers, CtxRequestHandler<dom, cim, k>>, c: AppX<'C', cim, k, X>
+export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, RH extends RHConstraint<RH>, ECtx> = {
+  type: KeysOfType<RH, CtxH<dom, cim, k, ECtx>>, c: AppX<'C', cim, k, X>
 } & ({
   data: AppX<'T', cim, k, X>, isNew?: boolean, reuseId?: string
 } | {
   data?: undefined, isNew?: undefined, reuseId: string
 });
+
 export type Name<
   indices extends number,
   dcim extends Record<indices, [any, TVCDA_CIM]>,
   keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-  P extends indices
-  > = KeysOfType<typeof RequestHandlers, CtxRequestHandler<dcim[P][0], dcim[P][1], keys[P]>>;
+  P extends indices,
+  RH extends RHConstraint<RH>,
+  ECtx
+  > = KeysOfType<RH, CtxH<dcim[P][0], dcim[P][1], keys[P], ECtx>>;
 
 export type ModelsDefinition<
   indices extends number,
   dcim extends Record<indices, [any, TVCDA_CIM]>,
   keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-  X extends { [P in indices]: any }
-  > = { [P in indices]: ModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P]> & { i: P } } & any[];
+  X extends { [P in indices]: any },
+  RH extends RHConstraint<RH>,
+  ECtx
+  > = { [P in indices]: ModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], RH, ECtx> & { i: P } } & any[];
 export type ObsWithOrigin<T> = Observable<T> & { origin: Destructable<T, any, any, any> }
