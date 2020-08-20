@@ -15,9 +15,9 @@ import { alternMap } from 'altern-map';
 
 
 depMap
-export const withContext = <RH extends RHConstraint<RH>>(ctx: Context, rh: RH) => Object.fromEntries(
+export const withContext = <RH extends RHConstraint<RH, ECtx>, ECtx>(ctx: Context & ECtx, rh: RH) => Object.fromEntries(
   (Object.entries(rh) as [keyof RH, RH[keyof RH]][]).map(([k, f]) => [k, f(ctx)] as const)
-) as ContextualRH<RH>;
+) as ContextualRH<RH, ECtx>;
 
 
 
@@ -28,7 +28,7 @@ type ObsCache<
   X extends { [P in indices]: any },
   > = {
     [i in indices]?: {
-      obs: Destructable<AppX<'V', dcim[i][1], keys[i], X[i]>, AppX<'C', dcim[i][1], keys[i], X[i]>, AppX<'D', dcim[i][1], keys[i], X[i]>, AppX<'A', dcim[i][1], keys[i], X[i]>>,
+      obs: Destructable<AppX<'T', dcim[i][1], keys[i], X[i]>, AppX<'V', dcim[i][1], keys[i], X[i]>, AppX<'C', dcim[i][1], keys[i], X[i]>, AppX<'D', dcim[i][1], keys[i], X[i]>, AppX<'A', dcim[i][1], keys[i], X[i]>>,
       id: string, subs: Subscription | null
     }
   };
@@ -50,8 +50,8 @@ declare module 'dependent-type' {
 
 export class BiMap<k = string> {
   private byId = new Map<k, [ObsWithOrigin<any>, Subscription | null]>();
-  private byObs = new Map<Destructable<any, any, any, any>, k>();
-  private oldId = new WeakMap<Destructable<any, any, any, any>, k>();
+  private byObs = new Map<Destructable<any, any, any, any, any>, k>();
+  private oldId = new WeakMap<Destructable<any, any, any, any, any>, k>();
   get(id: k) { return this.byId.get(id); }
   delete(id: k) {
     const stored = this.byId.get(id);
@@ -63,10 +63,10 @@ export class BiMap<k = string> {
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
-  find(obs: Destructable<any, any, any, any>) {
+  find(obs: Destructable<any, any, any, any, any>) {
     return this.byObs.get(obs);
   };
-  reuseId(obs: Destructable<any, any, any, any>) {
+  reuseId(obs: Destructable<any, any, any, any, any>) {
     return this.oldId.get(obs);
   };
 }
@@ -83,7 +83,7 @@ export class Store<ECtx> {
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: any },
     i extends indices,
-    RH extends RHConstraint<RH>
+    RH extends RHConstraint<RH, ECtx>
   >(
     handler: RequestHandler<dcim[i][0], dcim[i][1], keys[i]>,
     models: ModelsDefinition<indices, dcim, keys, X, RH, ECtx> & { [_ in i]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx> },
@@ -109,27 +109,23 @@ export class Store<ECtx> {
   }
   private _insert<
     dom,
-    cim extends Omit<TVCDA_CIM, 'T'>,
-    k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>,
+    cim extends TVCDA_CIM,
+    k extends TVCDADepConstaint<dom, cim>,
     X extends dom>(
-      handler: {
-        ctr: DestructableCtr<dom, cim, k>,
-        compare?: RequestHandlerCompare<dom, cim, k>,
-        destroy?: RequestHandlerDestroy<dom, cim, k>
-      },
+      handler: RequestHandler<dom, cim, k>,
       entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
       id: string,
       c: AppX<'C', cim, k, X>,
   ) {
-    const obs = new Destructable<AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>(handler.ctr, c, entry, handler.compare);
+    const obs = new Destructable<AppX<'T', cim, k, X>, AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>(handler.ctr, c, entry, handler.encode, handler.compare);
     obs.addTearDown(handler.destroy?.(entry.data))
     obs.addTearDown(() => this.map.delete(id));
     this.map.set(id, [obs, null]);
     return obs;
   }
-  ref: ref = <T>(obs: Destructable<T, any, any, any>): GlobalRef<T> => {
+  ref: ref = <V>(obs: Destructable<any, V, any, any, any>): GlobalRef<V> => {
     const id = this.map.find(obs)!;
-    return { id } as GlobalRef<T>;
+    return { id } as GlobalRef<V>;
   };
   checkTypes = <C, Ctr extends Function, X>(v: X & { ctr: Ctr, c: C }, ...args: [[Ctr, C][]] | [Ctr[], 0]) => {
     const err = () => new Error('Type Mismatch : ' + v.ctr.name + ' not in ' + JSON.stringify(
@@ -143,17 +139,17 @@ export class Store<ECtx> {
   };
   getter = <T extends object, V extends T = T>(r: Ref<T>) => {
     if (!('id' in r)) throw new Error('There is no local context');
-    return this.map.get(r.id)![0] as Destructable<V, any, any, any>;
+    return this.map.get(r.id)![0] as Destructable<any, V, any, any, any>;
   }
-  xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => Destructable<V, any, any, any>): xderef => <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X>(
+  xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => Destructable<any, V, any, any, any>): xderef => <dom, list extends number, T extends [any, object], Tk extends KeysOfType<TypeFuncs<T[0], dom>, T[1]>, cim extends Record<list, CDA_Im>, k extends { [i in list]: { [P in CDA]: KeysOfType<TypeFuncs<cim[i][P][0], dom>, cim[i][P][1]> } }, X extends dom>(
     r: Ref<T[1]>, ...ctrs: xDerefCtrs<dom, list, T, Tk, cim, k, X>): xDerefReturn<dom, list, T, Tk, cim, k, X> => {
     return this.checkTypes(getter(r), ctrs);
   };
-  deref = (getter: <T extends object>(r: Ref<T>) => Destructable<T, any, any, any>): deref => <T extends object, ADC extends [any[], any, any][]>(
+  deref = (getter: <T extends object>(r: Ref<T>) => Destructable<any, T, any, any, any>): deref => <T extends object, ADC extends [any[], any, any][]>(
     r: Ref<T>, ...ctrs: refCtrs<T, ADC>) => {
     return this.checkTypes(getter(r), ctrs, 0);
   };
-  emptyContext = {
+  emptyContext: ECtx & Context = {
     deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
   };
   unserialize<
@@ -161,7 +157,7 @@ export class Store<ECtx> {
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: any },
-    RH extends RHConstraint<RH>
+    RH extends RHConstraint<RH, ECtx>
   >(
     handlers: RH,
     getModels: ModelsDefinition<indices, dcim, keys, X, RH, ECtx> | ((ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>) => ModelsDefinition<indices, dcim, keys, X, RH, ECtx>)
@@ -175,7 +171,7 @@ export class Store<ECtx> {
       const modelsNotChanged = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, i, RH>(handler(ctx), modelsNotChanged, session, i), m };
     }
-    const getter = <T extends object, V extends T = T>(r: Ref<T>): Destructable<V, any, any, any> => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<V, any, any, any>;
+    const getter = <T extends object, V extends T = T>(r: Ref<T>): Destructable<any, V, any, any, any> => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as Destructable<any, V, any, any, any>;
     const ref = this.ref;
     const ctx: ECtx & Context = {
       deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
@@ -211,14 +207,10 @@ export class Store<ECtx> {
 
   append<
     dom,
-    cim extends Omit<TVCDA_CIM, 'T'>,
-    k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>,
+    cim extends TVCDA_CIM,
+    k extends TVCDADepConstaint<dom, cim>,
     X extends dom>(
-      handler: (ctx: Context) => {
-        ctr: DestructableCtr<dom, cim, k>,
-        compare?: RequestHandlerCompare<dom, cim, k>,
-        destroy?: RequestHandlerDestroy<dom, cim, k>
-      },
+      handler: CtxH<dom, cim, k, ECtx>,
       entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
       c: AppX<'C', cim, k, X>,
   ) {
@@ -227,7 +219,7 @@ export class Store<ECtx> {
     const subs = this.map.get(id)![1] = obs.subscribe();
     return { id, obs, subs };
   }
-  push<V>(obs: Destructable<V, any, any, any>) {
+  push<V>(obs: Destructable<any, V, any, any, any>) {
     debugger;
     const oldId = this.map.find(obs)
     const id = oldId ?? this.map.reuseId(obs) ?? `${this.next++}`;
@@ -247,7 +239,7 @@ export class Store<ECtx> {
     }
     return { ref: { id } as GlobalRef<V>, link };
   }
-  private _serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, RH extends RHConstraint<RH>>(
+  private _serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, RH extends RHConstraint<RH, ECtx>>(
     obs: Destructable<dom, cim, k, X>,
     session: BiMap<number>,
     i: number,
@@ -256,8 +248,7 @@ export class Store<ECtx> {
     return 0 as any;
   };
   serialize = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, RH extends RHConstraint<RH>>(
-    obs: Destructable<dom, cim, k, X>,
-    handlers: RH,
+    obs: Destructable<AppX<'T', cim, k, X>, AppX<'V', cim, k, X>, AppX<'C', cim, k, X>, AppX<'D', cim, k, X>, AppX<'A', cim, k, X>>,
   ) => new Observable<ModelDefinition<dom, cim, k, X, RH, ECtx>>(subscriber => {
     const session = new BiMap<number>();
     let next = 1;
@@ -294,9 +285,9 @@ export class Store<ECtx> {
   get(id: string) {
     return this.map.get(id);
   }
-  getValue<T>({ id }: GlobalRef<T>) {
+  getValue<V>({ id }: GlobalRef<V>) {
     const obs = this.get(id);
     if (obs === undefined) throw new Error('Access to destroyed object');
-    return obs as [Destructable<T, any, any, any>, Subscription | null];
+    return obs as [Destructable<any, V, any, any, any>, Subscription | null];
   }
 }
