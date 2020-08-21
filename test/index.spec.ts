@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { Store } from '../source/store';
 import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim, JsonCtr, ArrayCtr } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
-import { Destructable } from '../source';
+import { Destructable, RequestHandlers, RH, ModelsDefinition, AppX, ObsWithOrigin } from '../source';
 import { Subscription } from 'rxjs';
 
 
@@ -12,7 +12,7 @@ const testScheduler = new TestScheduler((actual, expected) => {
 
 
 describe('Store', () => {
-  const store = new Store({})
+  const store = new Store(RequestHandlers, {})
   describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
@@ -86,22 +86,37 @@ describe('Store', () => {
     });
   });
   describe('push', () => {
+    const handlers = RequestHandlers;
     let subs: Subscription;
+    type json = { msg: string };
+    let json: Destructable<JsonObject, JsonCim, JsonTypeKeys, json, RH, {}>;
+    let jsonLink:ObsWithOrigin<AppX<'V', JsonCim, JsonTypeKeys, json>, RH, {}>;
+    let arr1: Destructable<any[], ArrayCim, ArrayTypeKeys, [json, json, json], RH, {}>;
+    let arr2: Destructable<any[], ArrayCim, ArrayTypeKeys, [[json, json, json], json], RH, {}>;
+    let arrLink: ObsWithOrigin<AppX<'V', ArrayCim, ArrayTypeKeys, [[json, json, json], json]>, RH, {}>;
     it('should chain insertion', () => {
-      const json = new Destructable(JsonCtr, null, { args: [] as [], data: { msg: 'hi' } });
-      const obs = store.push(json).link;
-      const subs0 = obs.subscribe();
+      json = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' } });
+      jsonLink = store.push(json).link;
+      expect(jsonLink).not.eq(json);
+      expect(jsonLink.origin).eq(json);
+      const subs0 = jsonLink.subscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
-      const arr1 = new Destructable(ArrayCtr, null, { data: null, args: [json, json, json] });
-      const arr2 = new Destructable(ArrayCtr, null, { data: null, args: [arr1, json] as [typeof arr1, typeof json] })
-      const res = store.push(arr2);
-      subs = res.link.subscribe();
+      arr1 = new Destructable( handlers, 'Array', null, { data: null, args: [json, json, json] });
+      arr2 = new Destructable(handlers, 'Array', null, { data: null, args: [arr1, json] as [typeof arr1, typeof json] })
+      const arrRes = store.push(arr2);
+      arrLink = arrRes.link;
+      expect(arrLink).not.eq(arr2);
+      expect(arrLink.origin).eq(arr2);
+      subs = arrRes.link.subscribe();
       subs0.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3', '4', '5']);
     });
     it('should chain destruction', () => {
+      const originSubs = arr2.subscribe();
       subs.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq([]);
+      expect([json.destroyed, arr1.destroyed, arr2.destroyed]).deep.eq([false, false, false]);
+      expect([jsonLink.destroyed, arrLink.destroyed]).deep.eq([true, true]);
     });
   });
 });

@@ -7,7 +7,7 @@ export * from './destructable';
 export * from './types';
 export * from 'dependent-type';
 export namespace RequestHandlers {
-    export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, {}> = ArrayHandler;
-    export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, {}> = JsonHandler;
+    export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, RH, {}> = ArrayHandler<RH, {}>();
+    export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, RH, {}> = JsonHandler<RH, {}>();
 }
 export type RH = typeof RequestHandlers;
