@@ -6,8 +6,8 @@ export const combine: typeof combineLatest = function (this: any, ...args: any[]
 } as any;
 
 export const on = <T>({ complete, error, next, subscribe, teardown }: {
-  complete?: () => void, error?: (e: any) => void, next?: (v: T) => void, subscribe?: ()=>void, teardown?: TeardownLogic
-}) => (source: Observable<T>) => source.lift<T>(function(this: Subscriber<T>, source: Observable<T>){
+  complete?: () => void, error?: (e: any) => void, next?: (v: T) => void, subscribe?: () => void, teardown?: TeardownLogic
+}) => (source: Observable<T>) => source.lift<T>(function (this: Subscriber<T>, source: Observable<T>) {
   const subscriber = this;
   subscribe?.();
   const subscription = new Subscription();
@@ -24,3 +24,10 @@ export const on = <T>({ complete, error, next, subscribe, teardown }: {
   subscription.add(teardown);
   return subscription;
 });
+
+export function current<T>(obs: Observable<T>, value: T): T;
+export function current<T>(obs: Observable<T | undefined>, value?: T | undefined): T | undefined;
+export function current<T>(obs: Observable<T>, value: T) {
+  obs.subscribe(v => value = v).unsubscribe();
+  return value;
+}

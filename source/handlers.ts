@@ -1,6 +1,6 @@
 import { CtxH, Ref, EHConstraint } from './types';
 import { DeepDestructable, TypedDestructable } from './destructable';
-import { depMap } from 'dependent-type/dist/cjs/map';
+import { asyncDepMap } from 'dependent-type/dist/cjs/map';
 import { toCond } from '../utils/guards';
 
 /** @summary Filters X by C */
@@ -27,6 +27,15 @@ declare module 'dependent-type' {
 }
 
 
+export declare const F_Any: unique symbol;
+
+declare module 'dependent-type' {
+  export interface TypeFuncs<C, X> {
+    [F_Any]: any,
+  }
+}
+
+
 export type ArrayCim = { T: [never, Ref<any>[]], V: [never, any[]], C: [null, null], D: [null, null], A: [never, any[]] };
 export type ArrayTypeKeys = { T: typeof F_ArrArgs, V: typeof F_ID, C: typeof F_C, D: typeof F_C, A: typeof F_ID };
 
@@ -35,9 +44,9 @@ export { ArrayCtr };
 
 export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[], ArrayCim, ArrayTypeKeys, EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null }),
-  encode: ({ ref }) => <C extends any[]>(_: string, { args }: { args: DeepDestructable<C, EH, ECtx> }) => toCond<any[], C, ToRef<C>>(
-    depMap<number & keyof C, [
-      [[C, EH, ECtx], TypedDestructable<C[keyof C], EH, ECtx>],
+  encode: ({ ref }) => async <C extends any[]>({ args }: { args: DeepDestructable<C, EH, ECtx> }) => toCond<any[], C, ToRef<C>, any>(
+    await asyncDepMap<number & keyof C, [
+      [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[number]>]
     ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
   ctr: ArrayCtr,
@@ -51,6 +60,6 @@ const JsonCtr = <X extends JsonObject>(_: [], data: X) => data;
 export { JsonCtr };
 export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<JsonObject, JsonCim, JsonTypeKeys, EH, ECtx> => ({
   decode: () => (_id, data) => ({ args: [] as [], data }),
-  encode: () => (_: string, { data }) => data,
+  encode: () => ({ data }) => data,
   ctr: JsonCtr,
 });

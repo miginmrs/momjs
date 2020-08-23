@@ -2,8 +2,10 @@ import { expect } from 'chai';
 import { Store } from '../source/store';
 import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim, JsonCtr, ArrayCtr } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
-import { Destructable, RequestHandlers, RH, ModelsDefinition, AppX, ObsWithOrigin } from '../source';
-import { Subscription } from 'rxjs';
+import { Destructable, RequestHandlers, RH, ModelsDefinition, AppX, ObsWithOrigin, EModelsDefinition } from '../source';
+import { Subscription, ObservedValueOf } from 'rxjs';
+import { take, tap } from 'rxjs/operators';
+import { current } from '../utils/rx-utils';
 
 
 const testScheduler = new TestScheduler((actual, expected) => {
@@ -12,7 +14,7 @@ const testScheduler = new TestScheduler((actual, expected) => {
 
 
 describe('Store', () => {
-  const store = new Store(RequestHandlers, {})
+  const store = new Store(RequestHandlers, { someData: 1 })
   describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
@@ -47,7 +49,9 @@ describe('Store', () => {
       expect(obs.destroyed).equals(false);
     });
     it('should be removed after unsubscription', () => {
-      store.getValue(x1)[1]!.unsubscribe();
+      const notRemovedYet = store.getValue(x1)[1];
+      expect(notRemovedYet).not.eq(undefined);
+      store.getValue(x1)[1].subscription!.unsubscribe();
       expect(store.get(x1.id)).equals(undefined);
     });
     it('should be destroyed after unsubscription', () => {
@@ -75,48 +79,85 @@ describe('Store', () => {
       [x2, arr] = init();
     });
     it('should prevent first entry from destruction', () => {
-      store.getValue(x2)[1]!.unsubscribe();
+      store.getValue(x2)[1].subscription!.unsubscribe();
       const obs = store.getValue(arr)[0];
       expect(obs.destroyed).equals(false);
     });
     it('should chain destruction', () => {
-      store.getValue(arr)[1]!.unsubscribe();
+      store.getValue(arr)[1].subscription!.unsubscribe();
       expect(store.get(x2.id)).equals(undefined);
       expect(store.get(arr.id)).equals(undefined);
     });
   });
-  describe('push', () => {
+  type json = { msg: string };
+  let jsonObs: Destructable<JsonObject, JsonCim, JsonTypeKeys, json, RH, {}>;
+  let arr1Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [json, json, json], RH, {}>;
+  let arr2Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [[json, json, json], json], RH, {}>;
+  let jsonWrp: ObsWithOrigin<AppX<'V', JsonCim, JsonTypeKeys, json>, RH, {}>;
+  let arrWrp: ObsWithOrigin<AppX<'V', ArrayCim, ArrayTypeKeys, [[json, json, json], json]>, RH, {}>;
+  let originSubs: Subscription;
+  describe('push method', () => {
     const handlers = RequestHandlers;
     let subs: Subscription;
-    type json = { msg: string };
-    let json: Destructable<JsonObject, JsonCim, JsonTypeKeys, json, RH, {}>;
-    let jsonLink:ObsWithOrigin<AppX<'V', JsonCim, JsonTypeKeys, json>, RH, {}>;
-    let arr1: Destructable<any[], ArrayCim, ArrayTypeKeys, [json, json, json], RH, {}>;
-    let arr2: Destructable<any[], ArrayCim, ArrayTypeKeys, [[json, json, json], json], RH, {}>;
-    let arrLink: ObsWithOrigin<AppX<'V', ArrayCim, ArrayTypeKeys, [[json, json, json], json]>, RH, {}>;
     it('should chain insertion', () => {
-      json = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' } });
-      jsonLink = store.push(json).link;
-      expect(jsonLink).not.eq(json);
-      expect(jsonLink.origin).eq(json);
-      const subs0 = jsonLink.subscribe();
+      jsonObs = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' } });
+      jsonWrp = store.push(jsonObs).wrapped;
+      expect(jsonWrp).not.eq(jsonObs);
+      expect(jsonWrp.origin).eq(jsonObs);
+      const subs0 = jsonWrp.subscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
-      arr1 = new Destructable( handlers, 'Array', null, { data: null, args: [json, json, json] });
-      arr2 = new Destructable(handlers, 'Array', null, { data: null, args: [arr1, json] as [typeof arr1, typeof json] })
-      const arrRes = store.push(arr2);
-      arrLink = arrRes.link;
-      expect(arrLink).not.eq(arr2);
-      expect(arrLink.origin).eq(arr2);
-      subs = arrRes.link.subscribe();
+      arr1Obs = new Destructable(handlers, 'Array', null, { data: null, args: [jsonObs, jsonObs, jsonObs] });
+      arr2Obs = new Destructable(handlers, 'Array', null, { data: null, args: [arr1Obs, jsonObs] as [typeof arr1Obs, typeof jsonObs] })
+      const arrRes = store.push(arr2Obs);
+      arrWrp = arrRes.wrapped;
+      expect(arrWrp).not.eq(arr2Obs);
+      expect(arrWrp.origin).eq(arr2Obs);
+      subs = arrRes.wrapped.subscribe();
       subs0.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3', '4', '5']);
     });
-    it('should chain destruction', () => {
-      const originSubs = arr2.subscribe();
+    it('should chain only destruction of wrappers', async () => {
+      originSubs = arr2Obs.subscribe();
       subs.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq([]);
-      expect([json.destroyed, arr1.destroyed, arr2.destroyed]).deep.eq([false, false, false]);
-      expect([jsonLink.destroyed, arrLink.destroyed]).deep.eq([true, true]);
+      expect([jsonObs.destroyed, arr1Obs.destroyed, arr2Obs.destroyed]).deep.eq([false, false, false]);
+      expect([jsonWrp.destroyed, arrWrp.destroyed]).deep.eq([true, true]);
+    });
+  });
+  describe('serialize method', () => {
+    const serialize = () => store.serialize(arr2Obs);
+    let def: ObservedValueOf<ReturnType<typeof serialize>>;
+    it('should recursively encode dependencies', async () => {
+      def = await serialize().pipe(take(1)).toPromise();
+      const jsonRef = { '$': 2 };
+      expect(def).deep.eq([{
+        i: 0, type: 'Array', c: null, reuseId: '4', data: [{ '$': 1 }, jsonRef],
+      }, {
+        i: 1, type: 'Array', c: null, reuseId: '5', data: [jsonRef, jsonRef, jsonRef], isNew: false
+      }, {
+        i: 2, type: 'Json', c: null, reuseId: '3', data: { msg: 'hi' }, isNew: false
+      }]);
+    });
+    const unserialize = () => store.unserialize<0, [[any[], ArrayCim]], [ArrayTypeKeys], [[[json, json, json], json]]>(def)!;
+    let ref: ReturnType<typeof unserialize>[0];
+    it('should provide correct inputs for unserialize', async () => {
+      [ref] = unserialize();
+      expect(current(store.getValue(ref)[0])).deep.eq([
+        [{ msg: 'hi' }, { msg: 'hi' }, { msg: 'hi' }],
+        { msg: 'hi' }
+      ]);
+    });
+    it('should not depend on original observables', async () => {
+      originSubs.unsubscribe();
+      expect([jsonObs.destroyed, arr1Obs.destroyed, arr2Obs.destroyed]).deep.eq([true, true, true]);
+      [arrWrp] = store.getValue(ref);
+      jsonWrp = arrWrp.origin.subject.value.args[1];
+      expect([jsonWrp.destroyed, jsonWrp.destroyed]).deep.eq([false, false]);
+    });
+    it('should chain destruction', () => {
+      store.getValue(ref)[1].subscription?.unsubscribe();
+      expect([jsonWrp.destroyed, jsonWrp.destroyed]).deep.eq([true, true]);
+      //jsonObs = store.getValue()
     });
   });
 });

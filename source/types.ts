@@ -85,7 +85,7 @@ export type deref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
   ): derefReturn<indices, dcim, keys, X, EH, ECtx>,
 };
 export type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V>,
+  <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V> | PromiseLike<Ref<V>>,
 };
 
 
@@ -108,7 +108,7 @@ export type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>, k exten
 }
 
 export type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  encode: (ctx: { ref: ref<EH, ECtx> } & ECtx) => <X extends dom>(id: string, args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, EH, ECtx> & { c: AppX<'C', cim, k, X> }) => AppX<'T', cim, k, X>,
+  encode: (ctx: { ref: ref<EH, ECtx> }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, EH, ECtx> & { c: AppX<'C', cim, k, X> }) => AppX<'T', cim, k, X> | PromiseLike<AppX<'T', cim, k, X>>,
   ctr: DestructableCtr<dom, cim, k>,
 };
 export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, EH, ECtx> & {
@@ -135,14 +135,21 @@ export type ContextualRH<RH extends RHConstraint<RH, ECtx>, ECtx> = {
   [type in keyof RH]: RequestRemoveCtx<RH[type]>
 }
 
+export type ModelData<T> = { data: T, isNew?: boolean, reuseId?: string } | { data?: undefined, isNew?: undefined, reuseId: string }
 export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, RH extends RHConstraint<RH, ECtx>, ECtx> = {
   type: KeysOfType<RH, CtxH<dom, cim, k, RH, ECtx>> & string, c: AppX<'C', cim, k, X>
-} & ({
-  data: AppX<'T', cim, k, X>, isNew?: boolean, reuseId?: string
-} | {
-  data?: undefined, isNew?: undefined, reuseId: string
-});
+} & ModelData<AppX<'T', cim, k, X>>;
 
+export type EModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, EH extends EHConstraint<EH, ECtx>, ECtx> = {
+  type: KeysOfType<EH, CtxEH<dom, cim, k, EH, ECtx>> & string, c: AppX<'C', cim, k, X>
+} & ModelData<AppX<'T', cim, k, X>>;;
+
+export type AnyEModelDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = {
+  type: keyof EH & string, c: any
+} & ModelData<any>;
+export type AnyModelsDefinition<EH extends EHConstraint<EH, ECtx>, ECtx, indices extends number = number> = (AnyEModelDefinition<EH, ECtx> & { i: indices })[];
+// export type KAnyModelsDefinition<RH extends RHConstraint<RH, ECtx>, ECtx> = ModelsDefinition<number, [any, TVCDA_CIM][], Record<TVCDA, typeof F_C>[], any, RH, ECtx>;
+// export type KAnyEModelsDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = EModelsDefinition<number, [any, TVCDA_CIM][], Record<TVCDA, typeof F_C>[], any, EH, ECtx>;
 export type Name<
   indices extends number,
   dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -159,8 +166,21 @@ export type ModelsDefinition<
   X extends { [P in indices]: dcim[P][0] },
   RH extends RHConstraint<RH, ECtx>,
   ECtx
-  > = { [P in indices]: ModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], RH, ECtx> & { i: P } } & any[];
+  > = {
+    [P in indices]: ModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], RH, ECtx> & { i: P }
+  } & AnyModelsDefinition<RH, ECtx, indices>;
+export type EModelsDefinition<
+  indices extends number,
+  dcim extends Record<indices, [any, TVCDA_CIM]>,
+  keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
+  X extends { [P in indices]: dcim[P][0] },
+  EH extends EHConstraint<EH, ECtx>,
+  ECtx
+  > = {
+    [P in indices]: EModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], EH, ECtx> & { i: P }
+  } & AnyModelsDefinition<EH, ECtx, indices>;
 export type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
+  parent: ObsWithOrigin<V, EH, ECtx>,
   origin: TypedDestructable<V, EH, ECtx>,
   readonly destroyed: boolean;
 }

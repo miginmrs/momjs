@@ -2,7 +2,7 @@ import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { combine } from '../utils/rx-utils';
 import { map, shareReplay, distinctUntilChanged } from 'rxjs/operators';
-import { TVCDA_CIM, TVCDADepConstaint, CtxH, EHConstraint, CtxEH, DestructableCtr, RequestHandlerCompare } from './types';
+import { TVCDA_CIM, TVCDADepConstaint, CtxH, EHConstraint, CtxEH, DestructableCtr, RequestHandlerCompare, ObsWithOrigin } from './types';
 import { AppX, KeysOfType } from 'dependent-type';
 import { byKey } from '../utils/guards';
 
@@ -24,26 +24,27 @@ export const destructableCmp = <dom, cim extends TVCDA_CIM, k extends TVCDADepCo
 ) => x.args.length === y.args.length && x.args.every((v, i) => compareObs(v, y.args[i])) && compareData(x.data, y.data);
 export type TypedDestructable<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<any, any, any, any, EH, ECtx> & Observable<V>;
 
-export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, EH extends EHConstraint<EH, ECtx>, ECtx> extends Observable<AppX<'V', cim, k, X>> {
+export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, EH extends EHConstraint<EH, ECtx>, ECtx> extends Observable<AppX<'V', cim, k, X>> implements ObsWithOrigin<AppX<'V', cim, k, X>, EH, ECtx> {
   readonly subject: BehaviorSubject<EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, EH, ECtx>>;
   private destroy: Subscription
-  readonly addTearDown: (teardown: TeardownLogic) => Subscription;
   get destroyed() { return this.destroy.closed }
   source: Observable<AppX<'V', cim, k, X>>;
-  origin = this;
+  readonly origin = this;
+  readonly parent = this;
   get handler() { return byKey<EH, CtxEH<dom, cim, k, EH, ECtx>>(this.handlers, this.key); }
   constructor(
     readonly handlers: EH,
     readonly key: KeysOfType<EH, CtxEH<dom, cim, k, EH, ECtx>> & string,
     readonly c: AppX<'C', cim, k, X>,
     init: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, EH, ECtx>,
-    compare = destructableCmp<dom, cim, k, EH, ECtx>()
+    compare = destructableCmp<dom, cim, k, EH, ECtx>(),
+    ...teardownList: TeardownLogic[]
   ) {
     super();
     const handler = byKey<EH, CtxEH<dom, cim, k, EH, ECtx>>(handlers, key);
     this.subject = new BehaviorSubject(init);
     this.destroy = new Subscription(() => this.subject.unsubscribe());
-    this.addTearDown = this.destroy.add.bind(this.destroy);
+    teardownList.forEach(cb => this.destroy.add(cb));
     this.source = new Observable<AppX<'V', cim, k, X>>(subscriber => {
       const subs = this.subject.pipe(
         distinctUntilChanged(compare),

@@ -39,7 +39,7 @@
     "altern-map": "^0.0.1-SNAPSHOT-4",
     "chai": "^4.2.0",
     "cpy-cli": "^3.1.1",
-    "dependent-type": "^0.0.1-SNAPSHOT-3",
+    "dependent-type": "^0.0.1-SNAPSHOT-7",
     "mocha": "^8.1.1",
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.2",
@@ -55,5 +55,8 @@
     "altern-map": "^0.0.1-SNAPSHOT-4",
     "dependent-type": "^0.0.1-SNAPSHOT-3",
     "rxjs": "^6.6.0"
+  },
+  "dependencies": {
+    "rx-async": "^0.0.1-SNAPSHOT-7"
   }
 }

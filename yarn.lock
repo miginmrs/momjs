@@ -1018,10 +1018,10 @@ define-property@^2.0.2:
     is-descriptor "^1.0.2"
     isobject "^3.0.1"
 
-dependent-type@^0.0.1-SNAPSHOT-3:
-  version "0.0.1-SNAPSHOT-3"
-  resolved "https://registry.yarnpkg.com/dependent-type/-/dependent-type-0.0.1-SNAPSHOT-3.tgz#fce9806273cb8ad176bc8e556fdd36583591ffbb"
-  integrity sha512-ltM5J1to74i/aC6PtJA8QByChpVvwNEacNT/TNJZxSiDUvYX0LH3SsXj01IQtfnmXAQo8YTsN+canWS5M1K1YA==
+dependent-type@^0.0.1-SNAPSHOT-7:
+  version "0.0.1-SNAPSHOT-7"
+  resolved "https://registry.yarnpkg.com/dependent-type/-/dependent-type-0.0.1-SNAPSHOT-7.tgz#c248c362ee4b31d749ded8068a08c12ca518db3c"
+  integrity sha512-ZmzwPu+Q/edDAFkJNwvaUhPd9ocYxyngsDQ+Re4LrDoExDeoX99q2PWKAhdvGSCq9NYrLChtq8QMt2+xLSGPQw==
 
 des.js@^1.0.0:
   version "1.0.1"
@@ -2916,6 +2916,11 @@ run-queue@^1.0.0, run-queue@^1.0.3:
   integrity sha1-6Eg5bwV9Ij8kOGkkYY4laUFh7Ec=
   dependencies:
     aproba "^1.1.1"
+
+rx-async@^0.0.1-SNAPSHOT-7:
+  version "0.0.1-SNAPSHOT-7"
+  resolved "https://registry.yarnpkg.com/rx-async/-/rx-async-0.0.1-SNAPSHOT-7.tgz#18f771384b228f123b7af8efef978af6a4ba7fc7"
+  integrity sha512-mAKRYvf97RlhnaXV9IrdaIXLRGat9sjabYJrCLVFiJqDG5lo0GYtehVP2p47foTiEeRpiXVyhe/Y+kuTEsHHTQ==
 
 rxjs@^6.6.2:
   version "6.6.2"
