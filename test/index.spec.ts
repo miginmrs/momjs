@@ -1,11 +1,17 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim, JsonCtr, ArrayCtr } from '../source/handlers';
+import { JsonCim, JsonTypeKeys, JsonObject, ArrayTypeKeys, ArrayCim, JsonCtr, ArrayCtr, ArrayHandler, JsonHandler } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
-import { Destructable, RequestHandlers, RH, ModelsDefinition, AppX, ObsWithOrigin, EModelsDefinition } from '../source';
+import { Destructable, ModelsDefinition, AppX, ObsWithOrigin, EModelsDefinition, CtxH } from '../source';
 import { Subscription, ObservedValueOf } from 'rxjs';
 import { take, tap } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
+
+namespace RequestHandlers {
+  export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
+  export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, RH, {}> = JsonHandler<RH, {}>();
+}
+type RH = typeof RequestHandlers;
 
 
 const testScheduler = new TestScheduler((actual, expected) => {
@@ -17,7 +23,7 @@ describe('Store', () => {
   const store = new Store(RequestHandlers, { someData: 1 })
   describe('first entry', () => {
     const init = () => {
-      const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
+      const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
         type: 'Json', data: { x: 1 }, c: null, i: 0 as const
       }])!;
       const obs = store.getValue(x1)[0];
@@ -39,7 +45,7 @@ describe('Store', () => {
     it('should push new values', () => {
       var n: number[] = [];
       const subs = obs.subscribe(({ x }) => n.push(x));
-      store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }]>([{
+      store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
         type: 'Json', data: { x: 2 }, c: null, i: 0, reuseId: '1', isNew: false
       }]);
       subs.unsubscribe();
@@ -66,7 +72,7 @@ describe('Store', () => {
   });
   describe('second entry', () => {
     const init = () => {
-      const [x2, arr] = store.unserialize<0 | 1, [[JsonObject, JsonCim], [any[], ArrayCim]], [JsonTypeKeys, ArrayTypeKeys], [{ x: number }, [{ x: number }]]>(ref => [{
+      const [x2, arr] = store.unserialize<0 | 1, [[JsonObject, JsonCim], [any[], ArrayCim]], [JsonTypeKeys, ArrayTypeKeys], [{ x: number }, [{ x: number }]], [1, 1]>(ref => [{
         type: 'Json', data: { x: 2 }, c: null, i: 0, isNew: true, reuseId: '1'
       }, {
         type: 'Array', data: [ref(0)], c: null, isNew: true, i: 1,
@@ -90,9 +96,9 @@ describe('Store', () => {
     });
   });
   type json = { msg: string };
-  let jsonObs: Destructable<JsonObject, JsonCim, JsonTypeKeys, json, RH, {}>;
-  let arr1Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [json, json, json], RH, {}>;
-  let arr2Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [[json, json, json], json], RH, {}>;
+  let jsonObs: Destructable<JsonObject, JsonCim, JsonTypeKeys, json, 1, RH, {}>;
+  let arr1Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [json, json, json], 1, RH, {}>;
+  let arr2Obs: Destructable<any[], ArrayCim, ArrayTypeKeys, [[json, json, json], json], 1, RH, {}>;
   let jsonWrp: ObsWithOrigin<AppX<'V', JsonCim, JsonTypeKeys, json>, RH, {}>;
   let arrWrp: ObsWithOrigin<AppX<'V', ArrayCim, ArrayTypeKeys, [[json, json, json], json]>, RH, {}>;
   let originSubs: Subscription;
@@ -100,14 +106,14 @@ describe('Store', () => {
     const handlers = RequestHandlers;
     let subs: Subscription;
     it('should chain insertion', () => {
-      jsonObs = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' } });
+      jsonObs = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n:1 });
       jsonWrp = store.push(jsonObs).wrapped;
       expect(jsonWrp).not.eq(jsonObs);
       expect(jsonWrp.origin).eq(jsonObs);
       const subs0 = jsonWrp.subscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
-      arr1Obs = new Destructable(handlers, 'Array', null, { data: null, args: [jsonObs, jsonObs, jsonObs] });
-      arr2Obs = new Destructable(handlers, 'Array', null, { data: null, args: [arr1Obs, jsonObs] as [typeof arr1Obs, typeof jsonObs] })
+      arr1Obs = new Destructable(handlers, 'Array', null, { data: null, args: [jsonObs, jsonObs, jsonObs], n:1 });
+      arr2Obs = new Destructable(handlers, 'Array', null, { data: null, args: [arr1Obs, jsonObs] as [typeof arr1Obs, typeof jsonObs], n:1 })
       const arrRes = store.push(arr2Obs);
       arrWrp = arrRes.wrapped;
       expect(arrWrp).not.eq(arr2Obs);
@@ -138,7 +144,7 @@ describe('Store', () => {
         i: 2, type: 'Json', c: null, reuseId: '3', data: { msg: 'hi' }, isNew: false
       }]);
     });
-    const unserialize = () => store.unserialize<0, [[any[], ArrayCim]], [ArrayTypeKeys], [[[json, json, json], json]]>(def)!;
+    const unserialize = () => store.unserialize<0, [[any[], ArrayCim]], [ArrayTypeKeys], [[[json, json, json], json]], [1]>(def)!;
     let ref: ReturnType<typeof unserialize>[0];
     it('should provide correct inputs for unserialize', async () => {
       [ref] = unserialize();

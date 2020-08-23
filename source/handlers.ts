@@ -42,9 +42,9 @@ export type ArrayTypeKeys = { T: typeof F_ArrArgs, V: typeof F_ID, C: typeof F_C
 const ArrayCtr = <X extends any[]>(x: X) => x
 export { ArrayCtr };
 
-export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[], ArrayCim, ArrayTypeKeys, EH, ECtx> => ({
-  decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null }),
-  encode: ({ ref }) => async <C extends any[]>({ args }: { args: DeepDestructable<C, EH, ECtx> }) => toCond<any[], C, ToRef<C>, any>(
+export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx> => ({
+  decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, n: 1 }),
+  encode: ({ ref }) => async <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }) => toCond<any[], C, ToRef<C>, any>(
     await asyncDepMap<number & keyof C, [
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[number]>]
@@ -58,8 +58,8 @@ export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null
 export type JsonTypeKeys = { T: typeof F_ID, V: typeof F_ID, C: typeof F_C, D: typeof F_ID, A: typeof F_C };
 const JsonCtr = <X extends JsonObject>(_: [], data: X) => data;
 export { JsonCtr };
-export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<JsonObject, JsonCim, JsonTypeKeys, EH, ECtx> => ({
-  decode: () => (_id, data) => ({ args: [] as [], data }),
+export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, EH, ECtx> => ({
+  decode: () => (_id, data) => ({ args: [] as [], data, n: 1 }),
   encode: () => ({ data }) => data,
   ctr: JsonCtr,
 });

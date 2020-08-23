@@ -22,11 +22,12 @@ type ObsCache<
   dcim extends Record<indices, [any, TVCDA_CIM]>,
   keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
   X extends { [P in indices]: any },
+  N extends Record<indices, 1 | 2>,
   EH extends EHConstraint<EH, ECtx>,
   ECtx
   > = {
     [i in indices]?: {
-      obs: Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], EH, ECtx>,
+      obs: Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], EH, ECtx>,
       id: string, subs?: Subscription
     }
   };
@@ -83,17 +84,18 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: any },
+    N extends Record<indices, 1 | 2>,
     i extends indices,
     >(
-      key: KeysOfType<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>> & string,
+      key: KeysOfType<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>> & string,
       ctx: ECtx & { ref: ref<RH, ECtx>, deref: deref<RH, ECtx>, xderef: xderef<RH, ECtx> },
-      models: ModelsDefinition<indices, dcim, keys, X, RH, ECtx> & { [_ in i]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx> },
-      cache: ObsCache<indices, dcim, keys, X, RH, ECtx>,
+      models: ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx> & { [_ in i]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> },
+      cache: ObsCache<indices, dcim, keys, X, N, RH, ECtx>,
       i: i
-    ): NonUndefined<ObsCache<indices, dcim, keys, X, RH, ECtx>[i]> {
-    const handler = byKey<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>>(this.handlers, key);
+    ): NonUndefined<ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i]> {
+    const handler = byKey<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
     if (cache[i] !== undefined) return cache[i] as NonUndefined<typeof cache[i]>;
-    const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx> = models[i], { reuseId } = model;
+    const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { reuseId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
     const id = reuseId ?? `${this.next++}`;
     const entry = handler.decode(ctx)(id, model.data);
@@ -101,12 +103,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       const stored = this.map.get(reuseId);
       if (stored !== undefined) {
         stored[0].origin.subject.next(entry);
-        const obs: Destructable<any, any, any, any, RH, ECtx> = stored[0].origin;
-        const res: ObsCache<indices, dcim, keys, X, RH, ECtx>[i] = { id: reuseId, obs, subs: stored[1].subscription };
+        const obs = stored[0].origin as Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>;
+        const res: ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i] = { id: reuseId, obs, subs: stored[1].subscription };
         return res as NonUndefined<typeof res>;
       }
     }
-    const obs = this._insert<indices, dcim, keys, X, i>(key, entry, ctx, id, model.c);
+    const obs = this._insert<indices, dcim, keys, X, N, i>(key, entry, ctx, id, model.c);
     cache[i] = { obs, id };
     return cache[i] as NonUndefined<typeof cache[i]>
   }
@@ -115,18 +117,19 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: any },
+    N extends Record<indices, 1 | 2>,
     i extends indices,
     >(
-      key: KeysOfType<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>> & string,
-      entry: EntryObs<AppX<"D", dcim[i][1], keys[i], X[i]>, AppX<"A", dcim[i][1], keys[i], X[i]>, RH, ECtx>,
+      key: KeysOfType<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>> & string,
+      entry: EntryObs<AppX<"D", dcim[i][1], keys[i], X[i]>, AppX<"A", dcim[i][1], keys[i], X[i]>, N[i], RH, ECtx>,
       ctx: ECtx & { ref: ref<RH, ECtx>, deref: deref<RH, ECtx>, xderef: xderef<RH, ECtx> },
       id: string,
       c: AppX<'C', dcim[i][1], keys[i], X[i]>,
   ) {
-    const k = subKey<CtxEH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>, RH, string>(key);
-    const handler = byKey<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], RH, ECtx>>(this.handlers, key);
+    const k = subKey<CtxEH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>, RH, string>(key);
+    const handler = byKey<RH, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
     const compare = handler.compare?.(ctx);
-    const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx>(
+    const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(
       this.handlers, k, c, entry, compare, handler.destroy?.(entry.data), () => this.map.delete(id));
     this.map.set(id, [obs, {}]);
     return obs;
@@ -139,17 +142,18 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: dcim[P][0] }
-  >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]["V"][1]; }[indices], RH, ECtx>,
-    ...args: [xDerefHandlers<indices, dcim, keys, X, RH, ECtx>] | [derefHandlers<indices, dcim, keys, X, RH, ECtx>, 0]) => {
+    X extends { [P in indices]: dcim[P][0] },
+    N extends Record<indices, 1 | 2>,
+    >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]["V"][1]; }[indices], RH, ECtx>,
+      ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => {
     const err = () => new Error('Type Mismatch : ' + v.origin.key + ' not in ' + JSON.stringify(
-      depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, RH, ECtx, indices> | derefHandler<indices, dcim, keys, X, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
+      depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, N, RH, ECtx, indices> | derefHandler<indices, dcim, keys, N, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
     if (args.length === 1) {
       if (args[0].length && !args[0].some(([key, c]) => v.origin.handler === byKey(this.handlers, key) && v.origin.c === c)) throw err();
     } else {
       if (args[0].length && !args[0].some(key => v.origin.handler === byKey(this.handlers, key))) throw err();
     }
-    return v as derefReturn<indices, dcim, keys, X, RH, ECtx>;
+    return v as derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
   };
   getter = <T extends object, V extends T = T>(r: Ref<T>) => {
     if (!('id' in r)) throw new Error('There is no local context');
@@ -159,11 +163,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: dcim[P][0] }
-  >(
-    ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
-    ...handlers: xDerefHandlers<indices, dcim, keys, X, RH, ECtx>
-  ): derefReturn<indices, dcim, keys, X, RH, ECtx> => this.checkTypes(getter(ref), handlers);
+    X extends { [P in indices]: dcim[P][0] },
+    N extends Record<indices, 1 | 2>,
+    >(
+      ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
+      ...handlers: xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>
+    ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref), handlers);
   deref = (getter: <T extends object>(r: Ref<T>) => ObsWithOrigin<T, RH, ECtx>): deref<RH, ECtx> => <
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -176,26 +181,22 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   emptyContext = {
     deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
   };
-  decode(
-    getModels: AnyModelsDefinition<RH, ECtx> | ((ref: (i: number) => LocalRef<any>) => AnyModelsDefinition<RH, ECtx>)
-  ): null | GlobalRef<any>[] {
-    return this.unserialize<number, [any, TVCDA_CIM][], Record<TVCDA, typeof F_C>[], any>(getModels as any)
-  }
   unserialize<
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: any }
-  >(
-    getModels: ModelsDefinition<indices, dcim, keys, X, RH, ECtx> | ((ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>) => ModelsDefinition<indices, dcim, keys, X, RH, ECtx>)
-  ): null | { [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>> } & GlobalRef<any>[] {
-    const session = [] as ObsCache<indices, dcim, keys, X, RH, ECtx>;
+    X extends { [P in indices]: any },
+    N extends Record<indices, 1 | 2>,
+    >(
+      getModels: ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx> | ((ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>) => ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx>)
+    ): null | { [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>> } & GlobalRef<any>[] {
+    const session = [] as ObsCache<indices, dcim, keys, X, N, RH, ECtx>;
     const models = getModels instanceof Function ? getModels(<i extends number>(i: i) => ({ $: i } as { $: i, _: any })) : getModels;
     const _push = <i extends indices>(i: i) => {
-      const modelsAsObject: { [i in indices]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx> & { i: i } } = models;
-      const m: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], RH, ECtx> & { i: i } = modelsAsObject[i];
+      const modelsAsObject: { [i in indices]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> & { i: i } } = models;
+      const m: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> & { i: i } = modelsAsObject[i];
       const modelsNotChanged = Object.assign(models, { [i]: m });
-      return { ...this._unserialize<indices, dcim, keys, X, i>(m.type, ctx, modelsNotChanged, session, i), m };
+      return { ...this._unserialize<indices, dcim, keys, X, N, i>(m.type, ctx, modelsNotChanged, session, i), m };
     }
     const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as TypedDestructable<V, RH, ECtx>;
     const ref: ref<RH, ECtx> = this.ref;
@@ -234,13 +235,15 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   append<
     dom, cim extends TVCDA_CIM,
     k extends TVCDADepConstaint<dom, cim>,
-    X extends dom>(
-      key: KeysOfType<RH, CtxH<dom, cim, k, RH, ECtx>> & string,
-      entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, RH, ECtx>,
+    X extends dom,
+    n extends 1 | 2,
+    >(
+      key: KeysOfType<RH, CtxH<dom, cim, k, n, RH, ECtx>> & string,
+      entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, RH, ECtx>,
       c: AppX<'C', cim, k, X>,
   ) {
     const id = `${this.next++}`;
-    const obs = this._insert<0, [[dom, cim]], [k], [X], 0>(key, entry, this.emptyContext, id, c)
+    const obs = this._insert<0, [[dom, cim]], [k], [X], [n], 0>(key, entry, this.emptyContext, id, c)
     const subs = this.map.get(id)![1].subscription = obs.subscribe();
     return { id, obs, subs };
   }
@@ -268,8 +271,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     return { ref: { id } as GlobalRef<V>, wrapped };
   }
   private waiting = new WeakMap<TypedDestructable<any, RH, ECtx>, Promise<void>>();
-  serialize = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom>(
-    obs: Destructable<dom, cim, k, X, RH, ECtx>,
+  serialize = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
+    obs: Destructable<dom, cim, k, X, n, RH, ECtx>,
   ) => {
     type Session = BiMap<RH, ECtx, {
       type: keyof RH & string, c: any, value: any, data: any, isNew?: boolean, reuseId?: string
@@ -306,19 +309,19 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     }, null), asyncMap<Promise<[Session, Ref<V>]> | null, [Session, Ref<V>]>(async result => {
       if (!result) return {};
       return { ok: true, value: await result }
-    }), map<[Session, Ref<V>], EModelsDefinition<0, [[dom, cim]], [k], [X], RH, ECtx>>(([session, ref]) => {
+    }), map(([session, ref]) => {
       const entries = [...session.entries()];
       if (entries.length === 0) {
         if ('$' in ref) throw new Error('Unexpected');
-        const model: EModelsDefinition<0, [[dom, cim]], [k], [X], RH, ECtx> = [{ i: 0, type: obs.key, c: obs.c, reuseId: ref.id, }];
+        const model: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx> = [{ i: 0, type: obs.key, c: obs.c, reuseId: ref.id, }];
         return model;
       }
       return entries.map(([i, [, definition]]) => {
         const def = { i, ...definition! }
-        if(i !== 0) def.isNew = false;
+        if (i !== 0) def.isNew = false;
         delete def.value;
         return def;
-      }) as AnyModelsDefinition<RH, ECtx, 0> as EModelsDefinition<0, [[dom, cim]], [k], [X], RH, ECtx>
+      }) as AnyModelsDefinition<RH, ECtx, 0> as EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>
     }));
   }
   get(id: string) {
