@@ -1,6 +1,6 @@
 {
   "name": "momjs",
-  "version": "0.0.1-SNAPSHOT-23",
+  "version": "0.0.1-SNAPSHOT-29",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
   "sideEffects": true,
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@types/chai": "^4.2.12",
     "@types/mocha": "^8.0.2",
-    "altern-map": "^0.0.1-SNAPSHOT-4",
     "chai": "^4.2.0",
     "cpy-cli": "^3.1.1",
     "dependent-type": "^0.0.1-SNAPSHOT-7",
@@ -52,11 +51,13 @@
     "webpack-rxjs-externals": "^2.0.0"
   },
   "peerDependencies": {
-    "altern-map": "^0.0.1-SNAPSHOT-4",
-    "dependent-type": "^0.0.1-SNAPSHOT-3",
+    "dependent-type": "^0.0.1-SNAPSHOT-7",
     "rxjs": "^6.6.0"
   },
   "dependencies": {
+    "@types/deep-equal": "^1.0.1",
+    "altern-map": "^0.0.1-SNAPSHOT-12",
+    "deep-equal": "^2.0.3",
     "rx-async": "^0.0.1-SNAPSHOT-7"
   }
 }

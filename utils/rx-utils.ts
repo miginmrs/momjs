@@ -1,8 +1,23 @@
-import { combineLatest, of, TeardownLogic, Subscriber, Observable, Subscription } from 'rxjs';
+import { combineLatest, of, TeardownLogic, Subscriber, Observable, Subscription, OperatorFunction, concat, NEVER } from 'rxjs';
+import { CombineLatestSubscriber, CombineLatestOperator } from 'rxjs/internal/observable/combineLatest';
+import { innerSubscribe, ComplexInnerSubscriber } from 'rxjs/internal/innerSubscribe';
+
+declare module 'rxjs/operators' {
+  export function scan<T, R, V>(accumulator: (acc: R | V, value: T, index: number) => R, seed: V): OperatorFunction<T, R>;
+}
+
+class CompleteDestination<T> extends Subscriber<T> {
+  notifyComplete() { this.destination.complete?.(); }
+}
 
 export const combine: typeof combineLatest = function (this: any, ...args: any[]) {
   if (args.length === 0 || args.length === 1 && args[0] instanceof Array && args[0].length === 0) return of([]);
-  return combineLatest.apply(this, args);
+  const obs = combineLatest.apply(this, args);
+  (obs.operator as CombineLatestOperator<any, any>).call = function (sink, source) {
+    const subscriber: CombineLatestSubscriber<any, any> = CombineLatestOperator.prototype.call(sink, source);
+    subscriber.notifyComplete = CompleteDestination.prototype.notifyComplete;
+  }
+  return obs;
 } as any;
 
 export const on = <T>({ complete, error, next, subscribe, teardown }: {

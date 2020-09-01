@@ -14,7 +14,8 @@
     "sourceMap": false,
     "strict": true,
     "target": "esnext",
-    "noErrorTruncation": true
+    "noErrorTruncation": true,
+    "esModuleInterop": true,
   },
   "exclude": [],
   "include": [
