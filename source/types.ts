@@ -137,7 +137,7 @@ export type ContextualRH<RH extends RHConstraint<RH, ECtx>, ECtx> = {
   [type in keyof RH]: RequestRemoveCtx<RH[type]>
 }
 
-export type ModelData<T> = { data: T, isNew?: boolean, reuseId?: string } | { data?: undefined, isNew?: undefined, reuseId: string }
+export type ModelData<T> = { data: T, new?: boolean, id?: string } | { data?: undefined, new?: undefined, id: string }
 export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, RH extends RHConstraint<RH, ECtx>, ECtx> = {
   type: KeysOfType<RHConstraint<RH, ECtx>, CtxH<dom, cim, k, n, RH, ECtx>> & string, c: AppX<'C', cim, k, X>
 } & ModelData<AppX<'T', cim, k, X>>;

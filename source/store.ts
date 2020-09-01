@@ -66,7 +66,7 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
   find(obs: TypedDestructable<any, EH, ECtx>) {
     return this.byObs.get(obs);
   };
-  reuseId(obs: TypedDestructable<any, EH, ECtx>) {
+  usedId(obs: TypedDestructable<any, EH, ECtx>) {
     return this.oldId.get(obs);
   };
   get size() { return this.byId.size }
@@ -97,16 +97,16 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     ): NonUndefined<ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i]> {
     const handler = byKey<RHConstraint<RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
     if (cache[i] !== undefined) return cache[i] as NonUndefined<typeof cache[i]>;
-    const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { reuseId } = model;
+    const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
-    const id = reuseId ?? `${this.next++}`;
+    const id = usedId ?? `${this.next++}`;
     const entry = handler.decode(ctx)(id, model.data);
-    if (reuseId !== undefined) {
-      const stored = this.map.get(reuseId);
+    if (usedId !== undefined) {
+      const stored = this.map.get(usedId);
       if (stored !== undefined) {
         stored[0].origin.subject.next(entry);
         const obs = stored[0].origin as Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>;
-        const res: ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i] = { id: reuseId, obs, subs: stored[1].subscription };
+        const res: ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i] = { id: usedId, obs, subs: stored[1].subscription };
         return res as NonUndefined<typeof res>;
       }
     }
@@ -219,7 +219,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         models, <i extends indices>({ i }: { i: i }, index: number) => {
           i = index as i;
           const { obs, id, subs, m } = _push(i);
-          const isNew = m.isNew !== false;
+          const isNew = m.new !== false;
           if (isNew && subs !== undefined) throw new Error('Trying to subscribe to an already subscribed entity');
           if (isNew) subscriptions.push(this.map.get(id)![1].subscription = obs.subscribe());
           else temp.push(obs.subscribe());
@@ -251,7 +251,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   }
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>, ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>) {
     const oldId = this.map.find(obs.origin)
-    const id = oldId ?? ids?.get(obs.origin) ?? this.map.reuseId(obs.origin) ?? `${this.next++}`;
+    const id = oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin) ?? `${this.next++}`;
     let wrapped = obs;
     if (oldId === undefined) {
       let destroyed = false;
@@ -297,7 +297,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     isNew = true,
   ) => {
     type Attr = {
-      type: keyof RH & string, c: any, value: any, data: any, isNew?: boolean, reuseId?: string,
+      type: keyof RH & string, c: any, value: any, data: any, new?: boolean, id?: string,
       resolve?: (x: GlobalRef<any>) => void
     };
     type Session = BiMap<RH, ECtx, Attr | null, number>;
@@ -350,10 +350,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
             data = { data: await encode() };
           }
           allData.set(iObs, data);
-          const reuseId = this.map.reuseId(iObs);
-          const attr: Attr = { type: iObs.key, value, ...data, c: iObs.c, reuseId };
+          const usedId = this.map.usedId(iObs);
+          const attr: Attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
           if (resolve) attr.resolve = resolve;
-          attr.isNew = isNew && $ === 0 && oldPromise === null;
+          attr.new = isNew && $ === 0 && oldPromise === null;
           session.set($, [iObs, attr]);
         }
         return { $ } as LocalRef<V>;
@@ -361,8 +361,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       const ctx = {
         deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
       };
-      const ret = [session, allData, await ref(obs)];
-      return ret;
+      return [session, allData, await ref(obs)];
     }, null), asyncMap<Promise<T> | null, T>(async result => {
       if (!result) return {};
       return { ok: true, value: await result }
@@ -370,8 +369,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       const entries = Array(session.size).fill(0).map((_, i) => session.get(i)!);
       if (entries.length === 0) {
         if ('$' in ref) throw new Error('Unexpected');
-        //const model: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx> = [{ i: 0, type: obs.key, c: obs.c, reuseId: ref.id, }];
-        //return model;
         return null;
       }
       return entries.map(([, definition], i) => {
