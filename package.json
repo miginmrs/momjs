@@ -1,11 +1,11 @@
 {
   "name": "momjs",
-  "version": "0.0.1-SNAPSHOT-29",
+  "version": "0.0.1-SNAPSHOT-30",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
   "sideEffects": true,
   "scripts": {
-    "prepublish": "yarn run dist",
+    "prepublish": "yarn run dist && node inc-version.js",
     "test": "mocha -r ts-node/register test/**/*.ts",
     "test:js": "mocha dist/cjs/test/**/*.js",
     "test:js:debug": "mocha --inspect-brk dist/cjs/test/**/*.js",

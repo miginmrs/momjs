@@ -1,4 +1,4 @@
-import { CtxH, Ref, EHConstraint, DestructableCtr, CtxEH } from './types';
+import { CtxH, Ref, EHConstraint, DestructableCtr, CtxEH, JsonObject, Json } from './types';
 import { DeepDestructable, TypedDestructable, Destructable } from './destructable';
 import { asyncDepMap } from 'dependent-type/dist/cjs/map';
 import { toCond } from '../utils/guards';
@@ -68,8 +68,6 @@ export const toArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandle
 ) => (p: Ref<any[]>) => deref<0, [[any[], ArrayCim]], [ArrayTypeKeys], [any[]], [1]>(p, 'Array');
 
 
-export type Json = null | number | string | boolean | Json[] | { [k in string]: Json };
-export type JsonObject = Json[] | { [k in string]: Json };
 export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null, null], D: [never, JsonObject], A: [[], []] };
 export type JsonTypeKeys = { T: typeof F_ID, V: typeof F_ID, C: typeof F_C, D: typeof F_ID, A: typeof F_C };
 const deepUpdate = <T extends JsonObject>(target: JsonObject, source: T) => {

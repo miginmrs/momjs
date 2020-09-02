@@ -2,7 +2,7 @@ import { Subscription, Observable, ObservedValueOf } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
-  xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler, AnyModelDefinition,
+  xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler, AnyModelDefinition, CallHandler,
 } from './types'
 import { Destructable, EntryObs, TypedDestructable } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, App, Fun, BadApp } from 'dependent-type';
@@ -394,6 +394,82 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
       subscriber.add(wrapped.subscribe());
       subscriber.add(serialized.subscribe(subscriber));
+    });
+  }
+
+  remote<dom2, cim2 extends TVCDA_CIM, k2 extends TVCDADepConstaint<dom2, cim2>, X2 extends dom2, n2 extends 1 | 2>() {
+    return <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, P extends Json>(
+      fId: number, arg: Destructable<dom, cim, k, X, n, RH, ECtx>, param: P,
+      op: CallHandler<dom, cim, k, X, n, P, dom2, cim2, k2, X2, n2, RH, ECtx>
+    ) => new Observable<AppX<'V', cim2, k2, X2>>((subscriber) => {
+      type V = AppX<'V', cim, k, X>;
+      const makePromise = <T>(res?: (x: T) => void) => [new Promise<T>(r => res = r), res!] as const;
+      const [promise, resolve] = makePromise<GlobalRef<V>>();
+      const ids = new WeakMap<TypedDestructable<any, RH, ECtx>, string>();
+      const callSubscription = new Subscription();
+      const paramSubs = this.serialize(arg, obs => {
+        const resolver = this.getResolver(obs);
+        const withInsertion: typeof resolver = ref => {
+          ids.set(obs, ref.id);
+          resolver(ref);
+        };
+        return withInsertion;
+      }).subscribe(
+        async function (def) {
+          const refsPromise = op.next();
+          op.put(def);
+          const refs = await refsPromise;
+          refs.forEach((ref, i) => def[i]?.resolve?.(ref));
+          resolve(refs[0]);
+        },
+        e => promise.then(refArg => op.error(refArg, e)),
+        () => promise.then(refArg => op.call_complete(refArg)),
+      );
+      promise.then(refArg => {
+        callSubscription.add(() => promise.then(() => {
+          if (paramSubs.closed) return;
+          op.call_unsubscribe(refArg);
+          paramSubs.unsubscribe();
+        }));
+        if (paramSubs.closed) {
+          callSubscription.unsubscribe();
+          return;
+        }
+        this.push(arg, ids).wrapped.subscribe(() => {
+        });
+        const refTask = makePromise<GlobalRef<AppX<'V', cim2, k2, X>>>();
+        const responseSubs = op.subscribeToResult({
+          resp_call: (data) => {
+            const ref = this.unserialize(data)[0];
+            responseSubs.add(this.getValue(ref)[1].subscription);
+            refTask[1](ref);
+          },
+          err_call: (err) => {
+            refTask[0].then(ref => {
+              const obs = this.getValue(ref)[0];
+              (obs as typeof obs.origin).subject.error(err);
+            })
+          },
+          comp_call: () => {
+            refTask[0].then(ref => {
+              const obs = this.getValue(ref)[0];
+              (obs as typeof obs.origin).subject.complete();
+            })
+          }
+        });
+        callSubscription.add(() => {
+          if (!responseSubs.closed) op.end_call()
+        });
+        callSubscription.add(responseSubs);
+        responseSubs.add(callSubscription);
+        op.call(fId, param, refArg);
+        return refTask[0];
+      }).then(ref => {
+        if (!ref) return;
+        const subs = this.getValue(ref)[0].subscribe(subscriber);
+        callSubscription.add(() => promise.then(() => subs.unsubscribe()));
+      });
+      return callSubscription;
     });
   }
 }

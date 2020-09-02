@@ -1,6 +1,10 @@
 import { Destructable, EntryObs, TypedDestructable } from './destructable';
-import { TeardownLogic, Observable } from 'rxjs';
+import { TeardownLogic, Observable, Subscription } from 'rxjs';
 import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
+
+
+export type Json = null | number | string | boolean | Json[] | { [k in string]: Json };
+export type JsonObject = Json[] | { [k in string]: Json };
 
 export type LocalRef<V> = { $: number, _: V };
 export type GlobalRef<V> = { id: string, _: V };
@@ -192,3 +196,18 @@ export type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observab
 }
 
 
+export type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, P extends Json,
+  dom2, cim2 extends TVCDA_CIM, k2 extends TVCDADepConstaint<dom2, cim2>, X2 extends dom2, n2 extends 1 | 2, RH extends RHConstraint<RH, ECtx>, ECtx> = {
+    end_call: () => void,
+    call_unsubscribe: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
+    call_complete: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
+    put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => void,
+    call: (fId: number, param: P, ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
+    error: (ref: GlobalRef<AppX<'V', cim, k, X>>, err: any) => void,
+    subscribeToResult: (cbs: {
+      resp_call: (data: ModelsDefinition<0, [[dom2, cim2]], [k2], [X2], [n2], RH, ECtx>) => void;
+      err_call: (err: any) => void;
+      comp_call: () => void;
+    }) => Subscription,
+    next: ()=>Promise<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>
+  };
