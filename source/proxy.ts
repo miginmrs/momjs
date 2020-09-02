@@ -4,6 +4,7 @@ import { filter, take } from "rxjs/operators";
 import { GlobalRef, RHConstraint, CallHandler } from "./types";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
+
 export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
   store: Store<RH, ECtx>,
   from: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
@@ -47,19 +48,21 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
 
 export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
   to: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
-  from: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>
+  from: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
+  channel: [number]
 ): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
+  const putChannel = channel[0]++, callChannel = channel[0]++;
   return {
-    end_call: () => to.next({ channel: 1, type: 'end_call', data: '' }),
-    call_unsubscribe: ref => to.next({ channel: 0, data: ref.id, type: 'unsubscribe' }),
-    call_complete: ref => to.next({ channel: 0, data: ref.id, type: 'complete' }),
-    put: (def) => to.next({ channel: 0, type: 'put', data: JSON.stringify(def) }),
-    call: (fId, param, ref) => to.next({ channel: 1, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
-    error: (ref, e) => to.next({ channel: 0, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-    next: () => from.pipe(filter(m => m.channel === 0), take(1)).toPromise().then(response => {
+    end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
+    call_unsubscribe: ref => to.next({ channel: putChannel, data: ref.id, type: 'unsubscribe' }),
+    call_complete: ref => to.next({ channel: putChannel, data: ref.id, type: 'complete' }),
+    put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
+    call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+    error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
+    next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise().then(response => {
       return JSON.parse(response.data);
     }),
-    subscribeToResult: cbs => from.pipe(filter(x => x.channel === 1)).subscribe(
+    subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
       function (this: Subscription, { data, type }) {
         if (type === 'response_call') {
           cbs.resp_call(JSON.parse(data));

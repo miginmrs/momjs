@@ -3,15 +3,17 @@ import { TeardownLogic, Observable, Subscription } from 'rxjs';
 import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
 
 
-export type Json = null | number | string | boolean | Json[] | { [k in string]: Json };
+export type prim = number | string | boolean;
+export type Json = null | prim | Json[] | { [k in string]: Json };
 export type JsonObject = Json[] | { [k in string]: Json };
 
 export type LocalRef<V> = { $: number, _: V };
 export type GlobalRef<V> = { id: string, _: V };
 export type Ref<V> = LocalRef<V> | GlobalRef<V>;
+export type eprim = prim | bigint;
 
 export type TVCDA_CIM = {
-  T: [any, object], V: [any, object], C: [any, unknown], D: [any, any],
+  T: [any, object | eprim | null], V: [any, object], C: [any, unknown], D: [any, any],
   A: [any, any[]]
 };
 export type TVCDA = keyof TVCDA_CIM;

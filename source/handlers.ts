@@ -4,7 +4,7 @@ import { asyncDepMap } from 'dependent-type/dist/cjs/map';
 import { toCond } from '../utils/guards';
 import { deref, KeysOfType } from '.';
 import { TeardownLogic } from 'rxjs';
-import equal from 'deep-equal';
+import equal from 'deep-is';
 
 /** @summary Filters X by C */
 export declare const F_F: unique symbol;
@@ -50,11 +50,11 @@ export const ArrayCtr: DestructableCtr<any[], ArrayCim, ArrayTypeKeys> = <X exte
 export type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<any[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
 export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHandler<EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, n: 1 }),
-  encode: ({ ref }) => async <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }) => toCond<any[], C, ToRef<C>, any>(
-    await asyncDepMap<Exclude<keyof C, keyof any[]>, [
+  encode: ({ ref }) => <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }) =>
+    asyncDepMap<Exclude<keyof C, keyof any[]>, [
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
-      [C, Ref<C[Exclude<keyof C, keyof any[]>]>]
-    ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
+      [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
+    ], [typeof F_Destructable, typeof F_Ref]>(args, ref).then(v => toCond<any[], C, ToRef<C>, any>(v)),
   ctr: ArrayCtr,
 });
 
@@ -94,7 +94,7 @@ const clone = <T extends Json>(o: T): T => {
 export type JsonHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, EH, ECtx>;
 export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): JsonHandler<EH, ECtx> => ({
   decode: () => (_id, data) => ({ args: [] as [], data, n: 1 }),
-  encode: () => ({ data, old }) => old && equal(data, old, { strict: true }) ? undefined : clone(data),
+  encode: () => ({ data, old }) => old && equal(data, old) ? undefined : clone(data),
   ctr: JsonCtr,
 });
 export type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;

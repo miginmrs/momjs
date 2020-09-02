@@ -242,19 +242,21 @@ describe('Stores Communication', () => {
     const fId = 0;
     const store1_to_store2 = new Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>();
     const store2_to_store1 = new Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>();
-
+    const channel = [0] as [0];
 
     // STORE2
 
     const store2 = new Store(handlers, {});
-    store2.functions[fId] = (_, v) => {
-      const [{ x: a }, { x: b }]: [xn, xn] = current(v);
+    store2.functions[fId] = (_, arg) => {
+      const [{ x: a }, { x: b }]: [xn, xn] = current(arg);
       const subs = new Subscription();
       const obs = wrapJson<xn, RH, {}>({ x: a * b }, handlers, subs);
-      subs.add(v.subscribe(
-        ([{ x: a }, { x: b }]) => obs.subject.next({
-          args: [], data: { x: a * b }, n: 1
-        }),
+      subs.add(arg.subscribe(
+        v => {
+          arg;
+          const [{ x: a }, { x: b }] = v;
+          obs.subject.next({ args: [], data: { x: a * b }, n: 1 })
+        },
         e => obs.subject.error(e),
         () => obs.subject.complete()
       ));
@@ -267,25 +269,35 @@ describe('Stores Communication', () => {
     const store1 = new Store(handlers, {});
     const a = wrapJson<xn, RH, {}>({ x: 5 }, handlers);
     const b = wrapJson<xn, RH, {}>({ x: 10 }, handlers);
+    const c = wrapJson<xn, RH, {}>({ x: 20 }, handlers);
     const arg = wrapArray<[xn, xn], RH, {}>([a, b], handlers);
 
 
     const receivedValues: xn[] = [];
     // STORE1
     store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
-      fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1)
+      fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1, channel)
     ).subscribe(async v => {
+      console.log([...store1['map'].keys()]);
+      //expect([...store1['map'].keys()]).deep.eq(['1', '2', '3', '4'])
       receivedValues.push({ ...v });
       if (v.x !== 50) return;
-      await new Promise(r=>setTimeout(r, 5));
+      await new Promise(r => setTimeout(r, 5));
       a.subject.next({ data: { x: 4 }, args: [], n: 1 });
-      await new Promise(r=>setTimeout(r, 5));
+      await new Promise(r => setTimeout(r, 5));
       a.subject.next({ data: { x: 3 }, args: [], n: 1 });
-      await new Promise(r=>setTimeout(r, 5));
+      await new Promise(r => setTimeout(r, 5));
+      // arg.subject.next({ data: null, n: 1, args: [c, b] })
+      // await new Promise(r => setTimeout(r, 5));
+      // c.subject.next({ data: { x: 30 }, args: [], n: 1 });
+      // await new Promise(r => setTimeout(r, 5));
       a.subject.complete();
     }, () => { }, () => {
-      expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }])
-      done();
+      expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }]);
+      setTimeout(() => {
+        expect([...store1['map'].keys()]).deep.eq([])
+        done()
+      }, 0);
     });
   })
 });

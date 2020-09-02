@@ -61,6 +61,9 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     type A = AppX<'A', cim, k, X>;
     const handler = this.handler;
     this.subject = new BehaviorSubject(init);
+    this.subject.subscribe(v=>{
+      if(v.data !== null && key === 'Array') debugger;
+    })
     this.destroy = new Subscription(() => {
       if (!this.subject.isStopped) this.subject.unsubscribe();
       else this.subject.closed = true;
