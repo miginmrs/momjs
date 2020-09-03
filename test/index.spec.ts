@@ -7,12 +7,11 @@ import {
   GlobalRef, DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable,
   Json, TVCDA_CIM, TVCDADepConstaint, CallHandler, JsonObject
 } from '../source';
-import { Subscription, ObservedValueOf, Observable, Subject, interval } from 'rxjs';
+import { Subscription, ObservedValueOf, Observable, Subject, interval, config } from 'rxjs';
 import { take, filter } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
 import { asyncDepMap } from 'dependent-type/dist/cjs/map';
 import { startListener, DataGram, createCallHandler } from '../source/proxy'
-
 
 type ToRef1<X> = Ref<any>[] & { [P in keyof X]: Ref<X[P]> }
 type ToRef2<X> = ToRef1<X[Exclude<keyof X, keyof any[]>]>[] & { [P in Exclude<keyof X, keyof any[]>]: ToRef1<X[P]> };
@@ -164,19 +163,19 @@ describe('Store', () => {
       jsonWrp = store.push(jsonObs).wrapped;
       expect(jsonWrp).not.eq(jsonObs);
       expect(jsonWrp.origin).eq(jsonObs);
-      const subs0 = jsonWrp.subscribe();
+      const subs0 = jsonWrp.subscribe(() => { });
       expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
       arr1Obs = wrapArray([jsonObs, jsonObs, jsonObs], handlers);
       arr2Obs = wrapArray([arr1Obs, jsonObs], handlers)
       arrWrp = store.push(arr2Obs).wrapped;
       expect(arrWrp).not.eq(arr2Obs);
       expect(arrWrp.origin).eq(arr2Obs);
-      subs = arrWrp.subscribe();
+      subs = arrWrp.subscribe(() => { });
       subs0.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq(['3', '4', '5']);
     });
     it('should chain only destruction of wrappers', async () => {
-      originSubs = arr2Obs.subscribe();
+      originSubs = arr2Obs.subscribe(() => { });
       subs.unsubscribe();
       expect([...(store['map']['byId']).keys()]).deep.eq([]);
       expect([jsonObs.destroyed, arr1Obs.destroyed, arr2Obs.destroyed]).deep.eq([false, false, false]);
@@ -233,20 +232,51 @@ describe('Store', () => {
     })
   })
 });
-describe('Stores Communication', () => {
+describe.only('Stores Communication', () => {
   it('should work', (done) => {
     const handlers = RequestHandlers;
     type xn = { x: number };
 
     // COMMON
     const fId = 0;
-    const store1_to_store2 = new Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>();
-    const store2_to_store1 = new Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>();
+    type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
+    const store1_to_store2 = new Subject<DataGram<msg1to2>>();
+    type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
+    const store2_to_store1 = new Subject<DataGram<msg2to1>>();
     const channel = [0] as [0];
+    const msgs: (['1->2', number, msg1to2, Json] | ['2->1', number, msg2to1, Json])[] = [];
+    const expectedMsgs: typeof msgs = [['1->2', 0, 'put', [
+      { i: 0, type: 'Array', data: [{ $: 1 }, { $: 2 }], c: null, new: true },
+      { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false },
+      { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false },
+    ]], ['2->1', 0, 'response_put', [
+      { id: '1' }, { id: '2' }, { id: '3' }
+    ]], ['1->2', 1, 'call', {
+      fId: 0, param: null, argId: '1'
+    }], ['2->1', 1, 'response_call', [
+      { i: 0, type: 'Json', data: { x: 50 }, c: null, id: 4, new: true }
+    ]], ['1->2', 0, 'put', [
+      { i: 0, type: 'Array', data: [{ $: 1 }, { id: '3' }], c: null, id: '1', new: false },
+      { i: 1, type: 'Json', data: { x: 4 }, c: null, id: '2', new: false }
+    ]], ['2->1', 1, 'response_call', {
+      i: 0, type: 'Json', data: { x: 40 }, c: null, id: '4', new: false
+    }], ['2->1', 0, 'response_put', [
+      { id: '1' }, { id: '2' }
+    ]]];
+    store1_to_store2.subscribe(v => {
+      if (msgs.length === expectedMsgs.length -1 ) debugger;
+      msgs.push(['1->2', v.channel, v.type, JSON.parse(v.data)]);
+      console.log('store1', '->', 'store2', v.channel, v.type, v.data)
+    });
+    store2_to_store1.subscribe(v => {
+      if (msgs.length === expectedMsgs.length -1 ) debugger;
+      msgs.push(['2->1', v.channel, v.type, JSON.parse(v.data)]);
+      console.log('store2', '->', 'store1', v.channel, v.type, v.data)
+    });
 
     // STORE2
 
-    const store2 = new Store(handlers, {});
+    const store2 = new Store(handlers, {}, 'store2');
     store2.functions[fId] = (_, arg) => {
       const [{ x: a }, { x: b }]: [xn, xn] = current(arg);
       const subs = new Subscription();
@@ -266,38 +296,49 @@ describe('Stores Communication', () => {
 
 
 
-    const store1 = new Store(handlers, {});
+    const store1 = new Store(handlers, {}, 'store1');
     const a = wrapJson<xn, RH, {}>({ x: 5 }, handlers);
     const b = wrapJson<xn, RH, {}>({ x: 10 }, handlers);
     const c = wrapJson<xn, RH, {}>({ x: 20 }, handlers);
     const arg = wrapArray<[xn, xn], RH, {}>([a, b], handlers);
+    const subs = arg.subscribe();
 
+    // store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
+    //   fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1, channel)
+    // ).pipe(take(1)).subscribe(v => {
+    //   console.log('---', v)
+    // });
+
+    const warn = console.warn;
+    console.warn = () => { };
+    config.useDeprecatedSynchronousErrorHandling = true;
+    console.warn = warn;
 
     const receivedValues: xn[] = [];
     // STORE1
     store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
       fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1, channel)
-    ).subscribe(async v => {
-      console.log([...store1['map'].keys()]);
-      //expect([...store1['map'].keys()]).deep.eq(['1', '2', '3', '4'])
+    ).subscribe(v => {
+      console.log([...store1['map'].keys()], v);
       receivedValues.push({ ...v });
       if (v.x !== 50) return;
-      await new Promise(r => setTimeout(r, 5));
+      // await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 4 }, args: [], n: 1 });
-      await new Promise(r => setTimeout(r, 5));
+      // await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 3 }, args: [], n: 1 });
-      await new Promise(r => setTimeout(r, 5));
-      // arg.subject.next({ data: null, n: 1, args: [c, b] })
-      // await new Promise(r => setTimeout(r, 5));
-      // c.subject.next({ data: { x: 30 }, args: [], n: 1 });
-      // await new Promise(r => setTimeout(r, 5));
-      a.subject.complete();
+      // await new Promise(r => setTimeout(r, 1));
+      arg.subject.next({ data: null, n: 1, args: [c, b] })
+      // await new Promise(r => setTimeout(r, 1));
+      c.subject.next({ data: { x: 30 }, args: [], n: 1 });
+      // await new Promise(r => setTimeout(r, 1));
+      b.subject.complete();
     }, () => { }, () => {
-      expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }]);
-      setTimeout(() => {
-        expect([...store1['map'].keys()]).deep.eq([])
-        done()
-      }, 0);
+      console.log('[[[[[[[]]]]]]]', receivedValues)
+      //expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }]);
+      // setTimeout(()=>console.log([...store1['map'].keys()]), 10);
+      // expect([...store1['map'].keys()]).deep.eq([]);
+      done();
     });
+    subs.unsubscribe();
   })
 });

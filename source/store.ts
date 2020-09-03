@@ -17,7 +17,6 @@ import { asyncMap, Cancellable } from 'rx-async';
 import { Json } from '.';
 import { QuickPromise } from '../utils/quick-promise';
 
-
 type ObsCache<
   indices extends number,
   dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -86,6 +85,9 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
+  reuseId(obs: TypedDestructable<any, EH, ECtx>, id: k) {
+    this.oldId.set(obs, id);
+  };
   find(obs: TypedDestructable<any, EH, ECtx>) {
     return this.byObs.get(obs);
   };
@@ -102,7 +104,14 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
   private next = BigInt(1);
 
-  constructor(readonly handlers: RH, private extra: ECtx) { }
+  constructor(readonly handlers: RH, private extra: ECtx, readonly name?: string) { }
+
+  private getNext(id?: string): string {
+    if (id === undefined) return `${this.next++}`;
+    const intId = BigInt(id);
+    if (this.next <= intId) this.next = intId + 1n;
+    return id;
+  }
 
   private _unserialize<
     indices extends number,
@@ -122,7 +131,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     if (cache[i] !== undefined) return cache[i] as NonUndefined<typeof cache[i]>;
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
-    const id = usedId ?? `${this.next++}`;
+    const id = this.getNext(usedId);
     const entry = handler.decode(ctx)(id, model.data);
     if (usedId !== undefined) {
       const stored = this.map.get(usedId);
@@ -150,7 +159,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     i extends indices,
     >(
       key: KeysOfType<RHConstraint<RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>> & string,
-      entry: EntryObs<AppX<"D", dcim[i][1], keys[i], X[i]>, AppX<"A", dcim[i][1], keys[i], X[i]>, N[i], RH, ECtx>,
+      entry: EntryObs<AppX<'D', dcim[i][1], keys[i], X[i]>, AppX<'A', dcim[i][1], keys[i], X[i]>, N[i], RH, ECtx>,
       ctx: ECtx & { ref: ref<RH, ECtx>, deref: deref<RH, ECtx>, xderef: xderef<RH, ECtx> },
       id: string,
       c: AppX<'C', dcim[i][1], keys[i], X[i]>,
@@ -172,7 +181,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: dcim[P][0] },
     N extends Record<indices, 1 | 2>,
-    >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]["V"][1]; }[indices], RH, ECtx>,
+    >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
       ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => {
     const err = () => new Error('Type Mismatch : ' + v.origin.key + ' not in ' + JSON.stringify(
       depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, N, RH, ECtx, indices> | derefHandler<indices, dcim, keys, N, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
@@ -250,8 +259,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
           const { obs, id, subs, m } = _push(i);
           const isNew = m.new !== false;
           if (isNew && subs !== undefined) throw new Error('Trying to subscribe to an already subscribed entity');
-          if (isNew) subscriptions.push(this.map.get(id)![1].subscription = obs.subscribe());
-          else temp.push(obs.subscribe());
+          if (isNew) subscriptions.push(this.map.get(id)![1].subscription = obs.subscribe(() => { }));
+          else temp.push(obs.subscribe(() => { }));
           const ref = { id } as AppX<'V', dcim[i][1], keys[i], X[i]>;
           return ref as CondRefHelper<RefTypeData, i>;
         });
@@ -273,14 +282,14 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, RH, ECtx>,
       c: AppX<'C', cim, k, X>,
   ) {
-    const id = `${this.next++}`;
+    const id = this.getNext();
     const obs = this._insert<0, [[dom, cim]], [k], [X], [n], 0>(key, entry, this.emptyContext, id, c)
-    const subs = this.map.get(id)![1].subscription = obs.subscribe();
+    const subs = this.map.get(id)![1].subscription = obs.subscribe(() => { });
     return { id, obs, subs };
   }
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>, ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>) {
     const oldId = this.map.find(obs.origin)
-    const id = oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin) ?? `${this.next++}`;
+    const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
     let wrapped = obs;
     if (oldId === undefined) {
       let destroyed = false;
@@ -323,7 +332,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   serialize = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
     obs: Destructable<dom, cim, k, X, n, RH, ECtx>,
     getResolver?: <V>(obs: TypedDestructable<V, RH, ECtx>) => (ref: GlobalRef<V>) => void,
-    isNew = true,
+    isNew: boolean = true,
   ) => {
     type Attr = {
       type: keyof RH & string, c: any, value: any, data: any, new?: boolean, id?: string,
@@ -338,14 +347,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       const allData: SMR[1] = new Map();
       let next = 1;
       const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? that.map.get(r.id) : session.get(r.$))![0] as TypedDestructable<V, RH, ECtx>;
-      const snapshot = new Map<TypedDestructable<any, RH, ECtx>, {
-        isHere: boolean, id?: string, data: any, entry: EntryObs<any, any, any, RH, ECtx>
-      }>();
+      const snapshot = new Map<TypedDestructable<any, RH, ECtx>, { data: any, entry: EntryObs<any, any, any, RH, ECtx> }>();
       const inMap = (arg: TypedDestructable<any, RH, ECtx>) => that.map.find(arg) !== undefined;
       const addToSnapshot = (obs: TypedDestructable<any, RH, ECtx>) => {
         if (snapshot.has(obs)) return;
-        const entry = obs.subject.value, isHere = entry.args.every(arg => arg instanceof Array ? arg.every(inMap) : inMap(arg));
-        snapshot.set(obs, { data: current(obs), entry, id: that.map.find(obs), isHere });
+        const entry = obs.subject.value;
+        snapshot.set(obs, { data: current(obs), entry });
         entry.args.forEach(args => {
           if (args instanceof Array) args.forEach(addToSnapshot);
           else addToSnapshot(args);
@@ -353,8 +360,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       }
       addToSnapshot(obs);
       const ref: ref<RH, ECtx> = <V>(iObs: TypedDestructable<V, RH, ECtx>): PromiseLike<Ref<V>> => runit<Ref<V>, any>((function* () {
-        const { data: value, entry, isHere, id } = snapshot.get(iObs)!;
+        let { data: value, entry } = snapshot.get(iObs)!;
         yield that.waiting.get(iObs);
+        const id = that.map.find(iObs);
+        //const isHere = true; //entry.args.every(arg => arg instanceof Array ? arg.every(inMap) : inMap(arg));
         const resolve = id === undefined ? getResolver?.(iObs) : undefined;
         let oldData: { data: any } | undefined = undefined, data: { data: any } | undefined;
         if (id !== undefined && oldPromise) {
@@ -363,13 +372,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         }
         const old = oldData ? { old: oldData.data } : {};
         const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
-        if (oldData) {
-          if (isHere) {
-            data = { data: yield* wait(encode()) };
-            if (data.data === undefined) {
-              allData.set(iObs, oldData);
-              return { id } as GlobalRef<V>;
-            }
+        if (oldData) { //if (isHere)
+          data = { data: yield* wait(encode()) };
+          if (data.data === undefined) {
+            allData.set(iObs, oldData);
+            return { id } as GlobalRef<V>;
           }
         }
         const i = session.find(iObs);
@@ -383,7 +390,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
           const usedId = that.map.usedId(iObs);
           const attr: Attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
           if (resolve) attr.resolve = resolve;
-          attr.new = isNew && $ === 0 && oldPromise === null;
+          attr.new = $ === 0 && oldPromise === null && (isNew || !inMap(iObs));
           session.set($, [iObs, attr]);
         }
         return { $ } as LocalRef<V>;
@@ -392,13 +399,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         deref: that.deref(getter), xderef: that.xderef(getter), ref, ...that.extra
       };
       const ret: SMR = [session, allData, yield* wait(QuickPromise.resolve(ref(obs)))];
-      return ret; //(...args: T) => runit(f(...args as T))
-    }), null), asyncMap<PromiseLike<SMR> | null, SMR>(result => runit<Cancellable<SMR>, SMR>(
-      (function* () {
+      return ret;
+    }), null), asyncMap<PromiseLike<SMR> | null, SMR>(result => {
+      return runit((function* () {
         const ret: Cancellable<SMR> = result ? { ok: true, value: yield* wait(result) } : {};
         return ret;
-      })()
-    ), { mode: 'merge', wait: true }), map(([session, ref]) => {
+      })());
+    }, { mode: 'merge', wait: true }), map(([session, , ref]) => {
       const entries = Array(session.size).fill(0).map((_, i) => session.get(i)!);
       if (entries.length === 0) {
         if ('$' in ref) throw new Error('Unexpected');
@@ -425,7 +432,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     const wrapped = this.push(obs).wrapped;
     const serialized = this.serialize(obs);
     return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
-      subscriber.add(wrapped.subscribe());
+      subscriber.add(wrapped.subscribe(() => { }));
       subscriber.add(serialized.subscribe(subscriber));
     });
   }
@@ -438,18 +445,19 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       type V = AppX<'V', cim, k, X>;
       const makePromise = <T>(res?: (x: T) => void) => [new QuickPromise<T>(r => res = r), res!] as const;
       const [promise, resolve] = makePromise<GlobalRef<V>>();
-      const ids = new WeakMap<TypedDestructable<any, RH, ECtx>, string>();
+      //const ids = new WeakMap<TypedDestructable<any, RH, ECtx>, string>();
       const callSubscription = new Subscription();
       const paramSubs = this.serialize(arg, obs => {
         const resolver = this.getResolver(obs);
         const withInsertion: typeof resolver = ref => {
-          ids.set(obs, ref.id);
+          this.map.reuseId(obs, ref.id);
           resolver(ref);
         };
         return withInsertion;
-      }).subscribe(
+      }, false).subscribe(
         asAsync(function* (def) {
           const refsPromise = op.next();
+          if (refsPromise instanceof Promise) { debugger; }
           op.put(def);
           const refs = yield* wait(refsPromise);
           refs.forEach((ref, i) => def[i]?.resolve?.(ref));
@@ -459,22 +467,22 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         () => promise.then(refArg => op.call_complete(refArg)),
       );
       promise.then(refArg => {
-        callSubscription.add(() => promise.then(() => {
+        callSubscription.add(() => {
           if (paramSubs.closed) return;
           op.call_unsubscribe(refArg);
           paramSubs.unsubscribe();
-        }));
+        });
         if (paramSubs.closed) {
           callSubscription.unsubscribe();
           return;
         }
-        const subs = this.push(arg, ids).wrapped.subscribe();
-        callSubscription.add(() => promise.then(() => subs.unsubscribe()));
+        const subs = this.push(arg).wrapped.subscribe(() => { });
+        callSubscription.add(() => subs.unsubscribe());
         const refTask = makePromise<GlobalRef<AppX<'V', cim2, k2, X>>>();
         const responseSubs = op.subscribeToResult({
           resp_call: (data) => {
             const ref = this.unserialize(data)[0];
-            responseSubs.add(this.getValue(ref)[1].subscription);
+            responseSubs.add(this.get(ref.id)?.[1].subscription);
             refTask[1](ref);
           },
           err_call: (err) => {
@@ -500,7 +508,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       }).then(ref => {
         if (!ref) return;
         const subs = this.getValue(ref)[0].subscribe(subscriber);
-        callSubscription.add(() => promise.then(() => subs.unsubscribe()));
+        callSubscription.add(() => subs.unsubscribe());
       });
       return callSubscription;
     });

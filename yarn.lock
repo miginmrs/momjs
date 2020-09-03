@@ -1023,10 +1023,10 @@ define-property@^2.0.2:
     is-descriptor "^1.0.2"
     isobject "^3.0.1"
 
-dependent-type@^0.0.1-SNAPSHOT-7:
-  version "0.0.1-SNAPSHOT-7"
-  resolved "https://registry.yarnpkg.com/dependent-type/-/dependent-type-0.0.1-SNAPSHOT-7.tgz#c248c362ee4b31d749ded8068a08c12ca518db3c"
-  integrity sha512-ZmzwPu+Q/edDAFkJNwvaUhPd9ocYxyngsDQ+Re4LrDoExDeoX99q2PWKAhdvGSCq9NYrLChtq8QMt2+xLSGPQw==
+dependent-type@^0.0.1-SNAPSHOT-8:
+  version "0.0.1-SNAPSHOT-8"
+  resolved "https://registry.yarnpkg.com/dependent-type/-/dependent-type-0.0.1-SNAPSHOT-8.tgz#d82dd896d9243e64e469c7cfd846b54b9ad47fe1"
+  integrity sha512-K/8p/7O8aJfHY0JJabD2emsWEuC5hjtqecOH/Or63s87Dj7p0jMJxTzBLB/z3uYDg/zG2fbDPf/m34aq14CZug==
 
 des.js@^1.0.0:
   version "1.0.1"

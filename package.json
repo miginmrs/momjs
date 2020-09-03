@@ -38,7 +38,7 @@
     "@types/mocha": "^8.0.2",
     "chai": "^4.2.0",
     "cpy-cli": "^3.1.1",
-    "dependent-type": "^0.0.1-SNAPSHOT-7",
+    "dependent-type": "^0.0.1-SNAPSHOT-8",
     "mocha": "^8.1.1",
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.2",

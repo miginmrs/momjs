@@ -2,6 +2,7 @@ import { Store } from "./store";
 import { Subject, Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
 import { GlobalRef, RHConstraint, CallHandler } from "./types";
+import { QuickPromise } from "../utils/quick-promise";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
 
@@ -59,7 +60,7 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
     put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
     call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
     error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-    next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise().then(response => {
+    next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise(QuickPromise).then(response => {
       return JSON.parse(response.data);
     }),
     subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(

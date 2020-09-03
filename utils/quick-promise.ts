@@ -1,3 +1,5 @@
+import { identity } from "rxjs";
+
 enum PromiseStatus { Pending, Resolved, Rejected, Alias }
 
 export class QuickPromise<T> implements PromiseLike<T> {
@@ -16,7 +18,7 @@ export class QuickPromise<T> implements PromiseLike<T> {
     };
   }
 
-  constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) {
+  constructor(executor: (resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) {
     executor(valueOrPromise => {
       if (this._status !== PromiseStatus.Pending) return;
       if (((v: any): v is PromiseLike<T> => v?.then)(valueOrPromise)) {
@@ -24,7 +26,7 @@ export class QuickPromise<T> implements PromiseLike<T> {
         this._promise = valueOrPromise;
         valueOrPromise.then(this._finilize(this._thens), this._finilize(this._catchs));
       } else {
-        const value: T = valueOrPromise;
+        const value: T = valueOrPromise!;
         this._value = value;
         this._status = PromiseStatus.Resolved;
         this._finilize(this._thens)(value);
@@ -60,20 +62,23 @@ export class QuickPromise<T> implements PromiseLike<T> {
     onfulfilled?: ((value: T) => R | PromiseLike<R>) | null,
     onrejected?: ((reason: any) => E | PromiseLike<E>) | null
   ): PromiseLike<R | E> {
+    const onfulfilled2 = onfulfilled ?? identity as unknown as (value: T) => R;
     return new QuickPromise<R | E>((res, rej) => {
       if (this._status === PromiseStatus.Pending) {
-        if (onfulfilled) this._thens.push(this._tryRun(onfulfilled, res, rej));
+        this._thens.push(this._tryRun(onfulfilled2, res, rej));
         if (onrejected) this._catchs.push(this._tryRun(onrejected, res, rej));
+        else this._catchs.push(rej);
       } else if (this._status === PromiseStatus.Alias) {
         const promise = this._promise!;
         promise.then(
-          onfulfilled && this._tryRun(onfulfilled, res, rej),
-          onrejected && this._tryRun(onrejected, res, rej),
+          this._tryRun(onfulfilled2, res, rej),
+          onrejected ? this._tryRun(onrejected, res, rej) : rej,
         );
       } else if (this._status === PromiseStatus.Resolved) {
-        if (onfulfilled) this._tryRun(onfulfilled, res, rej)(this._value!);
+        this._tryRun(onfulfilled2, res, rej)(this._value!);
       } else {
         if (onrejected) this._tryRun(onrejected, res, rej)(this._error!);
+        else rej(this._error!);
       }
     });
   }
@@ -103,6 +108,8 @@ export class QuickPromise<T> implements PromiseLike<T> {
     return new QuickPromise<never>((_, rej) => rej(e));
   }
 
+  static all<T>(values: readonly (T | PromiseLike<T>)[]): PromiseLike<T[]>;
+  static all<O>(values: O): PromiseLike<UnPromise<O>>;
   static all<O>(p: O): PromiseLike<UnPromise<O>> {
     const result = (p instanceof Array ? [...p] : { ...p }) as UnPromise<O>;
     const keys = (Object.keys(p) as (keyof O)[]).filter(k => (p[k] as any).then);

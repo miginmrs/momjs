@@ -5,6 +5,7 @@ import { toCond } from '../utils/guards';
 import { deref, KeysOfType } from '.';
 import { TeardownLogic } from 'rxjs';
 import equal from 'deep-is';
+import { QuickPromise } from '../utils/quick-promise';
 
 /** @summary Filters X by C */
 export declare const F_F: unique symbol;
@@ -54,7 +55,7 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
     asyncDepMap<Exclude<keyof C, keyof any[]>, [
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
-    ], [typeof F_Destructable, typeof F_Ref]>(args, ref).then(v => toCond<any[], C, ToRef<C>, any>(v)),
+    ], [typeof F_Destructable, typeof F_Ref]>(args, ref, QuickPromise).then(v => toCond<any[], C, ToRef<C>, any>(v)),
   ctr: ArrayCtr,
 });
 
