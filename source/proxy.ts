@@ -52,31 +52,36 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
   from: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
   channel: [number]
 ): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
-  const putChannel = channel[0]++, callChannel = channel[0]++;
   return {
-    end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-    call_unsubscribe: ref => to.next({ channel: putChannel, data: ref.id, type: 'unsubscribe' }),
-    call_complete: ref => to.next({ channel: putChannel, data: ref.id, type: 'complete' }),
-    put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
-    call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
-    error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-    next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise(QuickPromise).then(response => {
-      return JSON.parse(response.data);
-    }),
-    subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
-      function (this: Subscription, { data, type }) {
-        if (type === 'response_call') {
-          cbs.resp_call(JSON.parse(data));
-        }
-        if (type === 'call_error') {
-          cbs.err_call(data);
-          this.unsubscribe();
-        }
-        if (type === 'call_complete') {
-          cbs.comp_call();
-          this.unsubscribe();
-        }
+    serialized: new WeakMap(),
+    handlers: () => {
+      const putChannel = channel[0]++, callChannel = channel[0]++;
+      return {
+        end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
+        call_unsubscribe: ref => to.next({ channel: putChannel, data: ref.id, type: 'unsubscribe' }),
+        call_complete: ref => to.next({ channel: putChannel, data: ref.id, type: 'complete' }),
+        put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
+        call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+        error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
+        next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise(QuickPromise).then(response => {
+          return JSON.parse(response.data);
+        }),
+        subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
+          function (this: Subscription, { data, type }) {
+            if (type === 'response_call') {
+              cbs.resp_call(JSON.parse(data));
+            }
+            if (type === 'call_error') {
+              cbs.err_call(data);
+              this.unsubscribe();
+            }
+            if (type === 'call_complete') {
+              cbs.comp_call();
+              this.unsubscribe();
+            }
+          }
+        )
       }
-    )
+    }
   }
 }

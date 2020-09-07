@@ -8,7 +8,7 @@ import { byKey } from '../utils/guards';
 import '../utils/rx-utils'
 import { F_Any } from '.';
 
-type TwoDestructable<A extends any[], EH extends EHConstraint<EH, ECtx>, ECtx> = TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx>[] & {
+export type TwoDestructable<A extends any[], EH extends EHConstraint<EH, ECtx>, ECtx> = TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx>[] & {
   [k in Exclude<keyof A, keyof any[]>]: TypedDestructable<A[k], EH, ECtx>;
 };
 export type DeepDestructable<A extends any[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = (n extends 1 ? TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx> : TwoDestructable<A[Exclude<keyof A, keyof any[]>] & any[], EH, ECtx>)[] & {
@@ -61,9 +61,6 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     type A = AppX<'A', cim, k, X>;
     const handler = this.handler;
     this.subject = new BehaviorSubject(init);
-    this.subject.subscribe(v=>{
-      if(v.data !== null && key === 'Array') debugger;
-    })
     this.destroy = new Subscription(() => {
       if (!this.subject.isStopped) this.subject.unsubscribe();
       else this.subject.closed = true;
@@ -78,7 +75,7 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
             map(args => [args, data, c] as [A, D, C]),
           )
         }, { completeWithInner: true, completeWithSource: true }),
-        tap(undefined, undefined, () => this.subject.complete()),
+        tap(undefined, err => this.subject.error(err), () => this.subject.complete()),
         scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, data, c, old), null)
       ).subscribe(subscriber);
       subs.add(this.destroy);

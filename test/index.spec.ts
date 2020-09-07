@@ -8,7 +8,7 @@ import {
   Json, TVCDA_CIM, TVCDADepConstaint, CallHandler, JsonObject
 } from '../source';
 import { Subscription, ObservedValueOf, Observable, Subject, interval, config } from 'rxjs';
-import { take, filter } from 'rxjs/operators';
+import { take, filter, toArray, map } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
 import { asyncDepMap } from 'dependent-type/dist/cjs/map';
 import { startListener, DataGram, createCallHandler } from '../source/proxy'
@@ -232,8 +232,10 @@ describe('Store', () => {
     })
   })
 });
-describe.only('Stores Communication', () => {
+describe('Stores Communication', () => {
   it('should work', (done) => {
+    // let done = () => { };
+    // const waitUntilDone = new Promise<void>(res => done = res);
     const handlers = RequestHandlers;
     type xn = { x: number };
 
@@ -245,33 +247,68 @@ describe.only('Stores Communication', () => {
     const store2_to_store1 = new Subject<DataGram<msg2to1>>();
     const channel = [0] as [0];
     const msgs: (['1->2', number, msg1to2, Json] | ['2->1', number, msg2to1, Json])[] = [];
-    const expectedMsgs: typeof msgs = [['1->2', 0, 'put', [
-      { i: 0, type: 'Array', data: [{ $: 1 }, { $: 2 }], c: null, new: true },
-      { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false },
-      { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false },
-    ]], ['2->1', 0, 'response_put', [
-      { id: '1' }, { id: '2' }, { id: '3' }
-    ]], ['1->2', 1, 'call', {
-      fId: 0, param: null, argId: '1'
-    }], ['2->1', 1, 'response_call', [
-      { i: 0, type: 'Json', data: { x: 50 }, c: null, id: 4, new: true }
-    ]], ['1->2', 0, 'put', [
-      { i: 0, type: 'Array', data: [{ $: 1 }, { id: '3' }], c: null, id: '1', new: false },
-      { i: 1, type: 'Json', data: { x: 4 }, c: null, id: '2', new: false }
-    ]], ['2->1', 1, 'response_call', {
-      i: 0, type: 'Json', data: { x: 40 }, c: null, id: '4', new: false
-    }], ['2->1', 0, 'response_put', [
-      { id: '1' }, { id: '2' }
-    ]]];
+    const callHandler = createCallHandler<RH, {}>(store1_to_store2, store2_to_store1, channel);
+    const expectedMsgs: typeof msgs = [
+      ['1->2', 0, 'put', [
+        { i: 0, type: 'Array', data: [{ '$': 1 }, { '$': 2 }], c: null, new: true },
+        { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false },
+        { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false }
+      ]],
+      ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }, { id: '3' }]],
+      ['1->2', 1, 'call', { fId: 0, param: null, argId: '1' }],
+      ['2->1', 1, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 50 }, c: null, id: '4', new: true }
+      ]],
+      ['1->2', 3, 'call', { fId: 0, param: null, argId: '1' }],
+      ['2->1', 3, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 50 }, c: null, id: '5', new: true }
+      ]],
+      ['1->2', 0, 'put', [
+        { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
+        { i: 1, type: 'Json', data: { x: 4 }, c: null, id: '2', new: false }
+      ]],
+      ['2->1', 1, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 40 }, c: null, id: '4', new: false }
+      ]],
+      ['1->2', 1, 'end_call', ''],
+      ['2->1', 3, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 40 }, c: null, id: '5', new: false }
+      ]],
+      ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }]],
+      ['1->2', 0, 'put', [
+        { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
+        { i: 1, type: 'Json', data: { x: 3 }, c: null, id: '2', new: false }
+      ]],
+      ['2->1', 3, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 30 }, c: null, id: '5', new: false }
+      ]],
+      ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }]],
+      ['1->2', 0, 'put', [
+        { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
+        { i: 1, type: 'Json', data: { x: 20 }, c: null, new: false }
+      ]],
+      ['2->1', 3, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 200 }, c: null, id: '5', new: false }
+      ]],
+      ['2->1', 0, 'response_put', [{ id: '1' }, { id: '6' }]],
+      ['1->2', 0, 'put', [
+        { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
+        { i: 1, type: 'Json', data: { x: 30 }, c: null, id: '6', new: false }
+      ]],
+      ['2->1', 3, 'response_call', [
+        { i: 0, type: 'Json', data: { x: 300 }, c: null, id: '5', new: false }
+      ]],
+      ['2->1', 0, 'response_put', [{ id: '1' }, { id: '6' }]],
+      ['1->2', 0, 'unsubscribe', 1], // the observable 1 is not destroyed at this point, because its used by the fct call 
+      ['1->2', 0, 'complete', 1],
+      ['2->1', 3, 'call_complete', '']
+    ];
+
     store1_to_store2.subscribe(v => {
-      if (msgs.length === expectedMsgs.length -1 ) debugger;
-      msgs.push(['1->2', v.channel, v.type, JSON.parse(v.data)]);
-      console.log('store1', '->', 'store2', v.channel, v.type, v.data)
+      msgs.push(['1->2', v.channel, v.type, v.data && JSON.parse(v.data)]);
     });
     store2_to_store1.subscribe(v => {
-      if (msgs.length === expectedMsgs.length -1 ) debugger;
-      msgs.push(['2->1', v.channel, v.type, JSON.parse(v.data)]);
-      console.log('store2', '->', 'store1', v.channel, v.type, v.data)
+      msgs.push(['2->1', v.channel, v.type, v.data && JSON.parse(v.data)]);
     });
 
     // STORE2
@@ -303,41 +340,36 @@ describe.only('Stores Communication', () => {
     const arg = wrapArray<[xn, xn], RH, {}>([a, b], handlers);
     const subs = arg.subscribe();
 
-    // store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
-    //   fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1, channel)
-    // ).pipe(take(1)).subscribe(v => {
-    //   console.log('---', v)
-    // });
+    store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
+      fId, arg, null, callHandler
+    ).pipe(take(2), map(v => ({ ...v })), toArray()
+    ).subscribe(v => expect(v).deep.eq([{ x: 50 }, { x: 40 }]));
 
-    const warn = console.warn;
-    console.warn = () => { };
-    config.useDeprecatedSynchronousErrorHandling = true;
-    console.warn = warn;
 
     const receivedValues: xn[] = [];
     // STORE1
     store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
-      fId, arg, null, createCallHandler(store1_to_store2, store2_to_store1, channel)
-    ).subscribe(v => {
-      console.log([...store1['map'].keys()], v);
+      fId, arg, null, callHandler
+    ).subscribe(async v => {
       receivedValues.push({ ...v });
       if (v.x !== 50) return;
-      // await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 4 }, args: [], n: 1 });
-      // await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 3 }, args: [], n: 1 });
-      // await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => setTimeout(r, 1));
       arg.subject.next({ data: null, n: 1, args: [c, b] })
-      // await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => setTimeout(r, 1));
       c.subject.next({ data: { x: 30 }, args: [], n: 1 });
-      // await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => setTimeout(r, 1));
       b.subject.complete();
     }, () => { }, () => {
-      console.log('[[[[[[[]]]]]]]', receivedValues)
-      //expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }]);
-      // setTimeout(()=>console.log([...store1['map'].keys()]), 10);
-      // expect([...store1['map'].keys()]).deep.eq([]);
-      done();
+      expect(receivedValues).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }]);
+      expect(msgs).deep.eq(expectedMsgs);
+      setTimeout(() => {
+        expect([...store1['map'].keys()]).deep.eq([]);
+        done();
+      }, 0);
     });
     subs.unsubscribe();
   })
