@@ -5,7 +5,7 @@
   "module": "./dist/esm/index.js",
   "sideEffects": true,
   "scripts": {
-    "prepublish": "yarn run dist && node inc-version.js",
+    "push": "yarn dist && node inc-version.js && npm publish",
     "test": "mocha -r ts-node/register test/**/*.ts",
     "test:js": "mocha dist/cjs/test/**/*.js",
     "test:js:debug": "mocha --inspect-brk dist/cjs/test/**/*.js",
