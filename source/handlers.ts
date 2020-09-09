@@ -85,7 +85,7 @@ const deepUpdate = <T extends JsonObject>(target: JsonObject, source: T) => {
   return target as T;
 }
 export const JsonCtr: DestructableCtr<JsonObject, JsonCim, JsonTypeKeys> = <X extends JsonObject>(
-  _: [], data: X, _c: null, old: JsonObject | null
+  _: [], data: X, _c: null, old: X | null
 ) => old ? deepUpdate(old, data) : data;
 
 const clone = <T extends Json>(o: T): T => {

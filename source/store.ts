@@ -1,10 +1,10 @@
-import { Subscription, Observable, ObservedValueOf, TeardownLogic, concat, of, NEVER } from 'rxjs';
+import { Subscription, Observable, ObservedValueOf, TeardownLogic, concat, of, NEVER, identity } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
   xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler, AnyModelDefinition, CallHandler,
 } from './types'
-import { Destructable, EntryObs, TypedDestructable, TwoDestructable } from './destructable';
+import { Destructable, EntryObs, TypedDestructable, TwoDestructable, EMPTY_ARR } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, App, Fun, BadApp } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
@@ -47,29 +47,29 @@ declare module 'dependent-type' {
   }
 }
 
-
-const runit = <R, N>(gen: Generator<N | PromiseLike<N>, R, N>) => {
-  const h = (...args: [] | [N]): PromiseLike<R> => {
-    const v = args.length ? gen.next(args[0]) : gen.next();
-    if (v.done) return QuickPromise.resolve(v.value);
-    return QuickPromise.resolve(v.value).then(h);
-  }; return h();
+export type PromiseCtr = {
+  new <T>(executor: (resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): PromiseLike<T>;
+  all<T>(values: readonly (T | PromiseLike<T>)[]): PromiseLike<T[]>,
+  resolve<T>(value: T | PromiseLike<T>): PromiseLike<T>;
 }
 
-function* wait<T>(x: T | PromiseLike<T>): Generator<T | PromiseLike<T>, T, T> {
+
+export const runit = <R, N>(gen: Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr) => {
+  const runThen = (...args: [] | [N]): PromiseLike<R> => {
+    const v = args.length ? gen.next(args[0]) : gen.next();
+    if (v.done) return promiseCtr.resolve(v.value);
+    return promiseCtr.resolve(v.value).then(runThen);
+  }; return runThen();
+}
+
+export function* wait<T>(x: T | PromiseLike<T>): Generator<T | PromiseLike<T>, T, T> {
   return yield x;
 }
 
-// function* d() {
-//   const i = yield* wait(new Promise<number>(r => setTimeout(() => r(3), 100)));
-// }
-
-// runit((function* () { const u = yield new Promise<number>(r => setTimeout(() => r(3), 100)); console.log(u) })())
-
-function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, thisArg: U): (...args: T) => PromiseLike<R>;
-function asAsync<T extends any[], R, U = void, N = any>(f: (this: U | void, ...args: T) => Generator<N | PromiseLike<N>, R, N>, thisArg?: U): (...args: T) => PromiseLike<R>;
-function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, thisArg: U): (...args: T) => PromiseLike<R> {
-  return (...args: T) => runit(f.call(thisArg, ...args as T));
+export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R>;
+export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U | void, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg?: U): (...args: T) => PromiseLike<R>;
+export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R> {
+  return (...args: T) => runit(f.call(thisArg, ...args as T), promiseCtr);
 }
 
 export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
@@ -83,11 +83,13 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     return this.byId.delete(id);
   }
   set(id: k, value: [ObsWithOrigin<any, EH, ECtx>, D]) {
+    if (id as unknown === '6') debugger;
     this.byObs.set(value[0].origin, id);
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
   reuseId(obs: TypedDestructable<any, EH, ECtx>, id: k) {
+    if (id as unknown === '6') debugger;
     this.oldId.set(obs, id);
   };
   find(obs: TypedDestructable<any, EH, ECtx>) {
@@ -102,16 +104,19 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
   values() { return this.byId.values() }
 }
 
+const one = BigInt(1);
+
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
-  private next = BigInt(1);
+  private next = one;
 
-  constructor(readonly handlers: RH, private extra: ECtx, readonly name?: string) { }
+  constructor(readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr, readonly name?: string) { }
 
   private getNext(id?: string): string {
+    //    if (id ? id === '6' : this.next === BigInt(6)) debugger;
     if (id === undefined) return `${this.next++}`;
     const intId = BigInt(id);
-    if (this.next <= intId) this.next = intId + 1n;
+    if (this.next <= intId) this.next = intId + one;
     return id;
   }
 
@@ -293,46 +298,98 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     const subs = this.map.get(id)![1].subscription = obs.subscribe(() => { });
     return { id, obs, subs };
   }
-  push<V>(obs: ObsWithOrigin<V, RH, ECtx>, ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>, unload?: () => void) {
-    const oldId = this.map.find(obs.origin)
-    const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
-    let wrapped = obs;
-    if (oldId === undefined) {
-      let destroyed = false;
-      wrapped = defineProperty(
-        Object.assign(combine(obs, obs.origin.subject.pipe(
-          alternMap(({ args, n }) => {
-            const array: (ObsWithOrigin<any, RH, ECtx> | Observable<any[]>)[] = n === 2
-              ? (args as DeepDestructable<any, 2, RH, ECtx>).filter(a => a.length !== 0).map(arg => combine(arg.map(x => this.push(x, ids).wrapped)))
-              : (args as DeepDestructable<any, 1, RH, ECtx>).map(arg => this.push(arg, ids).wrapped);
-            return array.length ? combine(array) : concat(of([]), NEVER);
-          }, { completeWithInner: true, completeWithSource: true }),
-          distinctUntilChanged<(ObsWithOrigin<any, RH, ECtx> | ObsWithOrigin<any, RH, ECtx>[])[]>(
-            (x, y) => x.length === y.length && x.every((v, i) => {
+  EMPTY_ARR_PR = this.promiseCtr.resolve(EMPTY_ARR);
+  push<RH extends RHConstraint<RH, ECtx>, ECtx, V>(
+    this: Store<RH, ECtx>, obs: ObsWithOrigin<V, RH, ECtx>,
+    { ids, init, unload }: {
+      ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>,
+      unload?: () => void,
+      init?: (obs: TypedDestructable<any, RH, ECtx>) => void
+    } = {}
+  ): QuickPromise<{ wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription }> {
+    return asAsync(function* () {
+      init?.(obs.origin);
+      yield* wait(this.waiting.push.get(obs.origin));
+      const oldId = this.map.find(obs.origin);
+      const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
+      if (id === '6') debugger;
+      let wrapped = obs;
+      let subscription: Subscription;
+      let resolve!: () => void, promise = new this.promiseCtr(r => resolve = r);
+
+      if (oldId === undefined) {
+        let destroyed = false;
+        const temp: Subscription[] = [];
+        const clear = () => {
+          temp.forEach(s => s.unsubscribe());
+          temp.length = 0;
+        };
+        wrapped = defineProperty(
+          Object.assign(combine(obs, obs.origin.subject.pipe(
+            // alternMap(({ args, n }) => {
+            //   const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
+            //     const d = this.push(obs, { ids, init });
+            //     return d['_value']!.wrapped;
+            //   }
+            //   const array: (ObsWithOrigin<any, RH, ECtx> | Observable<any[]>)[] = n === 2
+            //     ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => arg.length ? combine(arg.map(wrap)) : EMPTY_ARR)
+            //     : (args as DeepDestructable<any, 1, RH, ECtx>).map(wrap);
+            //   const ret: Observable<any[]> = array.length ? combine(array) : EMPTY_ARR;
+            //   return ret
+            // }),
+            scan<EntryObs<any, any, any, RH, ECtx>, PromiseLike<Observable<any[]>>, null>((acc, { args, n }) => {
+              const wrap = asAsync(function* (obs: TypedDestructable<any, RH, ECtx>) {
+                const res = yield* wait(this.push(obs, { ids, init }));
+                temp.push(res.subscription);
+                return res.wrapped;
+              }, this.promiseCtr, this);
+              const array: PromiseLike<ObsWithOrigin<any, RH, ECtx> | Observable<any[]>>[] = n === 2
+                ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => arg.length ? this.promiseCtr.all(arg.map(wrap)).then<Observable<any[]>>(combine) : this.EMPTY_ARR_PR)
+                : (args as DeepDestructable<any, 1, RH, ECtx>).map(wrap);
+              const ret: PromiseLike<Observable<any[]>> = array.length ? this.promiseCtr.all(array).then<Observable<any[]>>(combine) : this.EMPTY_ARR_PR;
+              if (!acc) ret.then(resolve);
+              return acc ? acc.then(() => ret) : ret;
+            }, null),
+            asyncMap(value => value.then((value): Cancellable<Observable<any[]>> => ({ ok: true, value }))),
+            alternMap(identity, { completeWithInner: true }),
+            tap(clear),
+            distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => {
               const w = y[i];
               if (v instanceof Array && w instanceof Array) {
                 return v.length === w.length && v.every((u, i) => u === w[i]);
               }
               return v === w
             })),
-        )).pipe(
-          finalize(() => { unload?.(); this.map.delete(id); destroyed = true; }),
-          map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
-        ), { origin: obs.origin, parent: obs }),
-        'destroyed', { get() { return destroyed } }
-      );
-      this.map.set(id, [wrapped, {}]);
-    } else {
-      wrapped = this.map.get(id)![0];
-    }
-    return { ref: { id } as GlobalRef<V>, wrapped };
+          )).pipe(
+            finalize(() => { unload?.(); clear(); this.map.delete(id); destroyed = true; }),
+            map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
+          ), { origin: obs.origin, parent: obs }),
+          'destroyed', { get() { return destroyed } }
+        );
+        this.map.set(id, [wrapped, {}]);
+        subscription = wrapped.subscribe();
+        yield* wait(promise);
+      } else {
+        wrapped = this.map.get(id)![0];
+        subscription = wrapped.subscribe();
+      }
+      return { ref: { id } as GlobalRef<V>, wrapped, subscription };
+    }, this.promiseCtr, this)() as any;
   }
-  private waiting = new WeakMap<TypedDestructable<any, RH, ECtx>, PromiseLike<GlobalRef<any>>>();
-  getResolver = <V>(obs: TypedDestructable<V, RH, ECtx>) => {
+  private waiting: Record<'serialize' | 'push', WeakMap<TypedDestructable<any, RH, ECtx>, PromiseLike<GlobalRef<any>>>> = {
+    push: new WeakMap,
+    serialize: new WeakMap,
+  };
+  private resolvers:Record<'serialize' | 'push', WeakMap<TypedDestructable<any, RH, ECtx>, (ref: GlobalRef<any>) => void>> = {
+    push: new WeakMap,
+    serialize: new WeakMap,
+  };
+  getResolver = <V>(obs: TypedDestructable<V, RH, ECtx>, key: 'serialize' | 'push') => {
     let resolve!: (ref: GlobalRef<V>) => void;
-    const promise = new QuickPromise<GlobalRef<V>>(res => resolve = res);
-    this.waiting.set(obs, promise);
-    promise.then(ref => { this.waiting.delete(obs) });
+    const promise = new this.promiseCtr<GlobalRef<V>>(res => resolve = res);
+    this.waiting[key].set(obs, promise);
+    this.resolvers[key].set(obs, resolve);
+    promise.then(() => { this.waiting[key].delete(obs); this.resolvers[key].delete(obs); });
     return resolve;
   }
   serialize = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
@@ -366,7 +423,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       addToSnapshot(obs);
       const ref: ref<RH, ECtx> = <V>(iObs: TypedDestructable<V, RH, ECtx>): PromiseLike<Ref<V>> => asAsync(function* () {
         let { data: value, entry } = snapshot.get(iObs)!;
-        yield this.waiting.get(iObs);
+        yield this.waiting.serialize.get(iObs);
         const id = this.map.find(iObs);
         //const isHere = true; //entry.args.every(arg => arg instanceof Array ? arg.every(inMap) : inMap(arg));
         const resolve = id === undefined ? getResolver?.(iObs) : undefined;
@@ -399,17 +456,17 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
           session.set($, [iObs, attr]);
         }
         return { $ } as LocalRef<V>;
-      }, this)();
+      }, this.promiseCtr, this)();
       const ctx = {
         deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
       };
-      const ret: SMR = [session, allData, yield* wait(QuickPromise.resolve(ref(obs)))];
+      const ret: SMR = [session, allData, yield* wait(this.promiseCtr.resolve(ref(obs)))];
       return ret;
-    }, this), null), asyncMap<PromiseLike<SMR> | null, SMR>(result => {
+    }, this.promiseCtr, this), null), asyncMap<PromiseLike<SMR> | null, SMR>(result => {
       return runit((function* () {
         const ret: Cancellable<SMR> = result ? { ok: true, value: yield* wait(result) } : {};
         return ret;
-      })());
+      })(), this.promiseCtr);
     }, { mode: 'merge', wait: true }), map(([session, , ref]) => {
       const entries = Array(session.size).fill(0).map((_, i) => session.get(i)!);
       if (entries.length === 0) {
@@ -434,28 +491,30 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   functions: ((param: Json, arg: ObsWithOrigin<any, RH, ECtx>) => TypedDestructable<any, RH, ECtx>)[] = [];
   call(fId: number, param: Json, arg: GlobalRef<any>) {
     const obs = this.functions[fId](param, this.getValue(arg)[0]);
-    const wrapped = this.push(obs).wrapped;
-    const serialized = this.serialize(obs);
-    return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
-      subscriber.add(wrapped.subscribe(() => { }));
-      subscriber.add(serialized.subscribe(subscriber));
+    return this.push(obs).then(({ subscription }) => {
+      const serialized = this.serialize(obs);
+      return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
+        subscriber.add(subscription);
+        subscriber.add(serialized.subscribe(subscriber));
+      });
     });
   }
+  callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<any>>>();
   remote<dom2, cim2 extends TVCDA_CIM, k2 extends TVCDADepConstaint<dom2, cim2>, X2 extends dom2, n2 extends 1 | 2>() {
     return <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, P extends Json>(
       fId: number, arg: Destructable<dom, cim, k, X, n, RH, ECtx>, param: P,
       { handlers: makeOp, serialized }: CallHandler<dom, cim, k, X, n, P, dom2, cim2, k2, X2, n2, RH, ECtx>
     ) => new Observable<AppX<'V', cim2, k2, X2>>(subscriber => void (asAsync(function* () {
       type V = AppX<'V', cim, k, X>;
-      const makePromise = <T>(res?: (x: T) => void) => [new QuickPromise<T>(r => res = r), res!] as const;
+      const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
       const [promise, resolve] = makePromise<GlobalRef<V>>();
       //const ids = new WeakMap<TypedDestructable<any, RH, ECtx>, string>();
       const callSubscription = new Subscription();
-      yield* wait(this.waiting.get(arg));
+      yield* wait(this.waiting.serialize.get(arg));
       const op = makeOp();
       let refObs = serialized.get(arg);
       if (!refObs) serialized.set(arg, refObs = this.serialize(arg, obs => {
-        const resolver = this.getResolver(obs);
+        const resolver = this.getResolver(obs, 'serialize');
         const withInsertion: typeof resolver = ref => {
           this.map.reuseId(obs, ref.id);
           resolver(ref);
@@ -463,17 +522,20 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         return withInsertion;
       }, false).pipe(asyncMap(asAsync(function* (def) {
         const refsPromise = op.next();
+        if (def.some(x => x.id === '6')) debugger;
         op.put(def);
         const refs = yield* wait(refsPromise);
         refs.forEach((ref, i) => def[i]?.resolve?.(ref));
         const ret: Cancellable<GlobalRef<V>> = { ok: true, value: refs[0] };
         return ret;
-      })), tap(
+      }, this.promiseCtr, this)), tap(
         undefined,
         e => promise.then(refArg => op.error(refArg, e)),
-        () => promise.then(refArg => op.call_complete(refArg)),
+        () => promise.then(refArg => op.complete(refArg)),
       ), shareReplay({ refCount: true, bufferSize: 1 })));
       const paramSubs = refObs.subscribe(ref => resolve(ref));
+      const refTask = makePromise<GlobalRef<AppX<'V', cim2, k2, X>>>();
+      this.callReturnRef.set(subscriber, refTask[0]);
       promise.then(refArg => {
         callSubscription.add(() => {
           if (paramSubs.closed) return;
@@ -483,34 +545,30 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
           callSubscription.unsubscribe();
           return;
         }
-        const { wrapped } = this.push(arg, undefined, () => {
-          debugger;
-          op.call_unsubscribe(refArg)
-        });
-        const subs = wrapped.subscribe(() => { });
+        return this.push(arg, {
+          init: obs => { if (this.map.usedId(obs) === undefined) this.getResolver(obs, 'push') },
+          unload: () => op.call_unsubscribe(refArg)
+        }).then(({ wrapped, subscription }) => ({ refArg, wrapped, subscription }));
+      }).then(res => {
+        if (!res) return;
+        const { refArg, subscription, wrapped } = res;
+        const subs = wrapped.subscribe();
+        subscription.unsubscribe();
         callSubscription.add(() => subs.unsubscribe());
-        const refTask = makePromise<GlobalRef<AppX<'V', cim2, k2, X>>>();
         const responseSubs = op.subscribeToResult({
           resp_call: (data) => {
-            let closed = callSubscription.closed;
-            Object.defineProperty(callSubscription, 'closed', {
-              enumerable: true, get: () => closed, set: v => {
-                if (v) debugger;
-                closed = v
-              }
-            });
             const ref = this.unserialize(data)[0];
             responseSubs.add(this.get(ref.id)?.[1].subscription);
             refTask[1](ref);
           },
           err_call: (err) => {
-            refTask[0].then(ref => {
+            return refTask[0].then(ref => {
               const obs = this.getValue(ref)[0];
               (obs as typeof obs.origin).subject.error(err);
             })
           },
           comp_call: () => {
-            refTask[0].then(ref => {
+            return refTask[0].then(ref => {
               const obs = this.getValue(ref)[0];
               (obs as typeof obs.origin).subject.complete();
             })
@@ -529,6 +587,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         callSubscription.add(() => subs.unsubscribe());
       });
       subscriber.add(callSubscription);
-    }, this))());
+    }, this.promiseCtr, this))());
   }
 }

@@ -6,13 +6,14 @@ import { TVCDA_CIM, TVCDADepConstaint, CtxH, EHConstraint, CtxEH, DestructableCt
 import { AppX, KeysOfType, TypeFuncs } from 'dependent-type';
 import { byKey } from '../utils/guards';
 import '../utils/rx-utils'
-import { F_Any } from '.';
+
+export const EMPTY_ARR = concat(of([]), NEVER);
 
 export type TwoDestructable<A extends any[], EH extends EHConstraint<EH, ECtx>, ECtx> = TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx>[] & {
   [k in Exclude<keyof A, keyof any[]>]: TypedDestructable<A[k], EH, ECtx>;
 };
-export type DeepDestructable<A extends any[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = (n extends 1 ? TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx> : TwoDestructable<A[Exclude<keyof A, keyof any[]>] & any[], EH, ECtx>)[] & {
-  [k in Exclude<keyof A, keyof any[]>]: n extends 1 ? TypedDestructable<A[k], EH, ECtx> : TwoDestructable<A[k] & any[], EH, ECtx>;
+export type DeepDestructable<A extends any[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = (n extends 1 ? TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx> : TwoDestructable<A[Exclude<keyof A, keyof any[]>] & unknown[], EH, ECtx>)[] & {
+  [k in Exclude<keyof A, keyof any[]>]: n extends 1 ? TypedDestructable<A[k], EH, ECtx> : TwoDestructable<A[k] & unknown[], EH, ECtx>;
 };
 export type EntryObs<D, A extends any[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
   args: DeepDestructable<A, n, EH, ECtx>, data: D, n: n
@@ -69,9 +70,9 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     this.source = new Observable<V>(subscriber => {
       const subs = this.subject.pipe(
         distinctUntilChanged(compare),
-        alternMap(({ args, data, n }) => {
-          const array = n === 2 ? args.filter(a => !(a instanceof Array) || a.length !== 0).map(args => combine(args)) : args;
-          return (array.length ? combine(array) as Observable<A> : concat(of([]), NEVER)).pipe(
+        alternMap(({ args, data }) => {
+          const array = args.map(args => args instanceof Array ? args.length ? combine(args) : EMPTY_ARR : args);
+          return (array.length ? combine(array) as Observable<A> : EMPTY_ARR).pipe(
             map(args => [args, data, c] as [A, D, C]),
           )
         }, { completeWithInner: true, completeWithSource: true }),

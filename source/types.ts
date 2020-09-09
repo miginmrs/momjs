@@ -105,7 +105,7 @@ export type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
 export type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
 
 export type DestructableCtr<dom, cim extends Omit<TVCDA_CIM, 'T'>, k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>> = {
-  <X extends dom>(args: AppX<'A', cim, k, X>, data: AppX<'D', cim, k, X>, c: AppX<'C', cim, k, X>, old: null | cim['V'][1]): AppX<'V', cim, k, X>
+  <X extends dom>(args: AppX<'A', cim, k, X>, data: AppX<'D', cim, k, X>, c: AppX<'C', cim, k, X>, old: null | AppX<'V', cim, k, X>): AppX<'V', cim, k, X>
 };
 
 export type RequestHandlerCompare<dom, cim extends Pick<TVCDA_CIM, 'D' | 'A'>, k extends DepConstaint<'D' | 'A', dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
@@ -116,7 +116,7 @@ export type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>, k exten
 }
 
 export type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  encode: (ctx: { ref: ref<EH, ECtx> }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx> & { c: AppX<'C', cim, k, X>, old?: cim['T'][1] }) => MaybePromise<AppX<'T', cim, k, X> | undefined>,
+  encode: (ctx: { ref: ref<EH, ECtx> }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx> & { c: AppX<'C', cim, k, X>, old?: AppX<'T', cim, k, X> }) => MaybePromise<AppX<'T', cim, k, X> | undefined>,
   ctr: DestructableCtr<dom, cim, k>,
 };
 export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
@@ -203,14 +203,14 @@ export type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<
     handlers: () => {
       end_call: () => void,
       call_unsubscribe: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
-      call_complete: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
+      complete: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
       put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => void,
       call: (fId: number, param: P, ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
       error: (ref: GlobalRef<AppX<'V', cim, k, X>>, err: any) => void,
       subscribeToResult: (cbs: {
         resp_call: (data: ModelsDefinition<0, [[dom2, cim2]], [k2], [X2], [n2], RH, ECtx>) => void;
-        err_call: (err: any) => void;
-        comp_call: () => void;
+        err_call: (err: any) => PromiseLike<void>;
+        comp_call: () => PromiseLike<void>;
       }) => Subscription,
       next: () => Promise<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>
     },
