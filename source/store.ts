@@ -15,7 +15,6 @@ import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, startWi
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { Json, DeepDestructable } from '.';
-import { QuickPromise } from '../utils/quick-promise';
 
 type ObsCache<
   indices extends number,
@@ -299,14 +298,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     return { id, obs, subs };
   }
   EMPTY_ARR_PR = this.promiseCtr.resolve(EMPTY_ARR);
-  push<RH extends RHConstraint<RH, ECtx>, ECtx, V>(
-    this: Store<RH, ECtx>, obs: ObsWithOrigin<V, RH, ECtx>,
+  push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
     { ids, init, unload }: {
       ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>,
       unload?: () => void,
       init?: (obs: TypedDestructable<any, RH, ECtx>) => void
     } = {}
-  ): QuickPromise<{ wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription }> {
+  ): PromiseLike<{ wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription }> {
     return asAsync(function* () {
       init?.(obs.origin);
       yield* wait(this.waiting.push.get(obs.origin));
@@ -380,7 +378,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     push: new WeakMap,
     serialize: new WeakMap,
   };
-  private resolvers:Record<'serialize' | 'push', WeakMap<TypedDestructable<any, RH, ECtx>, (ref: GlobalRef<any>) => void>> = {
+  private resolvers: Record<'serialize' | 'push', WeakMap<TypedDestructable<any, RH, ECtx>, (ref: GlobalRef<any>) => void>> = {
     push: new WeakMap,
     serialize: new WeakMap,
   };

@@ -1,6 +1,6 @@
 {
   "name": "momjs",
-  "version": "0.0.1-SNAPSHOT-36",
+  "version": "0.0.1-SNAPSHOT-37",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
   "sideEffects": true,
