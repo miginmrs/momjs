@@ -3574,11 +3574,6 @@ webpack-cli@^3.3.12:
     v8-compile-cache "^2.1.1"
     yargs "^13.3.2"
 
-webpack-rxjs-externals@^2.0.0:
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/webpack-rxjs-externals/-/webpack-rxjs-externals-2.0.0.tgz#56744b73c0c60ecab7c9c95606f2ded54ecf880f"
-  integrity sha512-K6EH1FSZbbUgmCUD9gD7coHbZYM/5cYcLS6slWKo5oG7dmCpOznbjOBZ/w+5PXeqrApwx+7mWgrZE2WVIZGJCw==
-
 webpack-sources@^1.4.0, webpack-sources@^1.4.1:
   version "1.4.3"
   resolved "https://registry.yarnpkg.com/webpack-sources/-/webpack-sources-1.4.3.tgz#eedd8ec0b928fbf1cbfe994e22d2d890f330a933"

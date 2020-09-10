@@ -2,7 +2,6 @@
 
 const path = require("path");
 const webpack = require("webpack");
-const webpackRxjsExternals = require("webpack-rxjs-externals");
 
 module.exports = env => {
   let filename = "rxrmi.umd.js";
@@ -16,7 +15,21 @@ module.exports = env => {
     entry: {
       index: "./source/index.ts"
     },
-    externals: webpackRxjsExternals(),
+    externals: function rxjsExternals(context, request, callback) {
+      if (request.match(/^rxjs(\/(?!internal)|$)/)) {
+        var parts = request.split('/');
+        if (parts.length > 2) {
+          console.warn('webpack-rxjs-externals no longer supports v5-style deep imports like rxjs/operator/map etc. It only supports rxjs v6 pipeable imports via rxjs/operators or from the root.');
+        }
+        return callback(null, {
+          root: parts,
+          commonjs: request,
+          commonjs2: request,
+          amd: request
+        });
+      }
+      callback();
+    },
     mode,
     module: {
       rules: [

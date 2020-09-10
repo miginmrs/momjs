@@ -1,6 +1,5 @@
-import { combineLatest, of, TeardownLogic, Subscriber, Observable, Subscription, OperatorFunction, concat, NEVER } from 'rxjs';
+import { combineLatest, of, TeardownLogic, Subscriber, Observable, Subscription, OperatorFunction } from 'rxjs';
 import { CombineLatestSubscriber, CombineLatestOperator } from 'rxjs/internal/observable/combineLatest';
-import { innerSubscribe, ComplexInnerSubscriber } from 'rxjs/internal/innerSubscribe';
 
 declare module 'rxjs/operators' {
   export function scan<T, R, V>(accumulator: (acc: R | V, value: T, index: number) => R, seed: V): OperatorFunction<T, R>;
