@@ -1,7 +1,13 @@
 *
+!source
 !source/**/*
+!utils
 !utils/**/*
+!dist
 !dist/**/*
+!bundles
+!bundles/**/*
+dist/bundles
 dist/cjs/test
 !package.json
 !LICENCE.txt
