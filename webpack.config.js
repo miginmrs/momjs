@@ -5,10 +5,10 @@ const webpack = require("webpack");
 const webpackRxjsExternals = require("webpack-rxjs-externals");
 
 module.exports = env => {
-  let filename = "index.umd.js";
+  let filename = "rxrmi.umd.js";
   let mode = "development";
   if (env && env.production) {
-    filename = "index.min.umd.js";
+    filename = "rxrmi.min.umd.js";
     mode = "production";
   }
   return {
@@ -36,7 +36,7 @@ module.exports = env => {
     },
     output: {
       filename,
-      library: "rxAsync",
+      library: "rxrmi",
       libraryTarget: "umd",
       path: path.resolve(__dirname, "./bundles")
     },

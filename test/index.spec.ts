@@ -239,8 +239,6 @@ describe('Store', () => {
   })
 });
 describe('Stores Communication', () => {
-  // let done = () => { };
-  // const waitUntilDone = new Promise<void>(res => done = res);
   type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
   type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
   type msg = ['1->2', number, msg1to2, Json] | ['2->1', number, msg2to1, Json];
@@ -345,11 +343,9 @@ describe('Stores Communication', () => {
 
     const channelSubs = store1_to_store2.subscribe(v => {
       msgs.push(['1->2', v.channel, v.type, v.data && JSON.parse(v.data)]);
-      // console.dir(msgs[msgs.length - 1], { depth: 1 });
     });
     channelSubs.add(store2_to_store1.subscribe(v => {
       msgs.push(['2->1', v.channel, v.type, v.data && JSON.parse(v.data)]);
-      // console.dir(msgs[msgs.length - 1], { depth: 1 });
     }));
 
     // STORE2
@@ -395,31 +391,18 @@ describe('Stores Communication', () => {
     ).pipe(finalize(
       () => channelSubs.unsubscribe()
     )).subscribe(async function (this: SafeSubscriber<xn>, v) {
-      // store1.callReturnRef.get(callSubs)!.then((ref: GlobalRef<xn>)=>{
-      //   store1.getValue(ref)[0].origin['destroy'].add(()=>{
-      //     console.log(ref);
-      //     debugger;
-      //   });
-      // });
       receivedValues.push({ ...v });
       if (v.x !== 50) return;
       subs.unsubscribe();
-      arg['destroy'].add(() => { debugger })
       await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 4 }, args: [], n: 1 });
-      // console.log('NEXT A 4')
       await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 3 }, args: [], n: 1 });
-      // console.log('NEXT A 3')
       await new Promise(r => setTimeout(r, 1));
       arg.subject.next({ data: null, n: 1, args: [c, b] })
-      // console.log('NEXT ARG C(20) B')
       await new Promise(r => setTimeout(r, 1));
       c.subject.next({ data: { x: 30 }, args: [], n: 1 });
-      // console.log('NEXT C 30')
       await new Promise(r => setTimeout(r, 1));
-      // console.log('COMPLETING B')
-      // debugger;
       b.subject.complete();
     }, () => { }, () => {
       const firstCall = firstCallResult.slice(0);

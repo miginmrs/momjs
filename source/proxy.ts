@@ -31,7 +31,7 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
     }
     case 'call': {
       const { fId, param, argId } = JSON.parse(data);
-      store.call(fId, param, { id: argId } as GlobalRef<any>).then(obs => {
+      store.local(fId, param, { id: argId } as GlobalRef<any>).then(obs => {
         const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
           subs.unsubscribe();
         });

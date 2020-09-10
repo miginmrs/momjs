@@ -157,8 +157,6 @@ export type AnyEModelDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = {
   type: keyof EH & string, c: any
 } & ModelData<any>;
 export type AnyModelDefinition<EH extends EHConstraint<EH, ECtx>, ECtx, indices extends number = number> = (AnyEModelDefinition<EH, ECtx> & { i: indices });
-// export type KAnyModelsDefinition<RH extends RHConstraint<RH, ECtx>, ECtx> = ModelsDefinition<number, [any, TVCDA_CIM][], Record<TVCDA, typeof F_C>[], any, RH, ECtx>;
-// export type KAnyEModelsDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = EModelsDefinition<number, [any, TVCDA_CIM][], Record<TVCDA, typeof F_C>[], any, EH, ECtx>;
 export type Name<
   indices extends number,
   dcim extends Record<indices, [any, TVCDA_CIM]>,

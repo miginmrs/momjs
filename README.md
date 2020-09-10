@@ -1,4 +1,4 @@
-[![npm version](https://img.shields.io/npm/v/momjs)](https://www.npmjs.com/package/momjs)
-[![build status](https://api.travis-ci.com/miginmrs/momjs.svg)](https://travis-ci.com/github/miginmrs/momjs)
-# Mom JS
-Mom JS is a message oriented middleware for javascript & typescript.
+[![npm version](https://img.shields.io/npm/v/rmirx)](https://www.npmjs.com/package/rmirx)
+[![build status](https://api.travis-ci.com/miginmrs/rmirx.svg)](https://travis-ci.com/github/miginmrs/rmirx)
+# RMI RX
+RMI RX is a ReactiveX-based Message Oriented Middleware for javascript & typescript Remote Method Invocation.

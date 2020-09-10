@@ -33,7 +33,7 @@ type ObsCache<
 
 export declare const F_Custom_Ref: unique symbol;
 export declare const F_I_X: unique symbol;
-// Record<indices, [any, TVCDA_CIM]>
+
 type ParentOfC = { 0: any, 1: any, 2: any };
 type RefHelper<C extends ParentOfC, X extends number> = App<Fun<C[1][X], C[0][X][0]>, C[2][X]> & C[0][X][1];
 type RefTypeError<C, X> = BadApp<Fun<typeof F_Custom_Ref, C>, X>;
@@ -82,13 +82,11 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     return this.byId.delete(id);
   }
   set(id: k, value: [ObsWithOrigin<any, EH, ECtx>, D]) {
-    if (id as unknown === '6') debugger;
     this.byObs.set(value[0].origin, id);
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
   reuseId(obs: TypedDestructable<any, EH, ECtx>, id: k) {
-    if (id as unknown === '6') debugger;
     this.oldId.set(obs, id);
   };
   find(obs: TypedDestructable<any, EH, ECtx>) {
@@ -112,7 +110,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   constructor(readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr, readonly name?: string) { }
 
   private getNext(id?: string): string {
-    //    if (id ? id === '6' : this.next === BigInt(6)) debugger;
     if (id === undefined) return `${this.next++}`;
     const intId = BigInt(id);
     if (this.next <= intId) this.next = intId + one;
@@ -310,7 +307,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       yield* wait(this.waiting.push.get(obs.origin));
       const oldId = this.map.find(obs.origin);
       const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
-      if (id === '6') debugger;
       let wrapped = obs;
       let subscription: Subscription;
       let resolve!: () => void, promise = new this.promiseCtr(r => resolve = r);
@@ -324,17 +320,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         };
         wrapped = defineProperty(
           Object.assign(combine(obs, obs.origin.subject.pipe(
-            // alternMap(({ args, n }) => {
-            //   const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
-            //     const d = this.push(obs, { ids, init });
-            //     return d['_value']!.wrapped;
-            //   }
-            //   const array: (ObsWithOrigin<any, RH, ECtx> | Observable<any[]>)[] = n === 2
-            //     ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => arg.length ? combine(arg.map(wrap)) : EMPTY_ARR)
-            //     : (args as DeepDestructable<any, 1, RH, ECtx>).map(wrap);
-            //   const ret: Observable<any[]> = array.length ? combine(array) : EMPTY_ARR;
-            //   return ret
-            // }),
             scan<EntryObs<any, any, any, RH, ECtx>, PromiseLike<Observable<any[]>>, null>((acc, { args, n }) => {
               const wrap = asAsync(function* (obs: TypedDestructable<any, RH, ECtx>) {
                 const res = yield* wait(this.push(obs, { ids, init }));
@@ -487,7 +472,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     return obs as [ObsWithOrigin<V, RH, ECtx>, (typeof obs)[1]];
   }
   functions: ((param: Json, arg: ObsWithOrigin<any, RH, ECtx>) => TypedDestructable<any, RH, ECtx>)[] = [];
-  call(fId: number, param: Json, arg: GlobalRef<any>) {
+  local(fId: number, param: Json, arg: GlobalRef<any>) {
     const obs = this.functions[fId](param, this.getValue(arg)[0]);
     return this.push(obs).then(({ subscription }) => {
       const serialized = this.serialize(obs);
@@ -506,7 +491,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       type V = AppX<'V', cim, k, X>;
       const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
       const [promise, resolve] = makePromise<GlobalRef<V>>();
-      //const ids = new WeakMap<TypedDestructable<any, RH, ECtx>, string>();
       const callSubscription = new Subscription();
       yield* wait(this.waiting.serialize.get(arg));
       const op = makeOp();
@@ -520,7 +504,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         return withInsertion;
       }, false).pipe(asyncMap(asAsync(function* (def) {
         const refsPromise = op.next();
-        if (def.some(x => x.id === '6')) debugger;
         op.put(def);
         const refs = yield* wait(refsPromise);
         refs.forEach((ref, i) => def[i]?.resolve?.(ref));
