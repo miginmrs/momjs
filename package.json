@@ -1,8 +1,9 @@
 {
-  "name": "rmirx",
+  "name": "rxrmi",
   "version": "0.0.1",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
+  "source": "./source",
   "sideEffects": true,
   "scripts": {
     "push": "yarn dist && node inc-version.js && npm publish",
@@ -11,7 +12,11 @@
     "test:js:debug": "mocha --inspect-brk dist/cjs/test/**/*.js",
     "dist": "yarn run dist:clean && yarn run dist:build && yarn run dist:copy",
     "dist:build": "yarn run dist:build:cjs && yarn run dist:build:esm && yarn run dist:build:bundle",
-    "dist:build:bundle": "webpack --config webpack.config.js && webpack --config webpack.config.js --env.production",
+    "dist:build:bundle": "yarn run dist:build:bundle:dev && yarn run dist:build:bundle:dev:full && yarn run dist:build:bundle:prod && yarn run dist:build:bundle:prod:full",
+    "dist:build:bundle:dev": "webpack --config webpack.config.js",
+    "dist:build:bundle:dev:full": "webpack --config webpack.config.js --env.full",
+    "dist:build:bundle:prod": "webpack --config webpack.config.js --env.production",
+    "dist:build:bundle:prod:full": "webpack --config webpack.config.js --env.production --env.full",
     "dist:build:cjs": "tsc -p tsconfig-dist-cjs.json",
     "dist:build:cjs:watch": "tsc -w -p tsconfig-dist-cjs.json",
     "dist:build:esm": "tsc -p tsconfig-dist-esm.json",
@@ -35,14 +40,15 @@
   "description": "",
   "devDependencies": {
     "@types/chai": "^4.2.12",
+    "@types/lodash": "^4.14.161",
     "@types/mocha": "^8.0.2",
     "chai": "^4.2.0",
     "cpy-cli": "^3.1.1",
-    "dependent-type": "^0.0.1-SNAPSHOT-8",
+    "ignore-loader": "^0.1.2",
     "lodash": "^4.17.20",
     "mocha": "^8.1.1",
     "rimraf": "^3.0.2",
-    "rxjs": "^6.6.2",
+    "rxjs": ">=6.0.0",
     "ts-loader": "^8.0.3",
     "ts-node": "^8.10.2",
     "typescript": "3.9.7",
@@ -51,14 +57,14 @@
     "webpack-cli": "^3.3.12"
   },
   "peerDependencies": {
-    "dependent-type": "^0.0.1-SNAPSHOT-7",
-    "rxjs": "^6.6.0"
+    "rxjs": ">=6.0.0",
+    "rxjs-umd": "miginmrs/rxjs-umd#builds"
   },
   "dependencies": {
-    "@types/lodash": "^4.14.161",
-    "altern-map": "^0.0.1-SNAPSHOT-12",
+    "altern-map": "miginmrs/altern-map#builds",
     "deep-is": "^0.1.3",
-    "rx-async": "^0.0.1-SNAPSHOT-7"
+    "dependent-type": "miginmrs/dependent-type#builds",
+    "rx-async": "miginmrs/rx-async#builds"
   },
   "keywords": [
     "RMI",

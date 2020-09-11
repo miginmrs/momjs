@@ -1,20 +1,22 @@
-import { Subscription, Observable, ObservedValueOf, TeardownLogic, concat, of, NEVER, identity } from 'rxjs';
+import { Subscription, Observable, ObservedValueOf, TeardownLogic, concat, of, NEVER, identity, combineLatest } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
   xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler, AnyModelDefinition, CallHandler,
 } from './types'
-import { Destructable, EntryObs, TypedDestructable, TwoDestructable, EMPTY_ARR } from './destructable';
+import { Destructable, EntryObs, TypedDestructable } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, App, Fun, BadApp } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
-import { depMap } from 'dependent-type/dist/cjs/map';
-import { combine, current } from '../utils/rx-utils';
+import { map as dep_map } from 'dependent-type';
+import { eagerCombineAll, current } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
 import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, startWith, tap } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { Json, DeepDestructable } from '.';
+
+const { depMap } = dep_map;
 
 type ObsCache<
   indices extends number,
@@ -294,7 +296,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     const subs = this.map.get(id)![1].subscription = obs.subscribe(() => { });
     return { id, obs, subs };
   }
-  EMPTY_ARR_PR = this.promiseCtr.resolve(EMPTY_ARR);
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
     { ids, init, unload }: {
       ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>,
@@ -319,7 +320,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
           temp.length = 0;
         };
         wrapped = defineProperty(
-          Object.assign(combine(obs, obs.origin.subject.pipe(
+          Object.assign(eagerCombineAll(obs, obs.origin.subject.pipe(
             scan<EntryObs<any, any, any, RH, ECtx>, PromiseLike<Observable<any[]>>, null>((acc, { args, n }) => {
               const wrap = asAsync(function* (obs: TypedDestructable<any, RH, ECtx>) {
                 const res = yield* wait(this.push(obs, { ids, init }));
@@ -327,9 +328,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
                 return res.wrapped;
               }, this.promiseCtr, this);
               const array: PromiseLike<ObsWithOrigin<any, RH, ECtx> | Observable<any[]>>[] = n === 2
-                ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => arg.length ? this.promiseCtr.all(arg.map(wrap)).then<Observable<any[]>>(combine) : this.EMPTY_ARR_PR)
+                ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => this.promiseCtr.all(arg.map(wrap)).then<Observable<any[]>>(eagerCombineAll))
                 : (args as DeepDestructable<any, 1, RH, ECtx>).map(wrap);
-              const ret: PromiseLike<Observable<any[]>> = array.length ? this.promiseCtr.all(array).then<Observable<any[]>>(combine) : this.EMPTY_ARR_PR;
+              const ret: PromiseLike<Observable<any[]>> = this.promiseCtr.all(array).then<Observable<any[]>>(eagerCombineAll);
               if (!acc) ret.then(resolve);
               return acc ? acc.then(() => ret) : ret;
             }, null),
@@ -528,7 +529,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         }
         return this.push(arg, {
           init: obs => { if (this.map.usedId(obs) === undefined) this.getResolver(obs, 'push') },
-          unload: () => op.call_unsubscribe(refArg)
+          unload: () => op.call_unsubscribe(refArg),
         }).then(({ wrapped, subscription }) => ({ refArg, wrapped, subscription }));
       }).then(res => {
         if (!res) return;

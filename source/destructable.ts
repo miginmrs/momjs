@@ -1,13 +1,11 @@
-import { BehaviorSubject, Observable, Subscription, TeardownLogic, OperatorFunction, NEVER, of, concat } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
 import { alternMap } from 'altern-map';
-import { combine } from '../utils/rx-utils';
+import { eagerCombineAll } from '../utils/rx-utils';
 import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
-import { TVCDA_CIM, TVCDADepConstaint, CtxH, EHConstraint, CtxEH, DestructableCtr, RequestHandlerCompare, ObsWithOrigin } from './types';
-import { AppX, KeysOfType, TypeFuncs } from 'dependent-type';
+import { TVCDA_CIM, TVCDADepConstaint, EHConstraint, CtxEH, RequestHandlerCompare, ObsWithOrigin } from './types';
+import type { AppX, KeysOfType } from 'dependent-type';
 import { byKey } from '../utils/guards';
 import '../utils/rx-utils'
-
-export const EMPTY_ARR = concat(of([]), NEVER);
 
 export type TwoDestructable<A extends any[], EH extends EHConstraint<EH, ECtx>, ECtx> = TypedDestructable<A[Exclude<keyof A, keyof any[]>], EH, ECtx>[] & {
   [k in Exclude<keyof A, keyof any[]>]: TypedDestructable<A[k], EH, ECtx>;
@@ -71,8 +69,8 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
       const subs = this.subject.pipe(
         distinctUntilChanged(compare),
         alternMap(({ args, data }) => {
-          const array = args.map(args => args instanceof Array ? args.length ? combine(args) : EMPTY_ARR : args);
-          return (array.length ? combine(array) as Observable<A> : EMPTY_ARR).pipe(
+          const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);
+          return (eagerCombineAll(array) as Observable<A>).pipe(
             map(args => [args, data, c] as [A, D, C]),
           )
         }, { completeWithInner: true, completeWithSource: true }),

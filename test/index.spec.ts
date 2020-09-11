@@ -10,11 +10,13 @@ import {
 import { Subscription, ObservedValueOf, Observable, Subject, interval, config } from 'rxjs';
 import { take, filter, toArray, map, finalize } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
-import { asyncDepMap } from 'dependent-type/dist/cjs/map';
+import { map as dep_map } from 'dependent-type';
 import { startListener, DataGram, createCallHandler } from '../source/proxy'
 import { QuickPromise } from '../utils/quick-promise';
 import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
+
+const { asyncDepMap } = dep_map;
 
 type ToRef1<X> = Ref<any>[] & { [P in keyof X]: Ref<X[P]> }
 type ToRef2<X> = ToRef1<X[Exclude<keyof X, keyof any[]>]>[] & { [P in Exclude<keyof X, keyof any[]>]: ToRef1<X[P]> };

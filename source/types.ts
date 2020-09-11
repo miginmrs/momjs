@@ -1,6 +1,6 @@
-import { Destructable, EntryObs, TypedDestructable } from './destructable';
-import { TeardownLogic, Observable, Subscription } from 'rxjs';
-import { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
+import type { Destructable, EntryObs, TypedDestructable } from './destructable';
+import type { TeardownLogic, Observable, Subscription } from 'rxjs';
+import type { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
 
 
 export type prim = number | string | boolean;

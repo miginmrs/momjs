@@ -115,6 +115,7 @@ export class QuickPromise<T> implements PromiseLike<T> {
     const keys = (Object.keys(p) as (keyof O)[]).filter(k => (p[k] as any).then);
     let count = keys.length;
     return new QuickPromise<UnPromise<O>>((res, rej) => {
+      if (!count) res(result);
       keys.forEach(<k extends keyof O>(k: k) => {
         const promise = (p[k] as any as PromiseLike<O[k] extends PromiseLike<infer T> ? T : never>);
         promise.then<void, void>(x => {

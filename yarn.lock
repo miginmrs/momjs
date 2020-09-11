@@ -267,10 +267,9 @@ ajv@^6.1.0, ajv@^6.10.2:
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
 
-altern-map@^0.0.1-SNAPSHOT-12:
-  version "0.0.1-SNAPSHOT-12"
-  resolved "https://registry.yarnpkg.com/altern-map/-/altern-map-0.0.1-SNAPSHOT-12.tgz#df94bd44b5094ed92906d120e42280e7f162ec16"
-  integrity sha512-witgZhegw1D+pm5WCLRnQbS3W8mY/d0fJly0ySUXOMHpj4+5f+X8t1+pu87frHMfIXlMaMGAcsSukkKLRaTu2Q==
+altern-map@miginmrs/altern-map#builds:
+  version "0.0.1"
+  resolved "https://codeload.github.com/miginmrs/altern-map/tar.gz/cbf8c5cdfc3fc9d67a130250591d5958bdbf531c"
 
 ansi-colors@4.1.1:
   version "4.1.1"
@@ -1028,10 +1027,9 @@ define-property@^2.0.2:
     is-descriptor "^1.0.2"
     isobject "^3.0.1"
 
-dependent-type@^0.0.1-SNAPSHOT-8:
-  version "0.0.1-SNAPSHOT-8"
-  resolved "https://registry.yarnpkg.com/dependent-type/-/dependent-type-0.0.1-SNAPSHOT-8.tgz#d82dd896d9243e64e469c7cfd846b54b9ad47fe1"
-  integrity sha512-K/8p/7O8aJfHY0JJabD2emsWEuC5hjtqecOH/Or63s87Dj7p0jMJxTzBLB/z3uYDg/zG2fbDPf/m34aq14CZug==
+dependent-type@miginmrs/dependent-type#builds:
+  version "0.0.1"
+  resolved "https://codeload.github.com/miginmrs/dependent-type/tar.gz/2378fcae3b9e4117b9682472b5c9ca73ff515d3a"
 
 des.js@^1.0.0:
   version "1.0.1"
@@ -1651,6 +1649,11 @@ iferr@^0.1.5:
   version "0.1.5"
   resolved "https://registry.yarnpkg.com/iferr/-/iferr-0.1.5.tgz#c60eed69e6d8fdb6b3104a1fcbca1c192dc5b501"
   integrity sha1-xg7taebY/bazEEofy8ocGS3FtQE=
+
+ignore-loader@^0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/ignore-loader/-/ignore-loader-0.1.2.tgz#d81f240376d0ba4f0d778972c3ad25874117a463"
+  integrity sha1-2B8kA3bQuk8Nd4lyw60lh0EXpGM=
 
 ignore@^4.0.3:
   version "4.0.6"
@@ -2932,15 +2935,14 @@ run-queue@^1.0.0, run-queue@^1.0.3:
   dependencies:
     aproba "^1.1.1"
 
-rx-async@^0.0.1-SNAPSHOT-7:
-  version "0.0.1-SNAPSHOT-7"
-  resolved "https://registry.yarnpkg.com/rx-async/-/rx-async-0.0.1-SNAPSHOT-7.tgz#18f771384b228f123b7af8efef978af6a4ba7fc7"
-  integrity sha512-mAKRYvf97RlhnaXV9IrdaIXLRGat9sjabYJrCLVFiJqDG5lo0GYtehVP2p47foTiEeRpiXVyhe/Y+kuTEsHHTQ==
+rx-async@miginmrs/rx-async#builds:
+  version "0.0.1"
+  resolved "https://codeload.github.com/miginmrs/rx-async/tar.gz/ab96c275996ec691c1eef170a6217ea00ec3ea55"
 
-rxjs@^6.6.2:
-  version "6.6.2"
-  resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-6.6.2.tgz#8096a7ac03f2cc4fe5860ef6e572810d9e01c0d2"
-  integrity sha512-BHdBMVoWC2sL26w//BCu3YzKT4s2jip/WhwsGEDmeKYBhKDZeYezVUnHatYB7L85v5xs0BAQmg6BEYJEKxBabg==
+rxjs@>=6.0.0:
+  version "6.6.3"
+  resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-6.6.3.tgz#8ca84635c4daa900c0d3967a6ee7ac60271ee552"
+  integrity sha512-trsQc+xYYXZ3urjOiJOuCOa5N3jAZ3eiSpQB5hIT8zGlL2QfnHLJ2r7GMkBGuIausdJN1OneaI6gQlsqNHHmZQ==
   dependencies:
     tslib "^1.9.0"
 

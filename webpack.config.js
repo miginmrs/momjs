@@ -4,57 +4,62 @@ const path = require("path");
 const webpack = require("webpack");
 
 module.exports = env => {
-  let filename = "rxrmi.umd.js";
-  let mode = "development";
-  if (env && env.production) {
-    filename = "rxrmi.min.umd.js";
-    mode = "production";
+  let filenamebase = "rxrmi", devtool = { devtool: "source-map" };
+  let mode = "development", full = false;
+  if (env && env.full) {
+    filenamebase += ".deps";
+    full = true;
   }
+  if (env && env.production) {
+    filenamebase += ".min";
+    mode = "production";
+    devtool = {};
+  }
+  const filename = filenamebase + '.umd.js';
   return {
+    ...devtool,
     context: path.join(__dirname, "./"),
     entry: {
       index: "./source/index.ts"
     },
-    externals: function rxjsExternals(context, request, callback) {
-      if (request.match(/^rxjs(\/(?!internal)|$)/)) {
-        var parts = request.split('/');
-        if (parts.length > 2) {
-          console.warn('webpack-rxjs-externals no longer supports v5-style deep imports like rxjs/operator/map etc. It only supports rxjs v6 pipeable imports via rxjs/operators or from the root.');
-        }
-        return callback(null, {
-          root: parts,
-          commonjs: request,
-          commonjs2: request,
-          amd: request
-        });
-      }
+    externals: function (context, request, callback) {
+      const external = (root = request.split('/')) => callback(null, {
+        root,
+        commonjs: request,
+        commonjs2: request,
+        amd: request
+      });
+      if (!full && request.match(/^(altern-map|dependent-type|rx-async)$/)) return external();
+      if (request.match(/^rxjs(\/(operators|testing|ajax|webSocket|fetch|config|internal\/.*|)|)$/)) return external();
       callback();
     },
     mode,
     module: {
-      rules: [
-        {
-          test: /\.ts$/,
-          use: {
-            loader: "ts-loader",
-            options: {
-              compilerOptions: {
-                declaration: false
-              },
-              configFile: "tsconfig-dist-webpack.json"
-            }
+      rules: [{
+        test: /\.ts$/,
+        exclude: [/deep-is\.d\.ts/],
+        use: {
+          loader: "ts-loader",
+          options: {
+            compilerOptions: { declaration: false },
+            configFile: "tsconfig-dist-webpack.json"
           }
         }
-      ]
+      }, {
+        test: /deep-is\.d\.ts$/,
+        use: "ignore-loader"
+      }]
     },
     output: {
       filename,
       library: "rxrmi",
       libraryTarget: "umd",
-      path: path.resolve(__dirname, "./bundles")
+      path: path.resolve(__dirname, "./bundles"),
+      globalObject: 'self',
     },
     resolve: {
-      extensions: [".ts", ".js"]
+      extensions: [".ts", ".js"],
+      mainFields: ['source', 'browser', 'module', 'main'],
     }
   };
 };

@@ -1,11 +1,16 @@
+/// <reference path="../typings/deep-is.d.ts" />
+
 import { CtxH, Ref, EHConstraint, DestructableCtr, CtxEH, JsonObject, Json } from './types';
 import { DeepDestructable, TypedDestructable, Destructable } from './destructable';
-import { asyncDepMap } from 'dependent-type/dist/cjs/map';
+import { map as dep_map } from 'dependent-type';
+import type { BadApp, Fun } from 'dependent-type';
 import { toCond } from '../utils/guards';
-import { deref, KeysOfType } from '.';
+import { deref } from '.';
 import { TeardownLogic } from 'rxjs';
 import equal from 'deep-is';
 import { QuickPromise } from '../utils/quick-promise';
+
+const { asyncDepMap } = dep_map;
 
 /** @summary Filters X by C */
 export declare const F_F: unique symbol;

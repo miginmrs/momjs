@@ -19,6 +19,6 @@
   },
   "exclude": [],
   "include": [
-    "source/**/*.ts"
+    "source/**/*.ts",
   ]
 }
