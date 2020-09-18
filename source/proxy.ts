@@ -31,20 +31,19 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
     }
     case 'call': {
       const { fId, param, argId } = JSON.parse(data);
-      store.local(fId, param, { id: argId } as GlobalRef<any>).then(obs => {
-        const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
-          subs.unsubscribe();
-        });
-        const subs = obs.subscribe(def => {
-          to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-        }, err => {
-          to.next({ channel, type: 'call_error', data: `${err}` });
-        }, () => {
-          to.next({ channel, type: 'call_complete', data: '' });
-        });
-        subs.add(endCallSubs);
-        this.add(subs);
+      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>);
+      const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
+        subs.unsubscribe();
       });
+      const subs = obs.subscribe(def => {
+        to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
+      }, err => {
+        to.next({ channel, type: 'call_error', data: `${err}` });
+      }, () => {
+        to.next({ channel, type: 'call_complete', data: '' });
+      });
+      subs.add(endCallSubs);
+      this.add(subs);
       return;
     }
   };
@@ -68,6 +67,7 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
         call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
         error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
         next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise(QuickPromise).then(response => {
+          if(response.type !== 'response_put') throw new Error('Unexpected put response message');
           return JSON.parse(response.data);
         }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(

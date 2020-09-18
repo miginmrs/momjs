@@ -99,7 +99,7 @@ export type deref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
 type MaybePromise<T> = T | PromiseLike<T>;
 
 export type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  <V>(obs: TypedDestructable<V, EH, ECtx>): MaybePromise<Ref<V>>,
+  <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V>,
 };
 
 export type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
@@ -116,7 +116,7 @@ export type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>, k exten
 }
 
 export type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  encode: (ctx: { ref: ref<EH, ECtx> }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx> & { c: AppX<'C', cim, k, X>, old?: AppX<'T', cim, k, X> }) => MaybePromise<AppX<'T', cim, k, X> | undefined>,
+  encode: (ctx: { ref: ref<EH, ECtx> }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx> & { c: AppX<'C', cim, k, X>, old?: AppX<'T', cim, k, X> }) => AppX<'T', cim, k, X> | undefined,
   ctr: DestructableCtr<dom, cim, k>,
 };
 export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
@@ -210,7 +210,7 @@ export type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<
         err_call: (err: any) => PromiseLike<void>;
         comp_call: () => PromiseLike<void>;
       }) => Subscription,
-      next: () => Promise<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>
+      next: () => PromiseLike<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>
     },
     serialized: WeakMap<TypedDestructable<any, RH, ECtx>, Observable<GlobalRef<any>>>
   };

@@ -1,8 +1,8 @@
 /// <reference path="../typings/deep-is.d.ts" />
 
-import { CtxH, Ref, EHConstraint, DestructableCtr, CtxEH, JsonObject, Json } from './types';
+import { CtxH, Ref, EHConstraint, DestructableCtr, ref, CtxEH, JsonObject, Json } from './types';
 import { DeepDestructable, TypedDestructable, Destructable } from './destructable';
-import { map as dep_map } from 'dependent-type';
+import { map as dep_map, AppX } from 'dependent-type';
 import type { BadApp, Fun } from 'dependent-type';
 import { toCond } from '../utils/guards';
 import { deref } from '.';
@@ -10,7 +10,7 @@ import { TeardownLogic } from 'rxjs';
 import equal from 'deep-is';
 import { QuickPromise } from '../utils/quick-promise';
 
-const { asyncDepMap } = dep_map;
+const { depMap } = dep_map;
 
 /** @summary Filters X by C */
 export declare const F_F: unique symbol;
@@ -56,11 +56,11 @@ export const ArrayCtr: DestructableCtr<any[], ArrayCim, ArrayTypeKeys> = <X exte
 export type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<any[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
 export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHandler<EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, n: 1 }),
-  encode: ({ ref }) => <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }) =>
-    asyncDepMap<Exclude<keyof C, keyof any[]>, [
+  encode: ({ ref }) => <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }): AppX<'T', ArrayCim, ArrayTypeKeys, C> => toCond<any[], C, ToRef<C>>(
+    depMap<Exclude<keyof C, keyof any[]>, [
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
-    ], [typeof F_Destructable, typeof F_Ref]>(args, ref, QuickPromise).then(v => toCond<any[], C, ToRef<C>, any>(v)),
+    ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
   ctr: ArrayCtr,
 });
 

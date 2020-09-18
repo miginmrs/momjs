@@ -16,7 +16,7 @@ import { QuickPromise } from '../utils/quick-promise';
 import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
 
-const { asyncDepMap } = dep_map;
+const { depMap } = dep_map;
 
 type ToRef1<X> = Ref<any>[] & { [P in keyof X]: Ref<X[P]> }
 type ToRef2<X> = ToRef1<X[Exclude<keyof X, keyof any[]>]>[] & { [P in Exclude<keyof X, keyof any[]>]: ToRef1<X[P]> };
@@ -44,15 +44,15 @@ const ArrayCtr2: DestructableCtr<any[][], ArrayCim2, ArrayTypeKeys2> = <X extend
 }
 const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[][], ArrayCim2, ArrayTypeKeys2, 2, EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(refs => refs.map(ref => deref(ref))) as any, data: null, n: 2 }),
-  encode: ({ ref }) => async <C extends any[][]>({ args }: { args: DeepDestructable<C, 2, EH, ECtx> }): Promise<ToRef2<C>> => {
+  encode: ({ ref }) => <C extends any[][]>({ args }: { args: DeepDestructable<C, 2, EH, ECtx> }): ToRef2<C> => {
     type PC = { [P in Exclude<keyof C, keyof any[]>]: C[P] };
     type cim = [
       [[PC, EH, ECtx], DeepDestructable<PC[keyof PC] & any[], 1, EH, ECtx>],
       [PC, ToRef1<PC[keyof PC]>]
     ];
     type k = [typeof F_Destructable2, typeof F_Ref2];
-    return await asyncDepMap<keyof PC, cim, k>(args, async <X extends keyof PC>(arg: DeepDestructable<PC[], 1, EH, ECtx>): Promise<AppX<1, cim, k, X>> => {
-      const item: ToRef1<PC[X]> = await asyncDepMap<
+    return depMap<keyof PC, cim, k>(args, <X extends keyof PC>(arg: DeepDestructable<PC[], 1, EH, ECtx>): AppX<1, cim, k, X> => {
+      const item: ToRef1<PC[X]> = depMap<
         keyof PC[X], [
           [[PC[X], EH, ECtx], TypedDestructable<PC[X][keyof PC[X]], EH, ECtx>],
           [PC[X], Ref<PC[X][keyof PC[X]]>]
