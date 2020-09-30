@@ -8,8 +8,7 @@ const destructable_1 = require("./destructable");
 const dependent_type_1 = require("dependent-type");
 const guards_1 = require("../utils/guards");
 const deep_is_1 = __importDefault(require("deep-is"));
-const quick_promise_1 = require("../utils/quick-promise");
-const { asyncDepMap } = dependent_type_1.map;
+const { depMap } = dependent_type_1.map;
 exports.ArrayCtr = (x, _d, _c, old) => {
     if (old) {
         old.splice(0);
@@ -19,7 +18,7 @@ exports.ArrayCtr = (x, _d, _c, old) => {
 };
 exports.ArrayHandler = () => ({
     decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: 1 }),
-    encode: ({ ref }) => ({ args }) => asyncDepMap(args, ref, quick_promise_1.QuickPromise).then(v => guards_1.toCond(v)),
+    encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
     ctr: exports.ArrayCtr,
 });
 exports.wrapArray = (args, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);

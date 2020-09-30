@@ -1,4 +1,4 @@
-import { identity } from "rxjs";
+const identity = (v) => v;
 var PromiseStatus;
 (function (PromiseStatus) {
     PromiseStatus[PromiseStatus["Pending"] = 0] = "Pending";

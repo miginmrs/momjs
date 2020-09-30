@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuickPromise = void 0;
-const rxjs_1 = require("rxjs");
+const identity = (v) => v;
 var PromiseStatus;
 (function (PromiseStatus) {
     PromiseStatus[PromiseStatus["Pending"] = 0] = "Pending";
@@ -61,7 +61,7 @@ class QuickPromise {
         };
     }
     then(onfulfilled, onrejected) {
-        const onfulfilled2 = onfulfilled ?? rxjs_1.identity;
+        const onfulfilled2 = onfulfilled ?? identity;
         return new QuickPromise((res, rej) => {
             if (this._status === PromiseStatus.Pending) {
                 this._thens.push(this._tryRun(onfulfilled2, res, rej));

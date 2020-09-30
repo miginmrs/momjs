@@ -6,10 +6,13 @@ import { QuickPromise } from "../utils/quick-promise";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
 
+export type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
+export type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
+
 export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
   store: Store<RH, ECtx>,
-  from: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
-  to: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
+  from: Subject<DataGram<msg1to2>>,
+  to: Subject<DataGram<msg2to1>>,
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
   switch (type) {
     case 'put': {
@@ -17,7 +20,7 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
       return to.next({ channel, type: 'response_put', data: JSON.stringify(refs) });
     }
     case 'unsubscribe':
-      return store.get(data)?.[1].subscription?.unsubscribe()
+      return store.get(JSON.parse(data))?.[1].subscription?.unsubscribe()
     case 'error': {
       const { id, msg } = JSON.parse(data);
       const obs = store.get(id)?.[0];
@@ -25,26 +28,25 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
       return (obs as typeof obs.origin).subject.error(msg);
     }
     case 'complete': {
-      const obs = store.get(data)?.[0];
+      const obs = store.get(JSON.parse(data))?.[0];
       if (!obs) return;
       return (obs as typeof obs.origin).subject.complete();
     }
     case 'call': {
       const { fId, param, argId } = JSON.parse(data);
-      store.local(fId, param, { id: argId } as GlobalRef<any>).then(obs => {
-        const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
-          subs.unsubscribe();
-        });
-        const subs = obs.subscribe(def => {
-          to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-        }, err => {
-          to.next({ channel, type: 'call_error', data: `${err}` });
-        }, () => {
-          to.next({ channel, type: 'call_complete', data: '' });
-        });
-        subs.add(endCallSubs);
-        this.add(subs);
+      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>);
+      const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
+        subs.unsubscribe();
       });
+      const subs = obs.subscribe(def => {
+        to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
+      }, err => {
+        to.next({ channel, type: 'call_error', data: JSON.stringify(err) });
+      }, () => {
+        to.next({ channel, type: 'call_complete', data: '' });
+      });
+      subs.add(endCallSubs);
+      this.add(subs);
       return;
     }
   };
@@ -52,24 +54,29 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
 
 
 export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
-  to: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
-  from: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
+  to: Subject<DataGram<msg1to2>>,
+  from: Subject<DataGram<msg2to1>>,
   channel: [number]
 ): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
   return {
     serialized: new WeakMap(),
     handlers: () => {
-      const putChannel = channel[0]++, callChannel = channel[0]++;
+      const callChannel = channel[0]++;
       return {
         end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-        call_unsubscribe: ref => to.next({ channel: putChannel, data: ref.id, type: 'unsubscribe' }),
-        complete: ref => to.next({ channel: putChannel, data: ref.id, type: 'complete' }),
-        put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
+        call_unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
+        complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+        put: (def) => {
+          const ch = channel[0]++;
+          const promise = from.pipe(filter(m => m.channel === ch), take(1)).toPromise(QuickPromise).then(response => {
+            if (response.type !== 'response_put') throw new Error('Unexpected put response message');
+            return JSON.parse(response.data);
+          });
+          to.next({ channel: ch, type: 'put', data: JSON.stringify(def) })
+          return promise;
+        },
         call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
-        error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-        next: () => from.pipe(filter(m => m.channel === putChannel), take(1)).toPromise(QuickPromise).then(response => {
-          return JSON.parse(response.data);
-        }),
+        error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
           function (this: Subscription, { data, type }) {
             if (type === 'response_call') {

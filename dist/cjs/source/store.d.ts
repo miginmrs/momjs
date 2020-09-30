@@ -45,14 +45,19 @@ export declare class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = strin
     entries(): IterableIterator<[k, [ObsWithOrigin<any, EH, ECtx>, D]]>;
     values(): IterableIterator<[ObsWithOrigin<any, EH, ECtx>, D]>;
 }
+declare type SerializationOptions = {
+    isNew: boolean;
+    push?: boolean;
+};
 export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     readonly handlers: RH;
     private extra;
     private promiseCtr;
     readonly name?: string | undefined;
+    readonly prefix: string;
     private map;
     private next;
-    constructor(handlers: RH, extra: ECtx, promiseCtr: PromiseCtr, name?: string | undefined);
+    constructor(handlers: RH, extra: ECtx, promiseCtr: PromiseCtr, name?: string | undefined, prefix?: string);
     private getNext;
     findRef<V>(obs: TypedDestructable<V, RH, ECtx>): GlobalRef<V> | undefined;
     private _unserialize;
@@ -79,19 +84,15 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         obs: Destructable<dom, cim, k, X, n, RH, ECtx>;
         subs: Subscription;
     };
-    push<V>(obs: ObsWithOrigin<V, RH, ECtx>, { ids, init, unload }?: {
+    push<V>(obs: ObsWithOrigin<V, RH, ECtx>, { ids, unload }?: {
         ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>;
-        unload?: () => void;
-        init?: (obs: TypedDestructable<any, RH, ECtx>) => void;
-    }): PromiseLike<{
+        unload?: (ref: GlobalRef<V>) => void;
+    }): {
         wrapped: ObsWithOrigin<V, RH, ECtx>;
         ref: GlobalRef<V>;
         subscription: Subscription;
-    }>;
-    private waiting;
-    private resolvers;
-    getResolver: <V>(obs: TypedDestructable<V, RH, ECtx>, key: 'serialize' | 'push') => (ref: GlobalRef<V>) => void;
-    serialize: <dom, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, X extends dom, n extends 1 | 2>(obs: Destructable<dom, cim, k, X, n, RH, ECtx>, getResolver?: (<V>(obs: TypedDestructable<V, RH, ECtx>) => (ref: GlobalRef<V>) => void) | undefined, isNew?: boolean) => Observable<EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>>;
+    };
+    serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: Destructable<dom, cim, k, X, n, RH, ECtx>, opt: SerializationOptions): Observable<EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>>;
     get(id: string): [ObsWithOrigin<any, RH, ECtx>, {
         subscription?: Subscription | undefined;
         externalId?: PromiseLike<string> | undefined;
@@ -101,7 +102,7 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         externalId?: PromiseLike<string> | undefined;
     }];
     functions: ((param: Json, arg: ObsWithOrigin<any, RH, ECtx>) => TypedDestructable<any, RH, ECtx>)[];
-    local(fId: number, param: Json, arg: GlobalRef<any>): PromiseLike<Observable<EModelsDefinition<0, [[any, any]], [any], [any], [any], RH, ECtx>>>;
+    local(fId: number, param: Json, arg: GlobalRef<any>): Observable<EModelsDefinition<0, [[any, any]], [any], [any], [any], RH, ECtx>>;
     callReturnRef: WeakMap<Subscription, PromiseLike<GlobalRef<any>>>;
     remote<dom2, cim2 extends TVCDA_CIM, k2 extends TVCDADepConstaint<dom2, cim2>, X2 extends dom2, n2 extends 1 | 2>(): <dom, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, X extends dom, n extends 1 | 2, P extends Json>(fId: number, arg: Destructable<dom, cim, k, X, n, RH, ECtx>, param: P, { handlers: makeOp, serialized }: CallHandler<dom, cim, k, X, n, P, dom2, cim2, k2, X2, n2, RH, ECtx>) => Observable<AppX<"V", cim2, k2, X2>>;
 }

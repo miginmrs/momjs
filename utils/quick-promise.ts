@@ -1,4 +1,4 @@
-import { identity } from "rxjs";
+const identity = <T>(v: T) => v;
 
 enum PromiseStatus { Pending, Resolved, Rejected, Alias }
 

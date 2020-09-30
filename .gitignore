@@ -3,6 +3,8 @@
 !source/**/*
 !utils
 !utils/**/*
+!typings
+!typings/**/*
 !dist
 !dist/**/*
 !bundles

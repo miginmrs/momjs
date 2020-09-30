@@ -2,8 +2,7 @@ import { Destructable } from './destructable';
 import { map as dep_map } from 'dependent-type';
 import { toCond } from '../utils/guards';
 import equal from 'deep-is';
-import { QuickPromise } from '../utils/quick-promise';
-const { asyncDepMap } = dep_map;
+const { depMap } = dep_map;
 export const ArrayCtr = (x, _d, _c, old) => {
     if (old) {
         old.splice(0);
@@ -13,7 +12,7 @@ export const ArrayCtr = (x, _d, _c, old) => {
 };
 export const ArrayHandler = () => ({
     decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: 1 }),
-    encode: ({ ref }) => ({ args }) => asyncDepMap(args, ref, QuickPromise).then(v => toCond(v)),
+    encode: ({ ref }) => ({ args }) => toCond(depMap(args, ref)),
     ctr: ArrayCtr,
 });
 export const wrapArray = (args, handlers, ...teardownList) => new Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);

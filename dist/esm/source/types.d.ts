@@ -74,9 +74,8 @@ export declare type deref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
         [P in indices]: AppX<'V', dcim[P][1], keys[P], X[P]>;
     }[indices]>, ...handlers: derefHandlers<indices, dcim, keys, N, EH, ECtx>): derefReturn<indices, dcim, keys, X, N, EH, ECtx>;
 };
-declare type MaybePromise<T> = T | PromiseLike<T>;
 export declare type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
-    <V>(obs: TypedDestructable<V, EH, ECtx>): MaybePromise<Ref<V>>;
+    <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V>;
 };
 export declare type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
 export declare type DestructableCtr<dom, cim extends Omit<TVCDA_CIM, 'T'>, k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>> = {
@@ -94,7 +93,7 @@ export declare type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     }) => <X extends dom>(args: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx> & {
         c: AppX<'C', cim, k, X>;
         old?: AppX<'T', cim, k, X>;
-    }) => MaybePromise<AppX<'T', cim, k, X> | undefined>;
+    }) => AppX<'T', cim, k, X> | undefined;
     ctr: DestructableCtr<dom, cim, k>;
 };
 export declare type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
@@ -138,7 +137,6 @@ export declare type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDAD
 export declare type EModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
     type: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string;
     c: AppX<'C', cim, k, X>;
-    resolve?: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void;
 } & ModelData<AppX<'T', cim, k, X>>;
 export declare type AnyEModelDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = {
     type: keyof EH & string;
@@ -167,9 +165,7 @@ export declare type EModelsDefinition<indices extends number, dcim extends Recor
     [P in indices]: EModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], N[P], EH, ECtx> & {
         i: P;
     };
-} & (AnyModelDefinition<EH, ECtx, indices> & {
-    resolve?: (ref: GlobalRef<any>) => void;
-})[];
+} & (AnyModelDefinition<EH, ECtx, indices>)[];
 export declare type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
     parent: ObsWithOrigin<V, EH, ECtx>;
     origin: TypedDestructable<V, EH, ECtx>;
@@ -180,7 +176,9 @@ export declare type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepCo
         end_call: () => void;
         call_unsubscribe: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void;
         complete: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void;
-        put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => void;
+        put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => PromiseLike<{
+            0: GlobalRef<AppX<'V', cim, k, X>>;
+        } & GlobalRef<any>[]>;
         call: (fId: number, param: P, ref: GlobalRef<AppX<'V', cim, k, X>>) => void;
         error: (ref: GlobalRef<AppX<'V', cim, k, X>>, err: any) => void;
         subscribeToResult: (cbs: {
@@ -188,10 +186,6 @@ export declare type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepCo
             err_call: (err: any) => PromiseLike<void>;
             comp_call: () => PromiseLike<void>;
         }) => Subscription;
-        next: () => Promise<{
-            0: GlobalRef<AppX<'V', cim, k, X>>;
-        } & GlobalRef<any>[]>;
     };
     serialized: WeakMap<TypedDestructable<any, RH, ECtx>, Observable<GlobalRef<any>>>;
 };
-export {};

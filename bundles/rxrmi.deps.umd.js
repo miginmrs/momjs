@@ -616,8 +616,7 @@ const destructable_1 = __webpack_require__(/*! ./destructable */ "./source/destr
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
 const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
 const deep_is_1 = __importDefault(__webpack_require__(/*! deep-is */ "./node_modules/deep-is/index.js"));
-const quick_promise_1 = __webpack_require__(/*! ../utils/quick-promise */ "./utils/quick-promise.ts");
-const { asyncDepMap } = dependent_type_1.map;
+const { depMap } = dependent_type_1.map;
 exports.ArrayCtr = (x, _d, _c, old) => {
     if (old) {
         old.splice(0);
@@ -627,7 +626,7 @@ exports.ArrayCtr = (x, _d, _c, old) => {
 };
 exports.ArrayHandler = () => ({
     decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: 1 }),
-    encode: ({ ref }) => ({ args }) => asyncDepMap(args, ref, quick_promise_1.QuickPromise).then(v => guards_1.toCond(v)),
+    encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
     ctr: exports.ArrayCtr,
 });
 exports.wrapArray = (args, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
@@ -729,7 +728,7 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
             return to.next({ channel, type: 'response_put', data: JSON.stringify(refs) });
         }
         case 'unsubscribe':
-            return (_b = (_a = store.get(data)) === null || _a === void 0 ? void 0 : _a[1].subscription) === null || _b === void 0 ? void 0 : _b.unsubscribe();
+            return (_b = (_a = store.get(JSON.parse(data))) === null || _a === void 0 ? void 0 : _a[1].subscription) === null || _b === void 0 ? void 0 : _b.unsubscribe();
         case 'error': {
             const { id, msg } = JSON.parse(data);
             const obs = (_c = store.get(id)) === null || _c === void 0 ? void 0 : _c[0];
@@ -738,27 +737,26 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
             return obs.subject.error(msg);
         }
         case 'complete': {
-            const obs = (_d = store.get(data)) === null || _d === void 0 ? void 0 : _d[0];
+            const obs = (_d = store.get(JSON.parse(data))) === null || _d === void 0 ? void 0 : _d[0];
             if (!obs)
                 return;
             return obs.subject.complete();
         }
         case 'call': {
             const { fId, param, argId } = JSON.parse(data);
-            store.local(fId, param, { id: argId }).then(obs => {
-                const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
-                    subs.unsubscribe();
-                });
-                const subs = obs.subscribe(def => {
-                    to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-                }, err => {
-                    to.next({ channel, type: 'call_error', data: `${err}` });
-                }, () => {
-                    to.next({ channel, type: 'call_complete', data: '' });
-                });
-                subs.add(endCallSubs);
-                this.add(subs);
+            const obs = store.local(fId, param, { id: argId });
+            const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
+                subs.unsubscribe();
             });
+            const subs = obs.subscribe(def => {
+                to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
+            }, err => {
+                to.next({ channel, type: 'call_error', data: JSON.stringify(err) });
+            }, () => {
+                to.next({ channel, type: 'call_complete', data: '' });
+            });
+            subs.add(endCallSubs);
+            this.add(subs);
             return;
         }
     }
@@ -768,17 +766,23 @@ exports.createCallHandler = (to, from, channel) => {
     return {
         serialized: new WeakMap(),
         handlers: () => {
-            const putChannel = channel[0]++, callChannel = channel[0]++;
+            const callChannel = channel[0]++;
             return {
                 end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-                call_unsubscribe: ref => to.next({ channel: putChannel, data: ref.id, type: 'unsubscribe' }),
-                complete: ref => to.next({ channel: putChannel, data: ref.id, type: 'complete' }),
-                put: (def) => to.next({ channel: putChannel, type: 'put', data: JSON.stringify(def) }),
+                call_unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
+                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+                put: (def) => {
+                    const ch = channel[0]++;
+                    const promise = from.pipe(operators_1.filter(m => m.channel === ch), operators_1.take(1)).toPromise(quick_promise_1.QuickPromise).then(response => {
+                        if (response.type !== 'response_put')
+                            throw new Error('Unexpected put response message');
+                        return JSON.parse(response.data);
+                    });
+                    to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
+                    return promise;
+                },
                 call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
-                error: (ref, e) => to.next({ channel: putChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-                next: () => from.pipe(operators_1.filter(m => m.channel === putChannel), operators_1.take(1)).toPromise(quick_promise_1.QuickPromise).then(response => {
-                    return JSON.parse(response.data);
-                }),
+                error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
                 subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel)).subscribe(function ({ data, type }) {
                     if (type === 'response_call') {
                         cbs.resp_call(JSON.parse(data));
@@ -876,11 +880,12 @@ class BiMap {
 exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, name) {
+    constructor(handlers, extra, promiseCtr, name, prefix = '') {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.name = name;
+        this.prefix = prefix;
         this.map = new BiMap();
         this.next = one;
         this.ref = (obs) => {
@@ -910,112 +915,12 @@ class Store {
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
-        this.waiting = {
-            push: new WeakMap,
-            serialize: new WeakMap,
-        };
-        this.resolvers = {
-            push: new WeakMap,
-            serialize: new WeakMap,
-        };
-        this.getResolver = (obs, key) => {
-            let resolve;
-            const promise = new this.promiseCtr(res => resolve = res);
-            this.waiting[key].set(obs, promise);
-            this.resolvers[key].set(obs, resolve);
-            promise.then(() => { this.waiting[key].delete(obs); this.resolvers[key].delete(obs); });
-            return resolve;
-        };
-        this.serialize = (obs, getResolver, isNew = true) => {
-            return obs.pipe(operators_1.scan(asAsync(function* (oldPromise) {
-                const session = new BiMap;
-                const allData = new Map();
-                let next = 1;
-                const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
-                const snapshot = new Map();
-                const inMap = (arg) => this.map.find(arg) !== undefined;
-                const addToSnapshot = (obs) => {
-                    if (snapshot.has(obs))
-                        return;
-                    const entry = obs.subject.value;
-                    snapshot.set(obs, { data: rx_utils_1.current(obs), entry });
-                    entry.args.forEach(args => {
-                        if (args instanceof Array)
-                            args.forEach(addToSnapshot);
-                        else
-                            addToSnapshot(args);
-                    });
-                };
-                addToSnapshot(obs);
-                const ref = (iObs) => asAsync(function* () {
-                    let { data: value, entry } = snapshot.get(iObs);
-                    yield this.waiting.serialize.get(iObs);
-                    const id = this.map.find(iObs);
-                    const resolve = id === undefined ? getResolver === null || getResolver === void 0 ? void 0 : getResolver(iObs) : undefined;
-                    let oldData = undefined, data;
-                    if (id !== undefined && oldPromise) {
-                        const [, old] = yield* wait(oldPromise);
-                        oldData = old.get(iObs);
-                    }
-                    const old = oldData ? { old: oldData.data } : {};
-                    const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
-                    if (oldData) {
-                        data = { data: yield* wait(encode()) };
-                        if (data.data === undefined) {
-                            allData.set(iObs, oldData);
-                            return { id };
-                        }
-                    }
-                    const i = session.find(iObs);
-                    const $ = i !== null && i !== void 0 ? i : (iObs === obs ? 0 : next++);
-                    if (i === undefined) {
-                        if (!data) {
-                            session.set($, [iObs, null]);
-                            data = { data: yield* wait(encode()) };
-                        }
-                        allData.set(iObs, data);
-                        const usedId = this.map.usedId(iObs);
-                        const attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
-                        if (resolve)
-                            attr.resolve = resolve;
-                        attr.new = $ === 0 && oldPromise === null && (isNew || !inMap(iObs));
-                        session.set($, [iObs, attr]);
-                    }
-                    return { $ };
-                }, this.promiseCtr, this)();
-                const ctx = {
-                    deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
-                };
-                const ret = [session, allData, yield* wait(this.promiseCtr.resolve(ref(obs)))];
-                return ret;
-            }, this.promiseCtr, this), null), rx_async_1.asyncMap(result => {
-                return exports.runit((function* () {
-                    const ret = result ? { ok: true, value: yield* wait(result) } : {};
-                    return ret;
-                })(), this.promiseCtr);
-            }, { mode: 'merge', wait: true }), operators_1.map(([session, , ref]) => {
-                const entries = Array(session.size).fill(0).map((_, i) => session.get(i));
-                if (entries.length === 0) {
-                    if ('$' in ref)
-                        throw new Error('Unexpected');
-                    return null;
-                }
-                return entries.map(([, definition], i) => {
-                    const def = { i, ...definition };
-                    delete def.value;
-                    return def;
-                });
-            }), operators_1.filter((x) => x !== null));
-        };
         this.functions = [];
         this.callReturnRef = new WeakMap();
     }
     getNext(id) {
         if (id === undefined)
-            return `${this.next++}`;
-        const intId = BigInt(id);
-        if (this.next <= intId)
-            this.next = intId + one;
+            return `${this.prefix}${this.next++}`;
         return id;
     }
     findRef(obs) {
@@ -1100,53 +1005,118 @@ class Store {
         const subs = this.map.get(id)[1].subscription = obs.subscribe(() => { });
         return { id, obs, subs };
     }
-    push(obs, { ids, init, unload } = {}) {
-        return asAsync(function* () {
-            var _a;
-            init === null || init === void 0 ? void 0 : init(obs.origin);
-            yield* wait(this.waiting.push.get(obs.origin));
-            const oldId = this.map.find(obs.origin);
-            const id = this.getNext((_a = oldId !== null && oldId !== void 0 ? oldId : ids === null || ids === void 0 ? void 0 : ids.get(obs.origin)) !== null && _a !== void 0 ? _a : this.map.usedId(obs.origin));
-            let wrapped = obs;
-            let subscription;
-            let resolve, promise = new this.promiseCtr(r => resolve = r);
-            if (oldId === undefined) {
-                let destroyed = false;
-                const temp = [];
-                const clear = () => {
-                    temp.forEach(s => s.unsubscribe());
-                    temp.length = 0;
-                };
-                wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll(obs, obs.origin.subject.pipe(operators_1.scan((acc, { args, n }) => {
-                    const wrap = asAsync(function* (obs) {
-                        const res = yield* wait(this.push(obs, { ids, init }));
+    push(obs, { ids, unload } = {}) {
+        var _a;
+        const oldId = this.map.find(obs.origin);
+        const id = this.getNext((_a = oldId !== null && oldId !== void 0 ? oldId : ids === null || ids === void 0 ? void 0 : ids.get(obs.origin)) !== null && _a !== void 0 ? _a : this.map.usedId(obs.origin));
+        let wrapped = obs;
+        let subscription;
+        if (oldId === undefined) {
+            let destroyed = false;
+            const temp = [];
+            const clear = () => {
+                temp.forEach(s => s.unsubscribe());
+                temp.length = 0;
+            };
+            wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
+                    const wrap = (obs) => {
+                        const res = this.push(obs, { ids });
                         temp.push(res.subscription);
                         return res.wrapped;
-                    }, this.promiseCtr, this);
+                    };
                     const array = n === 2
-                        ? args.map(arg => this.promiseCtr.all(arg.map(wrap)).then(rx_utils_1.eagerCombineAll))
+                        ? args.map(arg => rx_utils_1.eagerCombineAll(arg.map(wrap)))
                         : args.map(wrap);
-                    const ret = this.promiseCtr.all(array).then(rx_utils_1.eagerCombineAll);
-                    if (!acc)
-                        ret.then(resolve);
-                    return acc ? acc.then(() => ret) : ret;
-                }, null), rx_async_1.asyncMap(value => value.then((value) => ({ ok: true, value }))), altern_map_1.alternMap(rxjs_1.identity, { completeWithInner: true }), operators_1.tap(clear), operators_1.distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => {
+                    const ret = rx_utils_1.eagerCombineAll(array);
+                    return ret;
+                }, { completeWithInner: true }), operators_1.tap(clear), operators_1.distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => {
                     const w = y[i];
                     if (v instanceof Array && w instanceof Array) {
                         return v.length === w.length && v.every((u, i) => u === w[i]);
                     }
                     return v === w;
-                })))).pipe(operators_1.finalize(() => { unload === null || unload === void 0 ? void 0 : unload(); clear(); this.map.delete(id); destroyed = true; }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-                this.map.set(id, [wrapped, {}]);
-                subscription = wrapped.subscribe();
-                yield* wait(promise);
+                })))]).pipe(operators_1.finalize(() => { unload === null || unload === void 0 ? void 0 : unload({ id }); clear(); this.map.delete(id); destroyed = true; }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+            this.map.set(id, [wrapped, {}]);
+            subscription = wrapped.subscribe();
+        }
+        else {
+            wrapped = this.map.get(id)[0];
+            subscription = wrapped.subscribe();
+        }
+        return { ref: { id }, wrapped, subscription };
+    }
+    serialize(obs, opt) {
+        const { isNew, push = true } = opt;
+        return obs.pipe(operators_1.scan((previous) => {
+            const session = new BiMap;
+            const allData = new Map();
+            const subs = new rxjs_1.Subscription;
+            let next = 1;
+            const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
+            const inMap = (arg) => this.map.find(arg) !== undefined;
+            const ref = (iObs) => {
+                const entry = iObs.subject.value;
+                const value = rx_utils_1.current(iObs);
+                const id = this.map.find(iObs);
+                let oldData = undefined, data;
+                if (id !== undefined && previous) {
+                    const [, old] = previous;
+                    oldData = old.get(iObs);
+                }
+                const old = oldData ? { old: oldData.data } : {};
+                const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
+                if (oldData) {
+                    data = { data: encode() };
+                    if (data.data === undefined && id !== undefined) {
+                        allData.set(iObs, oldData);
+                        return { id };
+                    }
+                }
+                const i = session.find(iObs);
+                const $ = i !== null && i !== void 0 ? i : (iObs === obs ? 0 : next++);
+                if (i === undefined) {
+                    if (!data) {
+                        session.set($, [iObs, null]);
+                        data = { data: encode() };
+                    }
+                    allData.set(iObs, data);
+                    let usedId = id;
+                    if (usedId === undefined) {
+                        if (push) {
+                            const { subscription, ref } = this.push(iObs);
+                            subs.add(subscription);
+                            usedId = ref.id;
+                        }
+                        else {
+                            usedId = this.map.usedId(iObs);
+                        }
+                    }
+                    const attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
+                    attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
+                    session.set($, [iObs, attr]);
+                }
+                return { $ };
+            };
+            const ctx = {
+                deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
+            };
+            const ret = [session, allData, ref(obs), subs];
+            previous === null || previous === void 0 ? void 0 : previous[3].unsubscribe();
+            return ret;
+        }, null), operators_1.map(function ([session, , ref, subs]) {
+            this.add(subs);
+            const entries = Array(session.size).fill(0).map((_, i) => session.get(i));
+            if (entries.length === 0) {
+                if ('$' in ref)
+                    throw new Error('Unexpected');
+                return null;
             }
-            else {
-                wrapped = this.map.get(id)[0];
-                subscription = wrapped.subscribe();
-            }
-            return { ref: { id }, wrapped, subscription };
-        }, this.promiseCtr, this)();
+            return entries.map(([, definition], i) => {
+                const def = { i, ...definition };
+                delete def.value;
+                return def;
+            });
+        }), operators_1.filter((x) => x !== null));
     }
     get(id) {
         return this.map.get(id);
@@ -1159,99 +1129,74 @@ class Store {
     }
     local(fId, param, arg) {
         const obs = this.functions[fId](param, this.getValue(arg)[0]);
-        return this.push(obs).then(({ subscription }) => {
-            const serialized = this.serialize(obs);
-            return new rxjs_1.Observable(subscriber => {
-                subscriber.add(subscription);
-                subscriber.add(serialized.subscribe(subscriber));
-            });
+        const { subscription } = this.push(obs);
+        const serialized = this.serialize(obs, { isNew: true });
+        return new rxjs_1.Observable(subscriber => {
+            subscriber.add(subscription);
+            subscriber.add(serialized.subscribe(subscriber));
         });
     }
     remote() {
-        return (fId, arg, param, { handlers: makeOp, serialized }) => new rxjs_1.Observable(subscriber => void (asAsync(function* () {
-            const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
-            const [promise, resolve] = makePromise();
-            const callSubscription = new rxjs_1.Subscription();
-            yield* wait(this.waiting.serialize.get(arg));
+        return (fId, arg, param, { handlers: makeOp, serialized }) => new rxjs_1.Observable(subscriber => {
             const op = makeOp();
-            let refObs = serialized.get(arg);
-            if (!refObs)
-                serialized.set(arg, refObs = this.serialize(arg, obs => {
-                    const resolver = this.getResolver(obs, 'serialize');
-                    const withInsertion = ref => {
-                        this.map.reuseId(obs, ref.id);
-                        resolver(ref);
-                    };
-                    return withInsertion;
-                }, false).pipe(rx_async_1.asyncMap(asAsync(function* (def) {
-                    const refsPromise = op.next();
-                    op.put(def);
-                    const refs = yield* wait(refsPromise);
-                    refs.forEach((ref, i) => { var _a, _b; return (_b = (_a = def[i]) === null || _a === void 0 ? void 0 : _a.resolve) === null || _b === void 0 ? void 0 : _b.call(_a, ref); });
-                    const ret = { ok: true, value: refs[0] };
-                    return ret;
-                }, this.promiseCtr, this)), operators_1.tap(undefined, e => promise.then(refArg => op.error(refArg, e)), () => promise.then(refArg => op.complete(refArg))), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
-            const paramSubs = refObs.subscribe(ref => resolve(ref));
+            const { subscription: argSubscription, ref: refArg } = this.push(arg, {
+                unload: (ref) => op.call_unsubscribe(ref),
+            });
+            const callSubscription = new rxjs_1.Subscription();
+            let serializeObs = serialized.get(arg);
+            if (!serializeObs)
+                serialized.set(arg, serializeObs = this.serialize(arg, {
+                    isNew: true
+                }).pipe(rx_async_1.asyncMap((def) => {
+                    const refsPromise = op.put(def);
+                    return refsPromise.then((refs) => ({ ok: true, value: refs[0] }));
+                }), operators_1.tap({
+                    error: e => op.error(refArg, e),
+                    complete: () => op.complete(refArg),
+                }), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
+            const paramSubs = serializeObs.subscribe();
+            const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
             const refTask = makePromise();
             this.callReturnRef.set(subscriber, refTask[0]);
-            promise.then(refArg => {
-                callSubscription.add(() => {
-                    if (paramSubs.closed)
-                        return;
-                    paramSubs.unsubscribe();
-                });
-                if (paramSubs.closed) {
-                    callSubscription.unsubscribe();
+            callSubscription.add(() => {
+                if (paramSubs.closed)
                     return;
-                }
-                return this.push(arg, {
-                    init: obs => { if (this.map.usedId(obs) === undefined)
-                        this.getResolver(obs, 'push'); },
-                    unload: () => op.call_unsubscribe(refArg),
-                }).then(({ wrapped, subscription }) => ({ refArg, wrapped, subscription }));
-            }).then(res => {
-                if (!res)
-                    return;
-                const { refArg, subscription, wrapped } = res;
-                const subs = wrapped.subscribe();
-                subscription.unsubscribe();
-                callSubscription.add(() => subs.unsubscribe());
-                const responseSubs = op.subscribeToResult({
-                    resp_call: (data) => {
-                        var _a;
-                        const ref = this.unserialize(data)[0];
-                        responseSubs.add((_a = this.get(ref.id)) === null || _a === void 0 ? void 0 : _a[1].subscription);
-                        refTask[1](ref);
-                    },
-                    err_call: (err) => {
-                        return refTask[0].then(ref => {
-                            const obs = this.getValue(ref)[0];
-                            obs.subject.error(err);
-                        });
-                    },
-                    comp_call: () => {
-                        return refTask[0].then(ref => {
-                            const obs = this.getValue(ref)[0];
-                            obs.subject.complete();
-                        });
-                    }
-                });
-                callSubscription.add(() => {
-                    if (!responseSubs.closed)
-                        op.end_call();
-                });
-                callSubscription.add(responseSubs);
-                responseSubs.add(callSubscription);
-                op.call(fId, param, refArg);
-                return refTask[0];
-            }).then(ref => {
-                if (!ref)
-                    return;
-                const subs = this.getValue(ref)[0].subscribe(subscriber);
-                callSubscription.add(() => subs.unsubscribe());
+                paramSubs.unsubscribe();
+            });
+            if (paramSubs.closed) {
+                callSubscription.unsubscribe();
+                return;
+            }
+            callSubscription.add(() => argSubscription.unsubscribe());
+            const responseSubs = op.subscribeToResult({
+                resp_call: (data) => {
+                    var _a;
+                    const ref = this.unserialize(data)[0];
+                    responseSubs.add((_a = this.get(ref.id)) === null || _a === void 0 ? void 0 : _a[1].subscription);
+                    refTask[1](ref);
+                },
+                err_call: (err) => refTask[0].then(ref => {
+                    const obs = this.getValue(ref)[0];
+                    obs.subject.error(err);
+                }),
+                comp_call: () => refTask[0].then(ref => {
+                    const obs = this.getValue(ref)[0];
+                    obs.subject.complete();
+                })
+            });
+            callSubscription.add(() => {
+                if (!responseSubs.closed)
+                    op.end_call();
+            });
+            callSubscription.add(responseSubs);
+            responseSubs.add(callSubscription);
+            op.call(fId, param, refArg);
+            refTask[0].then(refReturn => {
+                const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
+                callSubscription.add(() => subs2.unsubscribe());
             });
             subscriber.add(callSubscription);
-        }, this.promiseCtr, this))());
+        });
     }
 }
 exports.Store = Store;
@@ -1361,7 +1306,7 @@ exports.rx_utils = __importStar(__webpack_require__(/*! ./rx-utils */ "./utils/r
 
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuickPromise = void 0;
-const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const identity = (v) => v;
 var PromiseStatus;
 (function (PromiseStatus) {
     PromiseStatus[PromiseStatus["Pending"] = 0] = "Pending";
@@ -1421,7 +1366,7 @@ class QuickPromise {
         };
     }
     then(onfulfilled, onrejected) {
-        const onfulfilled2 = onfulfilled !== null && onfulfilled !== void 0 ? onfulfilled : rxjs_1.identity;
+        const onfulfilled2 = onfulfilled !== null && onfulfilled !== void 0 ? onfulfilled : identity;
         return new QuickPromise((res, rej) => {
             if (this._status === PromiseStatus.Pending) {
                 this._thens.push(this._tryRun(onfulfilled2, res, rej));
