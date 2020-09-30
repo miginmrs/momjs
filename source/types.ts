@@ -150,7 +150,6 @@ export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConsta
 
 export type EModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
   type: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string, c: AppX<'C', cim, k, X>,
-  resolve?: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void
 } & ModelData<AppX<'T', cim, k, X>>;
 
 export type AnyEModelDefinition<EH extends EHConstraint<EH, ECtx>, ECtx> = {
@@ -188,7 +187,7 @@ export type EModelsDefinition<
   ECtx
   > = {
     [P in indices]: EModelDefinition<dcim[P][0], dcim[P][1], keys[P], X[P], N[P], EH, ECtx> & { i: P }
-  } & (AnyModelDefinition<EH, ECtx, indices> & { resolve?: (ref: GlobalRef<any>) => void })[];
+  } & (AnyModelDefinition<EH, ECtx, indices>)[];
 export type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
   parent: ObsWithOrigin<V, EH, ECtx>,
   origin: TypedDestructable<V, EH, ECtx>,
@@ -202,7 +201,7 @@ export type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<
       end_call: () => void,
       call_unsubscribe: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
       complete: (ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
-      put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => void,
+      put: (def: EModelsDefinition<0, [[dom, cim]], [k], [X], [n], RH, ECtx>) => PromiseLike<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>,
       call: (fId: number, param: P, ref: GlobalRef<AppX<'V', cim, k, X>>) => void,
       error: (ref: GlobalRef<AppX<'V', cim, k, X>>, err: any) => void,
       subscribeToResult: (cbs: {
@@ -210,7 +209,6 @@ export type CallHandler<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<
         err_call: (err: any) => PromiseLike<void>;
         comp_call: () => PromiseLike<void>;
       }) => Subscription,
-      next: () => PromiseLike<{ 0: GlobalRef<AppX<'V', cim, k, X>>; } & GlobalRef<any>[]>
     },
     serialized: WeakMap<TypedDestructable<any, RH, ECtx>, Observable<GlobalRef<any>>>
   };

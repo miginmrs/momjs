@@ -4,11 +4,11 @@ import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_D
 import { TestScheduler } from 'rxjs/testing';
 import {
   Destructable, AppX, ObsWithOrigin, CtxH, Ref, EHConstraint, DeepDestructable, TypedDestructable,
-  GlobalRef, DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable,
-  Json, TVCDA_CIM, TVCDADepConstaint, CallHandler, JsonObject, PromiseCtr
+  DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable,
+  Json, JsonObject, PromiseCtr
 } from '../source';
-import { Subscription, ObservedValueOf, Observable, Subject, interval, config } from 'rxjs';
-import { take, filter, toArray, map, finalize } from 'rxjs/operators';
+import { Subscription, ObservedValueOf, Observable, Subject } from 'rxjs';
+import { take, toArray, map, finalize } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
 import { map as dep_map } from 'dependent-type';
 import { startListener, DataGram, createCallHandler } from '../source/proxy'
@@ -190,7 +190,7 @@ describe('Store', () => {
     });
   });
   describe('serialize method', () => {
-    const serialize = () => store.serialize(arr2Obs);
+    const serialize = () => store.serialize(arr2Obs, { isNew: true });
     let def: ObservedValueOf<ReturnType<typeof serialize>>;
     it('should recursively encode dependencies', async () => {
       def = await serialize().pipe(take(1)).toPromise();
@@ -240,96 +240,147 @@ describe('Store', () => {
     })
   })
 });
+
+
+type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
+type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
+type msg = ['1->2', number, msg1to2, Json] | ['2->1', number, msg2to1, Json];
+type MsgGenerator = Generator<msg, void, msg>;
+const start = <G extends Generator>(fct: () => G): G => {
+  const gen = fct();
+  gen.next();
+  return gen;
+}
+const parallel = <K extends keyof any>(selector: (msg: msg) => K, gens: Record<K, MsgGenerator>): MsgGenerator => {
+  return start(function* (): MsgGenerator {
+    let msg = yield null!;
+    while (msg) {
+      const key = selector(msg);
+      const res = gens[key].next(msg);
+      if (res.done) {
+        debugger;
+        throw { message: 'Unexpected message', msg };
+      }
+      msg = yield res.value;
+    }
+    for (const key of Object.keys(gens) as K[]) yield* gens[key];
+  });
+};
 describe('Stores Communication', () => {
-  type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
-  type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
-  type msg = ['1->2', number, msg1to2, Json] | ['2->1', number, msg2to1, Json];
   type xn = { x: number };
-  type channels = 0 | 1 | 3;
-  const expectedMsgs: (msgs: msg[]) => Record<channels, msg[]> = (msgs: msg[]) => {
-    const accepted: Record<channels, msg[]> = { 0: [], 1: [], 3: [] };
-    let id1: '4' | '5' | null = null;
-    const gens: Record<channels, Generator<msg, void, msg>> = {
-      0: (function* (): Generator<msg, void, msg> {
-        yield null!;
-        yield ['1->2', 0, 'put', [
-          { i: 0, type: 'Array', data: [{ '$': 1 }, { '$': 2 }], c: null, new: true },
-          { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false },
-          { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false }
+  const checkMsgs = (msgs: msg[]) => {
+    const init = Symbol();
+    type dir = 'call1' | 'call2' | 'put1' | 'put2' | 'put3' | 'put4';
+    type init = typeof init; type path = dir | init;
+    type Handler = Generator<path | undefined, void, msg>;
+    const handlers: Handler[] = [];
+    let ids: Partial<Record<'a' | 'b' | 'c' | 'arg', string>> = {}, usedIds = new Set<string>();
+    type idstr = { id: string };
+    const linkTo = (ch: number, dir: dir) => handlers.unshift(start(function* (): Handler {
+      let msg = yield null!;
+      while (true) msg = yield msg[1] === ch ? dir : undefined
+    }));
+    const gen: MsgGenerator = parallel<path>(msg => {
+      for (const [index, h] of [...handlers.entries()].reverse()) {
+        const v = h.next(msg);
+        if (v.done) { handlers.splice(index, 1); continue; }
+        if (v.value) return v.value;
+      }
+      return init;
+    }, {
+      [init]: start(function* (): MsgGenerator {
+        const [, first, , data] = yield null!;
+        const tIds = [ids.arg, ids.a, ids.b] = (data as idstr[]).map(({ id }) => id), [idArg, idA, idB] = tIds;
+        if (!tIds.every(id => usedIds.add(id))) {
+          throw new Error('some ids are reused');
+        }
+        yield ['1->2', first, 'put', [
+          { i: 0, type: 'Array', data: [{ '$': 1 }, { '$': 2 }], c: null, new: true, id: idArg },
+          { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false, id: idA },
+          { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false, id: idB }
         ]];
-        yield ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }, { id: '3' }]];
-        yield ['1->2', 0, 'put', [
-          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
-          { i: 1, type: 'Json', data: { x: 4 }, c: null, id: '2', new: false }
+        handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call1' }));
+        handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call2' }));
+        const [, put1] = yield ['2->1', first, 'response_put', [{ id: idArg }, { id: idA }, { id: idB }]];
+        linkTo(put1, 'put1');
+        const [, put2] = yield ['1->2', put1, 'put', [
+          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: idB }], c: null, id: idArg, new: false },
+          { i: 1, type: 'Json', data: { x: 4 }, c: null, id: idA, new: false }
         ]];
-        yield ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }]];
-        yield ['1->2', 0, 'put', [
-          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
-          { i: 1, type: 'Json', data: { x: 3 }, c: null, id: '2', new: false }
+        linkTo(put2, 'put2');
+        const [, put3] = yield ['1->2', put2, 'put', [
+          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: idB }], c: null, id: idArg, new: false },
+          { i: 1, type: 'Json', data: { x: 3 }, c: null, id: idA, new: false }
         ]];
-        yield ['2->1', 0, 'response_put', [{ id: '1' }, { id: '2' }]];
-        yield ['1->2', 0, 'put', [
-          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
+        linkTo(put3, 'put3');
+        const [, put4, , data4] = yield ['1->2', put3, 'put', [
+          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: idB }], c: null, id: idArg, new: false },
           { i: 1, type: 'Json', data: { x: 20 }, c: null, new: false }
         ]];
-        yield ['2->1', 0, 'response_put', [{ id: '1' }, { id: '6' }]];
-        yield ['1->2', 0, 'put', [
-          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: '3' }], c: null, id: '1', new: false },
-          { i: 1, type: 'Json', data: { x: 30 }, c: null, id: '6', new: false }
+        const idC = (data4 as idstr[])[1].id;
+        if (!usedIds.add(idC)) throw new Error('id already used');
+        ids.c = idC;
+        linkTo(put4, 'put4');
+        yield ['1->2', put4, 'put', [
+          { i: 0, type: 'Array', data: [{ '$': 1 }, { id: idB }], c: null, id: idArg, new: false },
+          { i: 1, type: 'Json', data: { x: 30 }, c: null, id: idC, new: false }
         ]];
-        yield ['2->1', 0, 'response_put', [{ id: '1' }, { id: '6' }]];
-        yield ['1->2', 0, 'unsubscribe', 1]; // the observable 1 is not destroyed at this point, because its used by the fct call 
-        yield ['1->2', 0, 'complete', 1];
-      })(),
-      1: (function* (): Generator<msg, void, msg> {
-        yield null!
-        const response_call = yield ['1->2', 1, 'call', { fId: 0, param: null, argId: '1' }];
-        if (id1 === null) id1 = (response_call[3] as any)[0].id === '4' ? '4' : '5';
-        const id = id1;
-        yield ['2->1', 1, 'response_call', [
+
+      }),
+      call1: start(function* (): MsgGenerator {
+        const [, ch] = yield null!;
+        linkTo(ch, 'call1');
+        const argId = ids.arg;
+        if (!argId) throw new Error('argId not set');
+        const response_call = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+        const id = (response_call[3] as [idstr])[0].id;
+        if (!usedIds.add(id)) throw new Error('id already used');
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 50 }, c: null, id, new: true }
         ]];
-        yield ['2->1', 1, 'response_call', [
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 40 }, c: null, id, new: false }
         ]];
-        yield ['1->2', 1, 'end_call', ''];
-      })(),
-      3: (function* (): Generator<msg, void, msg> {
-        yield null!;
-        const response_call = yield ['1->2', 3, 'call', { fId: 0, param: null, argId: '1' }];
-        const old = id1;
-        if (id1 === null) id1 = (response_call[3] as any)[0].id === '4' ? '5' : '4';
-        const id = id1 === '4' ? '5' : '4';
-        yield ['2->1', 3, 'response_call', [
+        yield ['1->2', ch, 'end_call', ''];
+        yield ['1->2', ch, 'unsubscribe', argId]; // the observable 1 is not destroyed at this point, because its used by the fct call 
+        yield ['1->2', ch, 'complete', argId];
+      }),
+      call2: start(function* (): MsgGenerator {
+        const [, ch] = yield null!;
+        linkTo(ch, 'call2');
+        const argId = ids.arg;
+        if (!argId) throw new Error('argId not set');
+        const response_call = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+        const id = (response_call[3] as [idstr])[0].id;
+        if (!usedIds.add(id)) throw new Error('id already used');
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 50 }, c: null, id, new: true }
         ]];
-        yield ['2->1', 3, 'response_call', [
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 40 }, c: null, id, new: false }
         ]];
-        yield ['2->1', 3, 'response_call', [
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 30 }, c: null, id, new: false }
         ]];
-        yield ['2->1', 3, 'response_call', [
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 200 }, c: null, id, new: false }
         ]];
-        yield ['2->1', 3, 'response_call', [
+        yield ['2->1', ch, 'response_call', [
           { i: 0, type: 'Json', data: { x: 300 }, c: null, id, new: false }
         ]];
-        yield ['2->1', 3, 'call_complete', ''];
-      })(),
-    };
-    const channels: channels[] = [0, 1, 3];
-    channels.forEach(channel => gens[channel].next());
-    msgs.forEach(msg => {
-      const channel = msg[1] as channels;
-      const v = gens[channel].next(msg);
-      if (v.done) throw new Error(`Number of message of channel ${channel} is greater than expected`);
-      accepted[channel].push(v.value);
+        yield ['2->1', ch, 'call_complete', ''];
+      }),
+      put1: start(function* (): MsgGenerator { const msg = yield null!; yield msg }),
+      put2: start(function* (): MsgGenerator { const msg = yield null!; yield msg }),
+      put3: start(function* (): MsgGenerator { const msg = yield null!; yield msg }),
+      put4: start(function* (): MsgGenerator { const msg = yield null!; yield msg }),
     });
-    channels.forEach(channel => {
-      if (!gens[channel].next(null!).done) throw new Error(`Number of message of channel ${channel} is less than expected`);
-    })
-    return accepted;
+    msgs.forEach((msg, i) => {
+      const v = gen.next(msg);
+      if (v.done) expect(msgs.slice(i)).deep.eq([]);
+      expect(msg).deep.eq(v.value);
+    });
+    expect([]).deep.eq([...(gen as Generator<msg, void, void>)])
   };
   type Values = { firstCall: xn[], secondCall: xn[], allMsgs: msg[], remainingKeys: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
@@ -344,9 +395,11 @@ describe('Stores Communication', () => {
     const callHandler = createCallHandler<RH, {}>(store1_to_store2, store2_to_store1, channel);
 
     const channelSubs = store1_to_store2.subscribe(v => {
+      // console.log('1->2', v.channel, v.type, v.data);
       msgs.push(['1->2', v.channel, v.type, v.data && JSON.parse(v.data)]);
     });
     channelSubs.add(store2_to_store1.subscribe(v => {
+      // console.log('2->1', v.channel, v.type, v.data);
       msgs.push(['2->1', v.channel, v.type, v.data && JSON.parse(v.data)]);
     }));
 
@@ -370,9 +423,7 @@ describe('Stores Communication', () => {
     };
     startListener(store2, store1_to_store2, store2_to_store1);
 
-
-
-    const store1 = new Store(handlers, {}, Promise, 'store1');
+    const store1 = new Store(handlers, {}, Promise, 'store1', '$');
     const a = wrapJson<xn, RH, {}>({ x: 5 }, handlers);
     const b = wrapJson<xn, RH, {}>({ x: 10 }, handlers);
     const c = wrapJson<xn, RH, {}>({ x: 20 }, handlers);
@@ -388,9 +439,10 @@ describe('Stores Communication', () => {
 
     const receivedValues: xn[] = [];
     // STORE1
-    store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
+    const ret = store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
       fId, arg, null, callHandler
-    ).pipe(finalize(
+    );
+    ret.pipe(finalize(
       () => channelSubs.unsubscribe()
     )).subscribe(async function (this: SafeSubscriber<xn>, v) {
       receivedValues.push({ ...v });
@@ -415,7 +467,7 @@ describe('Stores Communication', () => {
       }), 0);
     });
   };
-  _.entries({ Promise, QuickPromise }).forEach(([name, Promise]) => {
+  _.entries({ QuickPromise, Promise }).forEach(([name, Promise]) => {
     describe(`With ${name}`, () => {
       const p = new QuickPromise<Values>(res => senario(res, Promise));
       it('should communicate unsubscription', async () => {
@@ -428,7 +480,7 @@ describe('Stores Communication', () => {
       })
       it('should respect the communication protocol', async () => {
         const { allMsgs } = await p;
-        expect(_.groupBy(allMsgs, msg => msg[1])).deep.eq(expectedMsgs(allMsgs));
+        checkMsgs(allMsgs);
       })
       it('should not keep resources after the call', async () => {
         const { remainingKeys } = await p;
