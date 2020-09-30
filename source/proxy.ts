@@ -6,10 +6,13 @@ import { QuickPromise } from "../utils/quick-promise";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
 
+export type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
+export type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
+
 export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
   store: Store<RH, ECtx>,
-  from: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
-  to: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
+  from: Subject<DataGram<msg1to2>>,
+  to: Subject<DataGram<msg2to1>>,
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
   switch (type) {
     case 'put': {
@@ -51,8 +54,8 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
 
 
 export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
-  to: Subject<DataGram<'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call'>>,
-  from: Subject<DataGram<'response_put' | 'response_call' | 'call_error' | 'call_complete'>>,
+  to: Subject<DataGram<msg1to2>>,
+  from: Subject<DataGram<msg2to1>>,
   channel: [number]
 ): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
   return {

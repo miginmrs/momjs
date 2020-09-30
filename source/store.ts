@@ -105,6 +105,17 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
 
 const one = BigInt(1);
 
+/** Options of serialization */
+type SerializationOptions = {
+  /** @property {boolean} isNew whether the first entry of the first emission should be indicated new or not */
+  isNew: boolean,
+  /**
+   * @property {boolean} push whether the observable should be pushed into the store or not
+   * @default true
+   */
+  push?: boolean
+}
+
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
   private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
   private next = one;
@@ -317,7 +328,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
         temp.length = 0;
       };
       wrapped = defineProperty(
-        Object.assign(eagerCombineAll(obs, obs.origin.subject.pipe(
+        Object.assign(eagerCombineAll([obs, obs.origin.subject.pipe(
           alternMap(({ args, n }) => {
             const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
               const res = this.push(obs, { ids });
@@ -338,7 +349,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
             }
             return v === w
           })),
-        )).pipe(
+        )]).pipe(
           finalize(() => { unload?.({ id } as GlobalRef<V>); clear(); this.map.delete(id); destroyed = true; }),
           map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
         ), { origin: obs.origin, parent: obs }),
@@ -352,21 +363,27 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     }
     return { ref: { id } as GlobalRef<V>, wrapped, subscription };
   }
-  /** serialize any destructable object regardless wether its in the store */
+  /**
+   * serialize any destructable object regardless wether its in the store
+   * @param {Destructable} obs the observable to serialize
+   * @param {SerializationOptions} opt options of serialization
+   */
   serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
     obs: Destructable<dom, cim, k, X, n, RH, ECtx>,
-    { isNew }: { isNew: boolean }
+    opt: SerializationOptions
   ) {
+    const { isNew, push = true } = opt;
     type Attr = {
       type: keyof RH & string, value: any, data: any, new?: boolean,
       resolve?: (x: GlobalRef<any>) => void, id?: string, c: any,
     };
     type Session = BiMap<RH, ECtx, Attr | null, number>;
     type V = AppX<'V', cim, k, X>;
-    type SMR = [Session, Map<TypedDestructable<any, RH, ECtx>, { data: any }>, Ref<V>];
-    return obs.pipe(scan<V, SMR, null>((previous) => {
+    type SMRS = [Session, Map<TypedDestructable<any, RH, ECtx>, { data: any }>, Ref<V>, Subscription];
+    return obs.pipe(scan<V, SMRS, null>((previous) => {
       const session: Session = new BiMap;
-      const allData: SMR[1] = new Map();
+      const allData: SMRS[1] = new Map();
+      const subs = new Subscription;
       let next = 1;
       const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id) : session.get(r.$))![0] as TypedDestructable<V, RH, ECtx>;
       const inMap = (arg: TypedDestructable<any, RH, ECtx>) => this.map.find(arg) !== undefined;
@@ -396,7 +413,16 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
             data = { data: encode() };
           }
           allData.set(iObs, data);
-          const usedId = this.map.usedId(iObs);
+          let usedId = id;
+          if (usedId === undefined) {
+            if (push) {
+              const { subscription, ref } = this.push(iObs);
+              subs.add(subscription);
+              usedId = ref.id;
+            } else {
+              usedId = this.map.usedId(iObs);
+            }
+          }
           const attr: Attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
           attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
           session.set($, [iObs, attr]);
@@ -406,9 +432,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       const ctx = {
         deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
       };
-      const ret: SMR = [session, allData, ref(obs)];
+      const ret: SMRS = [session, allData, ref(obs), subs];
+      previous?.[3].unsubscribe();
       return ret;
-    }, null), map(([session, , ref]) => {
+    }, null), map(function (this: Subscription, [session, , ref, subs]) {
+      this.add(subs);
       const entries = Array(session.size).fill(0).map((_, i) => session.get(i)!);
       if (entries.length === 0) {
         if ('$' in ref) throw new Error('Unexpected');

@@ -8,7 +8,6 @@ import { toCond } from '../utils/guards';
 import { deref } from '.';
 import { TeardownLogic } from 'rxjs';
 import equal from 'deep-is';
-import { QuickPromise } from '../utils/quick-promise';
 
 const { depMap } = dep_map;
 
