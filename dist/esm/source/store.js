@@ -61,10 +61,11 @@ export class BiMap {
 }
 const one = BigInt(1);
 export class Store {
-    constructor(handlers, extra, promiseCtr, name, prefix = '') {
+    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '') {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
+        this.functions = functions;
         this.name = name;
         this.prefix = prefix;
         this.map = new BiMap();
@@ -96,8 +97,8 @@ export class Store {
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
-        this.functions = [];
         this.callReturnRef = new WeakMap();
+        this.functions = functions;
     }
     getNext(id) {
         if (id === undefined)
@@ -109,6 +110,7 @@ export class Store {
         return typeof id === 'string' ? { id } : id;
     }
     ;
+    /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
     _unserialize(key, ctx, models, cache, i) {
         const handler = byKey(this.handlers, key);
         if (cache[i] !== undefined)
@@ -117,7 +119,7 @@ export class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        const entry = handler.decode(ctx)(id, model.data);
+        const entry = handler.decode(ctx)(id, model.data, this.get(id)?.[0] ?? null);
         if (usedId !== undefined) {
             const stored = this.map.get(usedId);
             if (stored !== undefined) {
@@ -134,6 +136,7 @@ export class Store {
         cache[i] = { obs, id };
         return cache[i];
     }
+    /** inserts a new destructable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
         const handler = byKey(this.handlers, key);
         const compare = handler.compare?.(ctx);
@@ -141,6 +144,7 @@ export class Store {
         this.map.set(id, [obs, {}]);
         return obs;
     }
+    /** inserts or updates multiple entries from serialized data with stored subscription to new ones */
     unserialize(getModels) {
         const session = [];
         const models = getModels instanceof Function ? getModels((i) => ({ $: i })) : getModels;
@@ -185,6 +189,7 @@ export class Store {
         const subs = this.map.get(id)[1].subscription = obs.subscribe(() => { });
         return { id, obs, subs };
     }
+    /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
     push(obs, { ids, unload } = {}) {
         const oldId = this.map.find(obs.origin);
         const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
@@ -224,8 +229,13 @@ export class Store {
         }
         return { ref: { id }, wrapped, subscription };
     }
+    /**
+     * serialize any destructable object regardless wether its in the store
+     * @param {Destructable} obs the observable to serialize
+     * @param {SerializationOptions} opt options of serialization
+     */
     serialize(obs, opt) {
-        const { isNew, push = true } = opt;
+        const { isNew, push = true, ignore = [] } = opt;
         return obs.pipe(scan((previous) => {
             const session = new BiMap;
             const allData = new Map();
@@ -237,6 +247,8 @@ export class Store {
                 const entry = iObs.subject.value;
                 const value = current(iObs);
                 const id = this.map.find(iObs);
+                if (id !== undefined && ignore.indexOf(id) !== -1)
+                    return { id };
                 let oldData = undefined, data;
                 if (id !== undefined && previous) {
                     const [, old] = previous;
@@ -244,7 +256,7 @@ export class Store {
                 }
                 const old = oldData ? { old: oldData.data } : {};
                 const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
-                if (oldData) {
+                if (oldData) { //if (isHere)
                     data = { data: encode() };
                     if (data.data === undefined && id !== undefined) {
                         allData.set(iObs, oldData);
@@ -306,17 +318,20 @@ export class Store {
             throw new Error('Access to destroyed object');
         return obs;
     }
-    local(fId, param, arg) {
-        const obs = this.functions[fId](param, this.getValue(arg)[0]);
+    local(fId, param, arg, opt = {}) {
+        if (this.functions === null)
+            throw new Error('Cannot call local functions from remote store');
+        const f = this.functions[fId];
+        const obs = f(param, this.getValue(arg)[0]);
         const { subscription } = this.push(obs);
-        const serialized = this.serialize(obs, { isNew: true });
+        const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
         return new Observable(subscriber => {
             subscriber.add(subscription);
             subscriber.add(serialized.subscribe(subscriber));
         });
     }
-    remote() {
-        return (fId, arg, param, { handlers: makeOp, serialized }) => new Observable(subscriber => {
+    remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
+        return new Observable(subscriber => {
             const op = makeOp();
             const { subscription: argSubscription, ref: refArg } = this.push(arg, {
                 unload: (ref) => op.call_unsubscribe(ref),
@@ -368,7 +383,7 @@ export class Store {
             });
             callSubscription.add(responseSubs);
             responseSubs.add(callSubscription);
-            op.call(fId, param, refArg);
+            op.call(fId, param, refArg, opt);
             refTask[0].then(refReturn => {
                 const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
                 callSubscription.add(() => subs2.unsubscribe());

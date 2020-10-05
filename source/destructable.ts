@@ -74,7 +74,7 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
             map(args => [args, data, c] as [A, D, C]),
           )
         }, { completeWithInner: true, completeWithSource: true }),
-        tap(undefined, err => this.subject.error(err), () => this.subject.complete()),
+        tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
         scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, data, c, old), null)
       ).subscribe(subscriber);
       subs.add(this.destroy);

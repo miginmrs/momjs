@@ -1,4 +1,5 @@
 "use strict";
+/// <reference path="../typings/deep-is.d.ts" />
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -21,7 +22,7 @@ exports.ArrayHandler = () => ({
     encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
     ctr: exports.ArrayCtr,
 });
-exports.wrapArray = (args, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
+exports.wrapArray = (handlers) => (args, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
 exports.toArray = (deref) => (p) => deref(p, 'Array');
 const deepUpdate = (target, source) => {
     const keys = (o) => Object.keys(o);
@@ -48,6 +49,6 @@ exports.JsonHandler = () => ({
     encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
     ctr: exports.JsonCtr,
 });
-exports.wrapJson = (data, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
+exports.wrapJson = (handlers) => (data, ...teardownList) => new destructable_1.Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
 exports.toJson = (deref) => (p) => deref(p, 'Json');
 //# sourceMappingURL=handlers.js.map

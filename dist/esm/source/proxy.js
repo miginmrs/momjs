@@ -22,8 +22,8 @@ export const startListener = (store, from, to) => from.subscribe(function ({ cha
             return obs.subject.complete();
         }
         case 'call': {
-            const { fId, param, argId } = JSON.parse(data);
-            const obs = store.local(fId, param, { id: argId });
+            const { fId, param, argId, opt } = JSON.parse(data);
+            const obs = store.local(fId, param, { id: argId }, opt);
             const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
                 subs.unsubscribe();
             });
@@ -60,7 +60,7 @@ export const createCallHandler = (to, from, channel) => {
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
                 error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
                 subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(function ({ data, type }) {
                     if (type === 'response_call') {

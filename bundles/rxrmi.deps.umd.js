@@ -582,7 +582,7 @@ class Destructable extends rxjs_1.Observable {
             const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);
                 return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => [args, data, c]));
-            }, { completeWithInner: true, completeWithSource: true }), operators_1.tap(undefined, err => this.subject.error(err), () => this.subject.complete()), operators_1.scan((old, [args, data, c]) => handler.ctr(args, data, c, old), null)).subscribe(subscriber);
+            }, { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, data, c, old), null)).subscribe(subscriber);
             subs.add(this.destroy);
             return subs;
         });
@@ -607,6 +607,7 @@ exports.Destructable = Destructable;
 
 "use strict";
 
+/// <reference path="../typings/deep-is.d.ts" />
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -629,7 +630,7 @@ exports.ArrayHandler = () => ({
     encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
     ctr: exports.ArrayCtr,
 });
-exports.wrapArray = (args, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
+exports.wrapArray = (handlers) => (args, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
 exports.toArray = (deref) => (p) => deref(p, 'Array');
 const deepUpdate = (target, source) => {
     const keys = (o) => Object.keys(o);
@@ -656,7 +657,7 @@ exports.JsonHandler = () => ({
     encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
     ctr: exports.JsonCtr,
 });
-exports.wrapJson = (data, handlers, ...teardownList) => new destructable_1.Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
+exports.wrapJson = (handlers) => (data, ...teardownList) => new destructable_1.Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
 exports.toJson = (deref) => (p) => deref(p, 'Json');
 
 
@@ -743,8 +744,8 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
             return obs.subject.complete();
         }
         case 'call': {
-            const { fId, param, argId } = JSON.parse(data);
-            const obs = store.local(fId, param, { id: argId });
+            const { fId, param, argId, opt } = JSON.parse(data);
+            const obs = store.local(fId, param, { id: argId }, opt);
             const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
                 subs.unsubscribe();
             });
@@ -781,7 +782,7 @@ exports.createCallHandler = (to, from, channel) => {
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
                 error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
                 subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel)).subscribe(function ({ data, type }) {
                     if (type === 'response_call') {
@@ -880,10 +881,11 @@ class BiMap {
 exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, name, prefix = '') {
+    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '') {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
+        this.functions = functions;
         this.name = name;
         this.prefix = prefix;
         this.map = new BiMap();
@@ -915,8 +917,8 @@ class Store {
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
-        this.functions = [];
         this.callReturnRef = new WeakMap();
+        this.functions = functions;
     }
     getNext(id) {
         if (id === undefined)
@@ -928,7 +930,9 @@ class Store {
         return typeof id === 'string' ? { id } : id;
     }
     ;
+    /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
     _unserialize(key, ctx, models, cache, i) {
+        var _a, _b;
         const handler = guards_1.byKey(this.handlers, key);
         if (cache[i] !== undefined)
             return cache[i];
@@ -936,7 +940,7 @@ class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        const entry = handler.decode(ctx)(id, model.data);
+        const entry = handler.decode(ctx)(id, model.data, (_b = (_a = this.get(id)) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : null);
         if (usedId !== undefined) {
             const stored = this.map.get(usedId);
             if (stored !== undefined) {
@@ -953,6 +957,7 @@ class Store {
         cache[i] = { obs, id };
         return cache[i];
     }
+    /** inserts a new destructable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
         var _a, _b;
         const handler = guards_1.byKey(this.handlers, key);
@@ -961,6 +966,7 @@ class Store {
         this.map.set(id, [obs, {}]);
         return obs;
     }
+    /** inserts or updates multiple entries from serialized data with stored subscription to new ones */
     unserialize(getModels) {
         const session = [];
         const models = getModels instanceof Function ? getModels((i) => ({ $: i })) : getModels;
@@ -1005,6 +1011,7 @@ class Store {
         const subs = this.map.get(id)[1].subscription = obs.subscribe(() => { });
         return { id, obs, subs };
     }
+    /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
     push(obs, { ids, unload } = {}) {
         var _a;
         const oldId = this.map.find(obs.origin);
@@ -1045,8 +1052,13 @@ class Store {
         }
         return { ref: { id }, wrapped, subscription };
     }
+    /**
+     * serialize any destructable object regardless wether its in the store
+     * @param {Destructable} obs the observable to serialize
+     * @param {SerializationOptions} opt options of serialization
+     */
     serialize(obs, opt) {
-        const { isNew, push = true } = opt;
+        const { isNew, push = true, ignore = [] } = opt;
         return obs.pipe(operators_1.scan((previous) => {
             const session = new BiMap;
             const allData = new Map();
@@ -1058,6 +1070,8 @@ class Store {
                 const entry = iObs.subject.value;
                 const value = rx_utils_1.current(iObs);
                 const id = this.map.find(iObs);
+                if (id !== undefined && ignore.indexOf(id) !== -1)
+                    return { id };
                 let oldData = undefined, data;
                 if (id !== undefined && previous) {
                     const [, old] = previous;
@@ -1065,7 +1079,7 @@ class Store {
                 }
                 const old = oldData ? { old: oldData.data } : {};
                 const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
-                if (oldData) {
+                if (oldData) { //if (isHere)
                     data = { data: encode() };
                     if (data.data === undefined && id !== undefined) {
                         allData.set(iObs, oldData);
@@ -1127,17 +1141,20 @@ class Store {
             throw new Error('Access to destroyed object');
         return obs;
     }
-    local(fId, param, arg) {
-        const obs = this.functions[fId](param, this.getValue(arg)[0]);
+    local(fId, param, arg, opt = {}) {
+        if (this.functions === null)
+            throw new Error('Cannot call local functions from remote store');
+        const f = this.functions[fId];
+        const obs = f(param, this.getValue(arg)[0]);
         const { subscription } = this.push(obs);
-        const serialized = this.serialize(obs, { isNew: true });
+        const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
         return new rxjs_1.Observable(subscriber => {
             subscriber.add(subscription);
             subscriber.add(serialized.subscribe(subscriber));
         });
     }
-    remote() {
-        return (fId, arg, param, { handlers: makeOp, serialized }) => new rxjs_1.Observable(subscriber => {
+    remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
+        return new rxjs_1.Observable(subscriber => {
             const op = makeOp();
             const { subscription: argSubscription, ref: refArg } = this.push(arg, {
                 unload: (ref) => op.call_unsubscribe(ref),
@@ -1190,7 +1207,7 @@ class Store {
             });
             callSubscription.add(responseSubs);
             responseSubs.add(callSubscription);
-            op.call(fId, param, refArg);
+            op.call(fId, param, refArg, opt);
             refTask[0].then(refReturn => {
                 const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
                 callSubscription.add(() => subs2.unsubscribe());
@@ -1454,6 +1471,8 @@ class CompleteDestination extends rxjs_1.Subscriber {
     notifyComplete() { var _a, _b; (_b = (_a = this.destination).complete) === null || _b === void 0 ? void 0 : _b.call(_a); }
 }
 exports.EMPTY_ARR = rxjs_1.concat(rxjs_1.of([]), rxjs_1.NEVER);
+/** Like combineLatest but emits if the array of observables is empty
+ * and completes when and only when one observable completes */
 exports.eagerCombineAll = function (...args) {
     if (args.length === 0 || args.length === 1 && args[0] instanceof Array && args[0].length === 0)
         return exports.EMPTY_ARR;

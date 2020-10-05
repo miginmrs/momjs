@@ -1,7 +1,7 @@
 import { Store } from "./store";
 import { Subject, Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
-import { GlobalRef, RHConstraint, CallHandler } from "./types";
+import { GlobalRef, RHConstraint, CallHandler, Json, TVCDADepConstaint, TVCDA_CIM, FdcpConstraint, FkxConstraint, FIDS } from "./types";
 import { QuickPromise } from "../utils/quick-promise";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
@@ -9,8 +9,8 @@ export type DataGram<T extends string> = { channel: number, type: T, data: strin
 export type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
 export type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
 
-export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
-  store: Store<RH, ECtx>,
+export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
+  store: Store<RH, ECtx, fIds, fdcp, fkx>,
   from: Subject<DataGram<msg1to2>>,
   to: Subject<DataGram<msg2to1>>,
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
@@ -33,8 +33,8 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
       return (obs as typeof obs.origin).subject.complete();
     }
     case 'call': {
-      const { fId, param, argId } = JSON.parse(data);
-      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>);
+      const { fId, param, argId, opt } = JSON.parse(data);
+      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>, opt);
       const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
         subs.unsubscribe();
       });
@@ -53,11 +53,11 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
 });
 
 
-export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
+export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
   to: Subject<DataGram<msg1to2>>,
   from: Subject<DataGram<msg2to1>>,
   channel: [number]
-): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
+): CallHandler<RH, ECtx, fIds, fdcp, fkx> => {
   return {
     serialized: new WeakMap(),
     handlers: () => {
@@ -75,7 +75,7 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
           to.next({ channel: ch, type: 'put', data: JSON.stringify(def) })
           return promise;
         },
-        call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+        call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
         error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
           function (this: Subscription, { data, type }) {

@@ -36,7 +36,7 @@ export class Destructable extends Observable {
             const subs = this.subject.pipe(distinctUntilChanged(compare), alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);
                 return eagerCombineAll(array).pipe(map(args => [args, data, c]));
-            }, { completeWithInner: true, completeWithSource: true }), tap(undefined, err => this.subject.error(err), () => this.subject.complete()), scan((old, [args, data, c]) => handler.ctr(args, data, c, old), null)).subscribe(subscriber);
+            }, { completeWithInner: true, completeWithSource: true }), tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), scan((old, [args, data, c]) => handler.ctr(args, data, c, old), null)).subscribe(subscriber);
             subs.add(this.destroy);
             return subs;
         });

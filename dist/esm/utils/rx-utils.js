@@ -4,6 +4,8 @@ class CompleteDestination extends Subscriber {
     notifyComplete() { this.destination.complete?.(); }
 }
 export const EMPTY_ARR = concat(of([]), NEVER);
+/** Like combineLatest but emits if the array of observables is empty
+ * and completes when and only when one observable completes */
 export const eagerCombineAll = function (...args) {
     if (args.length === 0 || args.length === 1 && args[0] instanceof Array && args[0].length === 0)
         return EMPTY_ARR;

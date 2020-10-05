@@ -1,3 +1,4 @@
+/// <reference path="../typings/deep-is.d.ts" />
 import { Destructable } from './destructable';
 import { map as dep_map } from 'dependent-type';
 import { toCond } from '../utils/guards';
@@ -15,7 +16,7 @@ export const ArrayHandler = () => ({
     encode: ({ ref }) => ({ args }) => toCond(depMap(args, ref)),
     ctr: ArrayCtr,
 });
-export const wrapArray = (args, handlers, ...teardownList) => new Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
+export const wrapArray = (handlers) => (args, ...teardownList) => new Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
 export const toArray = (deref) => (p) => deref(p, 'Array');
 const deepUpdate = (target, source) => {
     const keys = (o) => Object.keys(o);
@@ -42,6 +43,6 @@ export const JsonHandler = () => ({
     encode: () => ({ data, old }) => old && equal(data, old) ? undefined : clone(data),
     ctr: JsonCtr,
 });
-export const wrapJson = (data, handlers, ...teardownList) => new Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
+export const wrapJson = (handlers) => (data, ...teardownList) => new Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
 export const toJson = (deref) => (p) => deref(p, 'Json');
 //# sourceMappingURL=handlers.js.map
