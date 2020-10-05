@@ -24,3 +24,5 @@ export const parallel = <K extends keyof any>(selector: (msg: msg) => K, gens: R
     for (const key of Object.keys(gens) as K[]) yield* gens[key];
   });
 };
+export type xn = { x: number };
+export const collect = (acc: xn[][], val: xn) => [...acc, [...(acc.slice(-1)[0] ?? []), val]];

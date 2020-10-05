@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
 import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { wrapJson, wrapArray, JsonObject, PromiseCtr, Json, CtxH } from '../source';
+import { wrapJson, wrapArray, JsonObject, PromiseCtr, Json, CtxH, TypedDestructable, Functions, Destructable } from '../source';
 import { Subscription, Subject } from 'rxjs';
 import { take, toArray, map, finalize } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
@@ -9,7 +9,7 @@ import { startListener, DataGram, createCallHandler, msg1to2, msg2to1 } from '..
 import { QuickPromise } from '../utils/quick-promise';
 import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
-import { msg, MsgGenerator, parallel, start } from './common';
+import { collect, msg, MsgGenerator, parallel, start, xn } from './common';
 import { checkMsgs } from './com.list';
 
 namespace RequestHandlers {
@@ -20,18 +20,21 @@ type RH = typeof RequestHandlers;
 
 
 describe('Stores Communication', () => {
-  type xn = { x: number };
-  type Values = { firstCall: xn[], secondCall: xn[], allMsgs: msg[], remainingKeys: string[] };
+  type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const handlers = RequestHandlers;
 
     // COMMON
-    const fId = 0;
+    const fMul = 0; type fMul = typeof fMul;
+    type fMuldcp = [[unknown[], ArrayCim, 1], [unknown[], ArrayCim, 1], null];
+    type StoreFdcp = { [fMul]: fMuldcp };
+    type fMulkx = [ArrayTypeKeys, [xn, xn], ArrayTypeKeys, xn[]];
+    type StoreFkx = { [fMul]: fMulkx };
     const store1_to_store2 = new Subject<DataGram<msg1to2>>();
     const store2_to_store1 = new Subject<DataGram<msg2to1>>();
     const channel = [0] as [0];
     const msgs: msg[] = [];
-    const callHandler = createCallHandler<RH, {}>(store1_to_store2, store2_to_store1, channel);
+    const callHandler = createCallHandler<RH, {}, fMul, StoreFdcp, StoreFkx>(store1_to_store2, store2_to_store1, channel);
 
     const channelSubs = store1_to_store2.subscribe(v => {
       // console.log('1->2', v.channel, v.type, v.data);
@@ -43,49 +46,48 @@ describe('Stores Communication', () => {
     }));
 
     // STORE2
-
-    const store2 = new Store(handlers, {}, Promise, 'store2');
-    store2.functions[fId] = (_, arg) => {
-      const [{ x: a }, { x: b }]: [xn, xn] = current(arg);
-      const subs = new Subscription();
-      const obs = wrapJson<xn, RH, {}>({ x: a * b }, handlers, subs);
-      subs.add(arg.subscribe(
-        v => {
-          arg;
-          const [{ x: a }, { x: b }] = v;
-          obs.subject.next({ args: [], data: { x: a * b }, n: 1 })
-        },
-        e => obs.subject.error(e),
-        () => obs.subject.complete()
-      ));
-      return obs;
-    };
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, {
+      [fMul]: (_, arg) => {
+        const subs = new Subscription();
+        const obs = wrapArray<xn[], RH, {}>([], handlers, subs);
+        subs.add(arg.subscribe(
+          v => {
+            arg;
+            const [{ x: a }, { x: b }] = v;
+            const json = wrapJson<xn, RH, {}>({ x: a * b }, handlers);
+            obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
+          },
+          e => obs.subject.error(e),
+          () => obs.subject.complete()
+        ));
+        return obs;
+      }
+    }, 'store2');
     startListener(store2, store1_to_store2, store2_to_store1);
 
-    const store1 = new Store(handlers, {}, Promise, 'store1', '$');
+    const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, null, 'store1', '$');
     const a = wrapJson<xn, RH, {}>({ x: 5 }, handlers);
     const b = wrapJson<xn, RH, {}>({ x: 10 }, handlers);
     const c = wrapJson<xn, RH, {}>({ x: 20 }, handlers);
     const arg = wrapArray<[xn, xn], RH, {}>([a, b], handlers);
     const subs = arg.subscribe();
-    let firstCallResult: xn[] = [];
+    let firstCallResult: xn[][] = [];
 
-    store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
-      fId, arg, null, callHandler
-    ).pipe(take(2), map(v => ({ ...v })), toArray()).subscribe(
+    store1.remote(
+      fMul, arg, null, callHandler
+    ).pipe(take(2), map(v => v.slice()), toArray()).subscribe(
       v => firstCallResult = v
     );
 
-    const receivedValues: xn[] = [];
+    const receivedValues: xn[][] = [];
     // STORE1
-    const ret = store1.remote<JsonObject, JsonCim, JsonTypeKeys, xn, 1>()(
-      fId, arg, null, callHandler
-    );
+    const ret = store1.remote(fMul, arg, null, callHandler);
     ret.pipe(finalize(
       () => channelSubs.unsubscribe()
     )).subscribe(async function (this: SafeSubscriber<xn>, v) {
-      receivedValues.push({ ...v });
-      if (v.x !== 50) return;
+      receivedValues.push(v.slice());
+      console.log(v);
+      if (v.slice(-1)[0].x !== 50) return;
       subs.unsubscribe();
       await new Promise(r => setTimeout(r, 1));
       a.subject.next({ data: { x: 4 }, args: [], n: 1 });
@@ -111,11 +113,11 @@ describe('Stores Communication', () => {
       const p = new QuickPromise<Values>(res => senario(res, Promise));
       it('should communicate unsubscription', async () => {
         const { firstCall } = await p;
-        expect(firstCall).deep.eq([{ x: 50 }, { x: 40 }]);
+        expect(firstCall).deep.eq([{ x: 50 }, { x: 40 }].reduce(collect, []));
       })
       it('should alter the dependencies of the call function argument', async () => {
         const { secondCall } = await p;
-        expect(secondCall).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }]);
+        expect(secondCall).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }].reduce(collect, []));
       })
       it('should respect the communication protocol', async () => {
         const { allMsgs } = await p;

@@ -22,13 +22,13 @@ export declare const F_ArrArgs: unique symbol;
 export declare const F_Destructable: unique symbol;
 export declare const F_Ref: unique symbol;
 
-export type ToRef<X extends any[]> = Ref<any>[] & { [P in Exclude<keyof X, keyof any[]>]: Ref<X[P]> };
+export type ToRef<X extends unknown[]> = Ref<unknown>[] & { [P in Exclude<keyof X, keyof any[]>]: Ref<X[P]> };
 declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
     [F_F]: X extends C ? X : BadApp<Fun<typeof F_F, C>, X>;
     [F_C]: C,
     [F_ID]: X,
-    [F_ArrArgs]: X extends any[] ? ToRef<X> : BadApp<Fun<typeof F_ArrArgs, C>, X>,
+    [F_ArrArgs]: X extends unknown[] ? ToRef<X> : BadApp<Fun<typeof F_ArrArgs, C>, X>,
     [F_Destructable]: TypedDestructable<C[0 & keyof C][X & keyof C[0 & keyof C]], C[1 & keyof C], C[2 & keyof C]>,
     [F_Ref]: Ref<C[X & keyof C]>,
   }
@@ -44,18 +44,18 @@ declare module 'dependent-type' {
 }
 
 
-export type ArrayCim = { T: [never, Ref<any>[]], V: [never, any[]], C: [null, null], D: [null, null], A: [never, any[]] };
+export type ArrayCim = { T: [never, Ref<any>[]], V: [never, unknown[]], C: [null, null], D: [null, null], A: [never, unknown[]] };
 export type ArrayTypeKeys = { T: typeof F_ArrArgs, V: typeof F_ID, C: typeof F_C, D: typeof F_C, A: typeof F_ID };
 
-export const ArrayCtr: DestructableCtr<any[], ArrayCim, ArrayTypeKeys> = <X extends any[]>(x: X, _d: null, _c: null, old: any[] | null) => {
+export const ArrayCtr: DestructableCtr<unknown[], ArrayCim, ArrayTypeKeys> = <X extends unknown[]>(x: X, _d: null, _c: null, old: unknown[] | null) => {
   if (old) { old.splice(0); x = Object.assign(old, x); }
   return x;
 }
 
-export type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<any[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
+export type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<unknown[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
 export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHandler<EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, n: 1 }),
-  encode: ({ ref }) => <C extends any[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }): AppX<'T', ArrayCim, ArrayTypeKeys, C> => toCond<any[], C, ToRef<C>>(
+  encode: ({ ref }) => <C extends unknown[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }): AppX<'T', ArrayCim, ArrayTypeKeys, C> => toCond<unknown[], C, ToRef<C>>(
     depMap<Exclude<keyof C, keyof any[]>, [
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
@@ -63,14 +63,14 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
   ctr: ArrayCtr,
 });
 
-export type ArrayDestructable<A extends any[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<any[], ArrayCim, ArrayTypeKeys, A, 1, EH, ECtx>;
-export const wrapArray = <A extends any[], EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(args: DeepDestructable<A, 1, EH, ECtx>, handlers: EH, ...teardownList: TeardownLogic[]): ArrayDestructable<A, EH, ECtx> => new Destructable(
+export type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, 1, EH, ECtx>;
+export const wrapArray = <A extends unknown[], EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(args: DeepDestructable<A, 1, EH, ECtx>, handlers: EH, ...teardownList: TeardownLogic[]): ArrayDestructable<A, EH, ECtx> => new Destructable(
   handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList
 );
 
 export const toArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(
   deref: deref<EH, ECtx>
-) => (p: Ref<any[]>) => deref<0, [[any[], ArrayCim]], [ArrayTypeKeys], [any[]], [1]>(p, 'Array');
+) => (p: Ref<unknown[]>) => deref<0, [[unknown[], ArrayCim]], [ArrayTypeKeys], [any[]], [1]>(p, 'Array');
 
 
 export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null, null], D: [never, JsonObject], A: [[], []] };

@@ -1,8 +1,9 @@
-import { Subscription, Observable, ObservedValueOf, TeardownLogic, concat, of, NEVER, identity, combineLatest } from 'rxjs';
+import { Subscription, Observable, ObservedValueOf } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
-  xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler, AnyModelDefinition, CallHandler,
+  xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler,
+  AnyModelDefinition, CallHandler, Functions, FdcpConstraint, FkxConstraint, FIDS
 } from './types'
 import { Destructable, EntryObs, TypedDestructable } from './destructable';
 import { KeysOfType, TypeFuncs, AppX, App, Fun, BadApp } from 'dependent-type';
@@ -11,7 +12,7 @@ import { byKey } from '../utils/guards';
 import { map as dep_map } from 'dependent-type';
 import { eagerCombineAll, current } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, startWith, tap } from 'rxjs/operators';
+import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, tap } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { Json, DeepDestructable } from '.';
@@ -20,9 +21,9 @@ const { depMap } = dep_map;
 
 type ObsCache<
   indices extends number,
-  dcim extends Record<indices, [any, TVCDA_CIM]>,
+  dcim extends Record<indices, [unknown, TVCDA_CIM]>,
   keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-  X extends { [P in indices]: any },
+  X extends { [P in indices]: unknown },
   N extends Record<indices, 1 | 2>,
   EH extends EHConstraint<EH, ECtx>,
   ECtx
@@ -116,11 +117,21 @@ type SerializationOptions = {
   push?: boolean
 }
 
-export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
+export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
+  fIds extends FIDS,
+  fdcp extends FdcpConstraint<fIds>,
+  fkx extends FkxConstraint<fIds, fdcp>,
+  > {
   private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
   private next = one;
 
-  constructor(readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr, readonly name?: string, readonly prefix = '') { }
+  constructor(
+    readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
+    private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
+    readonly name?: string, readonly prefix = '',
+  ) {
+    this.functions = functions;
+  }
 
   private getNext(id?: string): string {
     if (id === undefined) return `${this.prefix}${this.next++}`;
@@ -457,9 +468,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
     if (obs === undefined) throw new Error('Access to destroyed object');
     return obs as [ObsWithOrigin<V, RH, ECtx>, (typeof obs)[1]];
   }
-  functions: ((param: Json, arg: ObsWithOrigin<any, RH, ECtx>) => TypedDestructable<any, RH, ECtx>)[] = [];
-  local(fId: number, param: Json, arg: GlobalRef<any>) {
-    const obs = this.functions[fId](param, this.getValue(arg)[0]);
+  local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) {
+    if (this.functions === null) throw new Error('Cannot call local functions from remote store');
+    const f = this.functions[fId];
+    const obs = f(param, this.getValue(arg)[0]);
     const { subscription } = this.push(obs);
     const serialized = this.serialize(obs, { isNew: true });
     return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
@@ -467,14 +479,16 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       subscriber.add(serialized.subscribe(subscriber));
     });
   }
+
   callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<any>>>();
-  remote<dom2, cim2 extends TVCDA_CIM, k2 extends TVCDADepConstaint<dom2, cim2>, X2 extends dom2, n2 extends 1 | 2>() {
-    return <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, P extends Json>(
-      fId: number, arg: Destructable<dom, cim, k, X, n, RH, ECtx>, param: P,
-      { handlers: makeOp, serialized }: CallHandler<dom, cim, k, X, n, P, dom2, cim2, k2, X2, n2, RH, ECtx>
-    ) => new Observable<AppX<'V', cim2, k2, X2>>(subscriber => {
-      type V = AppX<'V', cim, k, X>;
-      const op = makeOp();
+  remote<fId extends fIds>(
+    fId: fId, arg: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>, param: fdcp[fId][2],
+    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>
+  ) {
+    return new Observable<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>(subscriber => {
+      type V = AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>;
+      type V2 = AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>;
+      const op = makeOp<fId>();
       const { subscription: argSubscription, ref: refArg } = this.push(arg, {
         unload: (ref) => op.call_unsubscribe(ref),
       });
@@ -491,7 +505,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx> {
       }), shareReplay({ refCount: true, bufferSize: 1 })));
       const paramSubs = serializeObs.subscribe();
       const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
-      const refTask = makePromise<GlobalRef<AppX<'V', cim2, k2, X>>>();
+      const refTask = makePromise<GlobalRef<V2>>();
       this.callReturnRef.set(subscriber, refTask[0]);
       callSubscription.add(() => {
         if (paramSubs.closed) return;

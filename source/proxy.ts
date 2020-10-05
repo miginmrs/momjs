@@ -1,7 +1,7 @@
 import { Store } from "./store";
 import { Subject, Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
-import { GlobalRef, RHConstraint, CallHandler } from "./types";
+import { GlobalRef, RHConstraint, CallHandler, Json, TVCDADepConstaint, TVCDA_CIM, FdcpConstraint, FkxConstraint, FIDS } from "./types";
 import { QuickPromise } from "../utils/quick-promise";
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
@@ -9,8 +9,8 @@ export type DataGram<T extends string> = { channel: number, type: T, data: strin
 export type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
 export type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
 
-export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
-  store: Store<RH, ECtx>,
+export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
+  store: Store<RH, ECtx, fIds, fdcp, fkx>,
   from: Subject<DataGram<msg1to2>>,
   to: Subject<DataGram<msg2to1>>,
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
@@ -53,11 +53,11 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx>(
 });
 
 
-export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx>(
+export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
   to: Subject<DataGram<msg1to2>>,
   from: Subject<DataGram<msg2to1>>,
   channel: [number]
-): CallHandler<any, any, any, any, any, any, any, any, any, any, any, RH, ECtx> => {
+): CallHandler<RH, ECtx, fIds, fdcp, fkx> => {
   return {
     serialized: new WeakMap(),
     handlers: () => {

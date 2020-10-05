@@ -1,4 +1,5 @@
 import { expect } from "chai";
+import _ from "lodash";
 import { msg, start, MsgGenerator, parallel } from "./common";
 
 export const checkMsgs = (msgs: msg[]) => {
@@ -13,6 +14,11 @@ export const checkMsgs = (msgs: msg[]) => {
     let msg = yield null!;
     while (true) msg = yield msg[1] === ch ? dir : undefined
   }));
+  const addId = (msg: msg, lastIds: idstr[]) => {
+    const [, { id }] = msg[3] as idstr[];
+    if (!usedIds.add(id)) throw new Error('id already used');
+    lastIds.push({ id });
+  }
   const gen: MsgGenerator = parallel<path>(msg => {
     for (const [index, h] of [...handlers.entries()].reverse()) {
       const v = h.next(msg);
@@ -23,6 +29,8 @@ export const checkMsgs = (msgs: msg[]) => {
   }, {
     [init]: start(function* (): MsgGenerator {
       const [, first, , data] = yield null!;
+      handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call1' }));
+      handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call2' }));
       const tIds = [ids.arg, ids.a, ids.b] = (data as idstr[]).map(({ id }) => id), [idArg, idA, idB] = tIds;
       if (!tIds.every(id => usedIds.add(id))) {
         throw new Error('some ids are reused');
@@ -32,8 +40,6 @@ export const checkMsgs = (msgs: msg[]) => {
         { i: 1, type: 'Json', data: { x: 5 }, c: null, new: false, id: idA },
         { i: 2, type: 'Json', data: { x: 10 }, c: null, new: false, id: idB }
       ]];
-      handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call1' }));
-      handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call2' }));
       const [, put1] = yield ['2->1', first, 'response_put', [{ id: idArg }, { id: idA }, { id: idB }]];
       linkTo(put1, 'put1');
       const [, put2] = yield ['1->2', put1, 'put', [
@@ -65,14 +71,18 @@ export const checkMsgs = (msgs: msg[]) => {
       linkTo(ch, 'call1');
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
-      const response_call = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
-      const id = (response_call[3] as [idstr])[0].id;
-      if (!usedIds.add(id)) throw new Error('id already used');
+      const lastIds: idstr[] = [];
+      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+      const [{ id: retId }] = first[3] as idstr[];
+      if (!usedIds.add(retId)) throw new Error('id already used');
+      addId(first, lastIds);
+      addId(yield ['2->1', ch, 'response_call', [
+        { i: 0, type: 'Array', data: [{ $: 1 }], c: null, id: retId, new: true },
+        { i: 1, type: 'Json', data: { x: 50 }, c: null, ...lastIds.slice(-1)[0], new: false }
+      ]], lastIds);
       yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 50 }, c: null, id, new: true }
-      ]];
-      yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 40 }, c: null, id, new: false }
+        { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
+        { i: 1, type: 'Json', data: { x: 40 }, c: null, ...lastIds.slice(-1)[0], new: false }
       ]];
       yield ['1->2', ch, 'end_call', ''];
       yield ['1->2', ch, 'unsubscribe', argId]; // the observable 1 is not destroyed at this point, because its used by the fct call 
@@ -83,23 +93,30 @@ export const checkMsgs = (msgs: msg[]) => {
       linkTo(ch, 'call2');
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
-      const response_call = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
-      const id = (response_call[3] as [idstr])[0].id;
-      if (!usedIds.add(id)) throw new Error('id already used');
+      const lastIds: idstr[] = [];
+      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+      const [{ id: retId }] = first[3] as idstr[];
+      if (!usedIds.add(retId)) throw new Error('id already used');
+      addId(first, lastIds);
+      addId(yield ['2->1', ch, 'response_call', [
+        { i: 0, type: 'Array', data: [{ $: 1 }], c: null, id: retId, new: true },
+        { i: 1, type: 'Json', data: { x: 50 }, c: null, ...lastIds.slice(-1)[0], new: false }
+      ]], lastIds);
+      addId(yield ['2->1', ch, 'response_call', [
+        { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
+        { i: 1, type: 'Json', data: { x: 40 }, c: null, ...lastIds.slice(-1)[0], new: false }
+      ]], lastIds);
+      addId(yield ['2->1', ch, 'response_call', [
+        { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
+        { i: 1, type: 'Json', data: { x: 30 }, c: null, ...lastIds.slice(-1)[0], new: false }
+      ]], lastIds);
+      addId(yield ['2->1', ch, 'response_call', [
+        { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
+        { i: 1, type: 'Json', data: { x: 200 }, c: null, ...lastIds.slice(-1)[0], new: false }
+      ]], lastIds);
       yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 50 }, c: null, id, new: true }
-      ]];
-      yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 40 }, c: null, id, new: false }
-      ]];
-      yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 30 }, c: null, id, new: false }
-      ]];
-      yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 200 }, c: null, id, new: false }
-      ]];
-      yield ['2->1', ch, 'response_call', [
-        { i: 0, type: 'Json', data: { x: 300 }, c: null, id, new: false }
+        { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
+        { i: 1, type: 'Json', data: { x: 300 }, c: null, ...lastIds.slice(-1)[0], new: false }
       ]];
       yield ['2->1', ch, 'call_complete', ''];
     }),
@@ -123,6 +140,7 @@ export const checkMsgs = (msgs: msg[]) => {
   msgs.forEach((msg, i) => {
     const v = gen.next(msg);
     if (v.done) expect(msgs.slice(i)).deep.eq([]);
+    if(!_.isEqual(msg, v.value)) debugger;
     expect(msg).deep.eq(v.value);
   });
   expect([]).deep.eq([...(gen as Generator<msg, void, void>)])
