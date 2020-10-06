@@ -23,6 +23,8 @@ describe('Stores Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const handlers = RequestHandlers;
+    const newArray = wrapArray<RH, {}>(handlers);
+    const newJson = wrapJson<RH, {}>(handlers);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
@@ -49,12 +51,12 @@ describe('Stores Communication', () => {
     const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, {
       [fMul]: (_, arg) => {
         const subs = new Subscription();
-        const obs = wrapArray<xn[], RH, {}>([], handlers, subs);
+        const obs = newArray<xn[]>([], subs);
         subs.add(arg.subscribe(
           v => {
             arg;
             const [{ x: a }, { x: b }] = v;
-            const json = wrapJson<xn, RH, {}>({ x: a * b }, handlers);
+            const json = newJson<xn>({ x: a * b });
             obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
           },
           e => obs.subject.error(e),
@@ -66,10 +68,10 @@ describe('Stores Communication', () => {
     startListener(store2, store1_to_store2, store2_to_store1);
 
     const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, null, 'store1', '$');
-    const a = wrapJson<xn, RH, {}>({ x: 5 }, handlers);
-    const b = wrapJson<xn, RH, {}>({ x: 10 }, handlers);
-    const c = wrapJson<xn, RH, {}>({ x: 20 }, handlers);
-    const arg = wrapArray<[xn, xn], RH, {}>([a, b], handlers);
+    const a = newJson<xn>({ x: 5 });
+    const b = newJson<xn>({ x: 10 });
+    const c = newJson<xn>({ x: 20 });
+    const arg = newArray<[xn, xn]>([a, b]);
     const subs = arg.subscribe();
     let firstCallResult: xn[][] = [];
 

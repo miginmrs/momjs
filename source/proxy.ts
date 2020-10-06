@@ -33,8 +33,8 @@ export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds exte
       return (obs as typeof obs.origin).subject.complete();
     }
     case 'call': {
-      const { fId, param, argId } = JSON.parse(data);
-      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>);
+      const { fId, param, argId, opt } = JSON.parse(data);
+      const obs = store.local(fId, param, { id: argId } as GlobalRef<any>, opt);
       const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
         subs.unsubscribe();
       });
@@ -75,7 +75,7 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds 
           to.next({ channel: ch, type: 'put', data: JSON.stringify(def) })
           return promise;
         },
-        call: (fId, param, ref) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id }), type: 'call' }),
+        call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
         error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(
           function (this: Subscription, { data, type }) {

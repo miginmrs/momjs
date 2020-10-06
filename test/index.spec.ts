@@ -158,18 +158,21 @@ describe('Store', () => {
   let originSubs: Subscription;
   describe('push method', () => {
     const handlers = RequestHandlers;
+    const newArray = wrapArray<RH, {}>(handlers);
+    const newJson = wrapJson<RH, {}>(handlers);
+    
     let subs: Subscription;
     it('should chain insertion', async () => {
-      jsonObs = wrapJson({ msg: 'hi' }, handlers);
-      const jsonRes = await store.push(jsonObs);
+      jsonObs = newJson({ msg: 'hi' });
+      const jsonRes = store.push(jsonObs);
       jsonWrp = jsonRes.wrapped;
       const subs0 = jsonRes.subscription;
       expect(jsonWrp).not.eq(jsonObs);
       expect(jsonWrp.origin).eq(jsonObs);
       expect([...(store['map']['byId']).keys()]).deep.eq(['3']);
-      arr1Obs = wrapArray([jsonObs, jsonObs, jsonObs], handlers);
-      arr2Obs = wrapArray([arr1Obs, jsonObs], handlers)
-      const arrRes = await store.push(arr2Obs);
+      arr1Obs = newArray([jsonObs, jsonObs, jsonObs]);
+      arr2Obs = newArray([arr1Obs, jsonObs]);
+      const arrRes = store.push(arr2Obs);
       arrWrp = arrRes.wrapped;
       subs = arrRes.subscription;
       expect(arrWrp).not.eq(arr2Obs);

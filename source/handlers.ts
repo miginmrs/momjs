@@ -64,13 +64,15 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
 });
 
 export type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, 1, EH, ECtx>;
-export const wrapArray = <A extends unknown[], EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(args: DeepDestructable<A, 1, EH, ECtx>, handlers: EH, ...teardownList: TeardownLogic[]): ArrayDestructable<A, EH, ECtx> => new Destructable(
+export const wrapArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(handlers: EH) => <A extends unknown[]>(
+  args: DeepDestructable<A, 1, EH, ECtx>, ...teardownList: TeardownLogic[]
+): ArrayDestructable<A, EH, ECtx> => new Destructable(
   handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList
 );
 
 export const toArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(
   deref: deref<EH, ECtx>
-) => (p: Ref<unknown[]>) => deref<0, [[unknown[], ArrayCim]], [ArrayTypeKeys], [any[]], [1]>(p, 'Array');
+) => <T>(p: Ref<T[]>) => deref<0, [[unknown[], ArrayCim]], [ArrayTypeKeys], [T[]], [1]>(p, 'Array');
 
 
 export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null, null], D: [never, JsonObject], A: [[], []] };
@@ -103,7 +105,9 @@ export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): JsonHand
   ctr: JsonCtr,
 });
 export type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
-export const wrapJson = <X extends JsonObject, EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(data: X, handlers: EH, ...teardownList: TeardownLogic[]): JsonDestructable<X, EH, ECtx> => new Destructable(
+export const wrapJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(handlers: EH) => <X extends JsonObject>(
+  data: X, ...teardownList: TeardownLogic[]
+): JsonDestructable<X, EH, ECtx> => new Destructable(
   handlers, 'Json', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
 );
 

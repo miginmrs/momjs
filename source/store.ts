@@ -114,7 +114,11 @@ type SerializationOptions = {
    * @property {boolean} push whether the observable should be pushed into the store or not
    * @default true
    */
-  push?: boolean
+  push?: boolean,
+  /**
+   * @property {string[]} ignore ids of destructables that should be ignored from serialization 
+   */
+  ignore?: string[],
 }
 
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
@@ -163,7 +167,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
     const id = this.getNext(usedId);
-    const entry = handler.decode(ctx)(id, model.data);
+    const entry = handler.decode(ctx)(id, model.data, this.get(id)?.[0] ?? null);
     if (usedId !== undefined) {
       const stored = this.map.get(usedId);
       if (stored !== undefined) {
@@ -383,7 +387,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     obs: Destructable<dom, cim, k, X, n, RH, ECtx>,
     opt: SerializationOptions
   ) {
-    const { isNew, push = true } = opt;
+    const { isNew, push = true, ignore = [] } = opt;
     type Attr = {
       type: keyof RH & string, value: any, data: any, new?: boolean,
       resolve?: (x: GlobalRef<any>) => void, id?: string, c: any,
@@ -402,6 +406,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         const entry = iObs.subject.value;
         const value = current(iObs);
         const id = this.map.find(iObs);
+        if (id !== undefined && ignore.indexOf(id) !== -1) return { id } as GlobalRef<V>;
         let oldData: { data: any } | undefined = undefined, data: { data: any } | undefined;
         if (id !== undefined && previous) {
           const [, old] = previous;
@@ -468,12 +473,16 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     if (obs === undefined) throw new Error('Access to destroyed object');
     return obs as [ObsWithOrigin<V, RH, ECtx>, (typeof obs)[1]];
   }
-  local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) {
+  local<fId extends fIds>(
+    fId: fId, param: fdcp[fId][2],
+    arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>,
+    opt: { ignore?: string[] } = {},
+  ) {
     if (this.functions === null) throw new Error('Cannot call local functions from remote store');
     const f = this.functions[fId];
     const obs = f(param, this.getValue(arg)[0]);
     const { subscription } = this.push(obs);
-    const serialized = this.serialize(obs, { isNew: true });
+    const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
     return new Observable<ObservedValueOf<typeof serialized>>(subscriber => {
       subscriber.add(subscription);
       subscriber.add(serialized.subscribe(subscriber));
@@ -483,7 +492,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<any>>>();
   remote<fId extends fIds>(
     fId: fId, arg: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>, param: fdcp[fId][2],
-    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>
+    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>,
+    opt: { ignore?: string[] } = {},
   ) {
     return new Observable<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>(subscriber => {
       type V = AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>;
@@ -536,7 +546,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       });
       callSubscription.add(responseSubs);
       responseSubs.add(callSubscription);
-      op.call(fId, param, refArg);
+      op.call(fId, param, refArg, opt);
       refTask[0].then(refReturn => {
         const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
         callSubscription.add(() => subs2.unsubscribe());

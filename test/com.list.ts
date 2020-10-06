@@ -72,7 +72,7 @@ export const checkMsgs = (msgs: msg[]) => {
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
       const lastIds: idstr[] = [];
-      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: {} }];
       const [{ id: retId }] = first[3] as idstr[];
       if (!usedIds.add(retId)) throw new Error('id already used');
       addId(first, lastIds);
@@ -94,7 +94,7 @@ export const checkMsgs = (msgs: msg[]) => {
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
       const lastIds: idstr[] = [];
-      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId }];
+      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: {} }];
       const [{ id: retId }] = first[3] as idstr[];
       if (!usedIds.add(retId)) throw new Error('id already used');
       addId(first, lastIds);
@@ -140,7 +140,7 @@ export const checkMsgs = (msgs: msg[]) => {
   msgs.forEach((msg, i) => {
     const v = gen.next(msg);
     if (v.done) expect(msgs.slice(i)).deep.eq([]);
-    if(!_.isEqual(msg, v.value)) debugger;
+    if (!_.isEqual(msg, v.value)) debugger;
     expect(msg).deep.eq(v.value);
   });
   expect([]).deep.eq([...(gen as Generator<msg, void, void>)])

@@ -120,7 +120,7 @@ export type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, c
   ctr: DestructableCtr<dom, cim, k>,
 };
 export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
-  decode: (ctx: { deref: deref<EH, ECtx>, xderef: xderef<EH, ECtx> } & ECtx) => <X extends dom>(id: string, args: AppX<'T', cim, k, X>) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>,
+  decode: (ctx: { deref: deref<EH, ECtx>, xderef: xderef<EH, ECtx> } & ECtx) => <X extends dom>(id: string, args: AppX<'T', cim, k, X>, old: ObsWithOrigin<AppX<'V', cim, k, X>, EH, ECtx> & { origin: Destructable<dom, cim, k, X, n, EH, ECtx> } | null) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>,
   compare?: (ctx: ECtx) => RequestHandlerCompare<dom, cim, k, n, EH, ECtx>,
   destroy?: (ctx: ECtx) => RequestHandlerDestroy<dom, cim, k>
 };
@@ -134,14 +134,6 @@ export type RHConstraint<RH extends RHConstraint<RH, ECtx>, ECtx> = {
 export type EHConstraint<EH extends EHConstraint<EH, ECtx>, ECtx> = {
   [k in keyof EH]: CtxEH<any, any, any, any, EH, ECtx>
 };
-
-export type TypedRequestParamsDefinition<RH extends RHConstraint<RH, ECtx>, ECtx> = {
-  [type in keyof RH]: { type: type, args: CtxHandlerTVCDA<RH[type]> }
-};
-
-export type ContextualRH<RH extends RHConstraint<RH, ECtx>, ECtx> = {
-  [type in keyof RH]: RequestRemoveCtx<RH[type]>
-}
 
 export type ModelData<T> = { data: T, new?: boolean, id?: string } | { data?: undefined, new?: undefined, id: string }
 export type ModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, RH extends RHConstraint<RH, ECtx>, ECtx> = {
@@ -220,7 +212,7 @@ export type CallHandler<
       call_unsubscribe: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
       complete: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
       put: (def: EModelsDefinition<0, [[fdcp[fId][0][0], fdcp[fId][0][1]]], [fkx[fId][0]], [fkx[fId][1]], [fdcp[fId][0][2]], RH, ECtx>) => PromiseLike<{ 0: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>; } & GlobalRef<any>[]>,
-      call: (fId: fId, param: fdcp[fId][2], ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
+      call: (fId: fId, param: fdcp[fId][2], ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: { ignore?: string[] }) => void,
       error: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, err: any) => void,
       subscribeToResult: (cbs: {
         resp_call: (data: ModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>) => void;
