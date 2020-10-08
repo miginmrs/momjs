@@ -4,7 +4,7 @@ import { msg, start, MsgGenerator, parallel } from "./common";
 
 export const checkMsgs = (msgs: msg[]) => {
   const init = Symbol();
-  type dir = 'call1' | 'call2' | 'put1' | 'put2' | 'put3' | 'put4';
+  type dir = 'call1' | 'call1b' | 'call2' | 'put1' | 'put2' | 'put3' | 'put4';
   type init = typeof init; type path = dir | init;
   type Handler = Generator<path | undefined, void, msg>;
   const handlers: Handler[] = [];
@@ -68,25 +68,32 @@ export const checkMsgs = (msgs: msg[]) => {
     }),
     call1: start(function* (): MsgGenerator {
       const [, ch] = yield null!;
-      linkTo(ch, 'call1');
+      handlers.unshift(start(function* (): Handler {
+        let msg = yield;
+        while (true) msg = yield msg[1] === ch ? msg[0] === '1->2' ? 'call1' : 'call1b' : undefined
+      }))
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
-      const lastIds: idstr[] = [];
-      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: {} }];
-      const [{ id: retId }] = first[3] as idstr[];
+      yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: { graph: true } }];
+      yield ['1->2', ch, 'end_call', ''];
+      yield ['1->2', ch, 'unsubscribe', argId]; // the observable 1 is not destroyed at this point, because its used by the fct call 
+      yield ['1->2', ch, 'complete', argId];
+    }),
+    call1b: start(function* (): MsgGenerator {
+      const first = yield null!;
+      const [, ch, , [{ id: retId }]] = first as msg & { 3: idstr[] };
       if (!usedIds.add(retId)) throw new Error('id already used');
+      const lastIds: idstr[] = [];
       addId(first, lastIds);
       addId(yield ['2->1', ch, 'response_call', [
         { i: 0, type: 'Array', data: [{ $: 1 }], c: null, id: retId, new: true },
         { i: 1, type: 'Json', data: { x: 50 }, c: null, ...lastIds.slice(-1)[0], new: false }
       ]], lastIds);
-      yield ['2->1', ch, 'response_call', [
+      let msg = yield ['2->1', ch, 'response_call', [
         { i: 0, type: 'Array', data: [...lastIds.slice(0, -1), { $: 1 }], c: null, id: retId, new: false },
         { i: 1, type: 'Json', data: { x: 40 }, c: null, ...lastIds.slice(-1)[0], new: false }
       ]];
-      yield ['1->2', ch, 'end_call', ''];
-      yield ['1->2', ch, 'unsubscribe', argId]; // the observable 1 is not destroyed at this point, because its used by the fct call 
-      yield ['1->2', ch, 'complete', argId];
+      while (msg?.[2] === 'response_call') msg = yield msg;
     }),
     call2: start(function* (): MsgGenerator {
       const [, ch] = yield null!;
@@ -94,7 +101,7 @@ export const checkMsgs = (msgs: msg[]) => {
       const argId = ids.arg;
       if (!argId) throw new Error('argId not set');
       const lastIds: idstr[] = [];
-      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: {} }];
+      const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: { graph: true } }];
       const [{ id: retId }] = first[3] as idstr[];
       if (!usedIds.add(retId)) throw new Error('id already used');
       addId(first, lastIds);
