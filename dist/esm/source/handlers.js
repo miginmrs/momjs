@@ -4,6 +4,7 @@ import { map as dep_map } from 'dependent-type';
 import { toCond } from '../utils/guards';
 import equal from 'deep-is';
 const { depMap } = dep_map;
+export const ArrayN = 1;
 export const ArrayCtr = (x, _d, _c, old) => {
     if (old) {
         old.splice(0);
@@ -12,11 +13,11 @@ export const ArrayCtr = (x, _d, _c, old) => {
     return x;
 };
 export const ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: 1 }),
+    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: ArrayN }),
     encode: ({ ref }) => ({ args }) => toCond(depMap(args, ref)),
     ctr: ArrayCtr,
 });
-export const wrapArray = (handlers) => (args, ...teardownList) => new Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
+export const wrapArray = (handlers) => (args, ...teardownList) => new Destructable(handlers, 'Array', null, { data: null, args, n: ArrayN }, undefined, ...teardownList);
 export const toArray = (deref) => (p) => deref(p, 'Array');
 const deepUpdate = (target, source) => {
     const keys = (o) => Object.keys(o);

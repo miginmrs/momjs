@@ -1,7 +1,7 @@
 import { Subscription, Observable } from 'rxjs';
 import { GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint, ModelsDefinition, xDerefHandlers, derefReturn, EModelsDefinition, xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, CallHandler, Functions, FdcpConstraint, FkxConstraint, FIDS } from './types';
 import { Destructable, EntryObs, TypedDestructable } from './destructable';
-import { KeysOfType, AppX, App, Fun, BadApp } from 'dependent-type';
+import { KeysOfType, AppX, App, Fun, BadApp, DepConstaint } from 'dependent-type';
 export declare const F_Custom_Ref: unique symbol;
 export declare const F_I_X: unique symbol;
 declare type ParentOfC = {
@@ -44,6 +44,7 @@ export declare class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = strin
     entries(): IterableIterator<[k, [ObsWithOrigin<any, EH, ECtx>, D]]>;
     values(): IterableIterator<[ObsWithOrigin<any, EH, ECtx>, D]>;
 }
+declare type Notif<RH extends RHConstraint<RH, ECtx>, ECtx> = ['next', EModelsDefinition<0, [[unknown, TVCDA_CIM]], [TVCDADepConstaint<unknown, TVCDA_CIM>], [unknown], [1 | 2], RH, ECtx>] | ['error', GlobalRef<any>, unknown] | ['complete', GlobalRef<any>] | ['unsubscribe', GlobalRef<any>];
 /** Options of serialization */
 declare type SerializationOptions = {
     /** @property {boolean} isNew whether the first entry of the first emission should be indicated new or not */
@@ -67,15 +68,20 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     readonly prefix: string;
     private map;
     private next;
+    private locals;
+    private pushed;
+    private pushes;
+    readonly changes: Observable<Notif<RH, ECtx>>;
     constructor(handlers: RH, extra: ECtx, promiseCtr: PromiseCtr, functions?: Functions<RH, ECtx, fIds, fdcp, fkx> | null, name?: string | undefined, prefix?: string);
     private getNext;
     findRef<V>(obs: TypedDestructable<V, RH, ECtx>): GlobalRef<V> | undefined;
+    watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>): Subscription;
     /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
     private _unserialize;
     /** inserts a new destructable into the store with a givin id */
     private _insert;
     ref: ref<RH, ECtx>;
-    checkTypes: <indices extends number, dcim extends Record<indices, [any, TVCDA_CIM]>, keys extends { [P in indices]: import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dcim[P][0], dcim[P][1]>; }, X extends { [P_1 in indices]: dcim[P_1][0]; }, N extends Record<indices, 1 | 2>>(v: ObsWithOrigin<{ [P_2 in indices]: dcim[P_2][1]["V"][1]; }[indices], RH, ECtx>, ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
+    checkTypes: <indices extends number, dcim extends Record<indices, [any, TVCDA_CIM]>, keys extends { [P in indices]: DepConstaint<"T" | "V" | "C" | "D" | "A", dcim[P][0], dcim[P][1]>; }, X extends { [P_1 in indices]: dcim[P_1][0]; }, N extends Record<indices, 1 | 2>>(v: ObsWithOrigin<{ [P_2 in indices]: dcim[P_2][1]["V"][1]; }[indices], RH, ECtx>, ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
     getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>;
     xderef: (getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>) => xderef<RH, ECtx>;
     deref: (getter: <T extends object>(r: Ref<T>) => ObsWithOrigin<T, RH, ECtx>) => deref<RH, ECtx>;
@@ -92,6 +98,7 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     }, N extends Record<indices, 1 | 2>>(getModels: ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx> | ((ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>) => ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx>)): {
         [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>;
     } & GlobalRef<any>[];
+    /** it does nothing useful, there is no use case for this function and no reason for it to stay here */
     append<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(key: KeysOfType<RH, CtxH<dom, cim, k, n, RH, ECtx>> & string, entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, RH, ECtx>, c: AppX<'C', cim, k, X>): {
         id: string;
         obs: Destructable<dom, cim, k, X, n, RH, ECtx>;
@@ -122,10 +129,16 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     }];
     local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt?: {
         ignore?: string[];
+        graph: true;
     }): Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>;
+    local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: {
+        ignore?: string[];
+        graph?: false;
+    }): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;
     callReturnRef: WeakMap<Subscription, PromiseLike<GlobalRef<any>>>;
     remote<fId extends fIds>(fId: fId, arg: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>, param: fdcp[fId][2], { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>, opt?: {
         ignore?: string[];
+        graph?: boolean;
     }): Observable<AppX<"V", fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>;
 }
 export {};

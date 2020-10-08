@@ -288,12 +288,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toJson = exports.wrapJson = exports.JsonHandler = exports.JsonCtr = exports.toArray = exports.wrapArray = exports.ArrayHandler = exports.ArrayCtr = void 0;
+exports.toJson = exports.wrapJson = exports.JsonHandler = exports.JsonCtr = exports.toArray = exports.wrapArray = exports.ArrayHandler = exports.ArrayCtr = exports.ArrayN = void 0;
 const destructable_1 = __webpack_require__(/*! ./destructable */ "./source/destructable.ts");
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "dependent-type");
 const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
 const deep_is_1 = __importDefault(__webpack_require__(/*! deep-is */ "./node_modules/deep-is/index.js"));
 const { depMap } = dependent_type_1.map;
+exports.ArrayN = 1;
 exports.ArrayCtr = (x, _d, _c, old) => {
     if (old) {
         old.splice(0);
@@ -302,11 +303,11 @@ exports.ArrayCtr = (x, _d, _c, old) => {
     return x;
 };
 exports.ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: 1 }),
+    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: exports.ArrayN }),
     encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
     ctr: exports.ArrayCtr,
 });
-exports.wrapArray = (handlers) => (args, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: 1 }, undefined, ...teardownList);
+exports.wrapArray = (handlers) => (args, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: exports.ArrayN }, undefined, ...teardownList);
 exports.toArray = (deref) => (p) => deref(p, 'Array');
 const deepUpdate = (target, source) => {
     const keys = (o) => Object.keys(o);
@@ -394,43 +395,56 @@ exports.utils = __importStar(__webpack_require__(/*! ../utils */ "./utils/index.
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createCallHandler = exports.startListener = void 0;
+exports.createProxy = exports.createCallHandler = exports.startListener = exports.msg2to1keys = exports.msg1to2keys = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const quick_promise_1 = __webpack_require__(/*! ../utils/quick-promise */ "./utils/quick-promise.ts");
+exports.msg1to2keys = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
+exports.msg2to1keys = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
 exports.startListener = (store, from, to) => from.subscribe(function ({ channel, type, data }) {
-    var _a, _b, _c, _d;
+    var _a;
     switch (type) {
         case 'put': {
             const refs = store.unserialize(JSON.parse(data));
             return to.next({ channel, type: 'response_put', data: JSON.stringify(refs) });
         }
         case 'unsubscribe':
-            return (_b = (_a = store.get(JSON.parse(data))) === null || _a === void 0 ? void 0 : _a[1].subscription) === null || _b === void 0 ? void 0 : _b.unsubscribe();
+            const ref = { id: JSON.parse(data) };
+            return (_a = store.getValue(ref)[1].subscription) === null || _a === void 0 ? void 0 : _a.unsubscribe();
         case 'error': {
             const { id, msg } = JSON.parse(data);
-            const obs = (_c = store.get(id)) === null || _c === void 0 ? void 0 : _c[0];
+            const ref = { id };
+            const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
             return obs.subject.error(msg);
         }
         case 'complete': {
-            const obs = (_d = store.get(JSON.parse(data))) === null || _d === void 0 ? void 0 : _d[0];
+            const ref = { id: JSON.parse(data) };
+            const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
             return obs.subject.complete();
         }
         case 'call': {
-            const { fId, param, argId, opt } = JSON.parse(data);
-            const obs = store.local(fId, param, { id: argId }, opt);
+            const json = JSON.parse(data);
+            json.ref = { id: json.argId };
+            const { fId, ref, opt, param } = json;
             const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
                 subs.unsubscribe();
             });
-            const subs = obs.subscribe(def => {
-                to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-            }, err => {
-                to.next({ channel, type: 'call_error', data: JSON.stringify(err) });
-            }, () => {
-                to.next({ channel, type: 'call_complete', data: '' });
+            const observer = {
+                error: (err) => to.next({ channel, type: 'call_error', data: JSON.stringify(err) }),
+                complete: () => to.next({ channel, type: 'call_complete', data: '' }),
+            };
+            const subs = opt.graph ? store.local(fId, param, ref, { ...opt, graph: true }).subscribe({
+                ...observer, next: def => {
+                    to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
+                }
+            }) : store.local(fId, param, ref, { ...opt, graph: false }).subscribe({
+                ...observer, next: ref => {
+                    to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) });
+                }
             });
             subs.add(endCallSubs);
             this.add(subs);
@@ -446,21 +460,22 @@ exports.createCallHandler = (to, from, channel) => {
             const callChannel = channel[0]++;
             return {
                 end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-                call_unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
-                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+                unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
                 put: (def) => {
                     const ch = channel[0]++;
-                    const promise = from.pipe(operators_1.filter(m => m.channel === ch), operators_1.take(1)).toPromise(quick_promise_1.QuickPromise).then(response => {
-                        if (response.type !== 'response_put')
-                            throw new Error('Unexpected put response message');
+                    const promise = from.pipe(operators_1.filter(m => m.channel === ch && m.type === 'response_put'), operators_1.take(1)).toPromise(quick_promise_1.QuickPromise).then(response => {
                         return JSON.parse(response.data);
                     });
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
                 error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-                subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel)).subscribe(function ({ data, type }) {
+                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+                subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel && x.type in exports.msg2to1keys)).subscribe(function ({ data, type }) {
+                    if (type === 'response_id') {
+                        cbs.resp_id({ id: JSON.parse(data) });
+                    }
                     if (type === 'response_call') {
                         cbs.resp_call(JSON.parse(data));
                     }
@@ -475,6 +490,14 @@ exports.createCallHandler = (to, from, channel) => {
             };
         }
     };
+};
+exports.createProxy = (store1, store2, msg1to2, msg2to1) => {
+    const subscription = new rxjs_1.Subscription();
+    const channel = [0];
+    const callHandler = exports.createCallHandler(msg1to2, msg2to1, channel);
+    subscription.add(exports.startListener(store2, msg1to2, msg2to1));
+    subscription.add(store1.watch(callHandler));
+    return { channel, callHandler, subscription };
 };
 
 
@@ -566,6 +589,39 @@ class Store {
         this.prefix = prefix;
         this.map = new BiMap();
         this.next = one;
+        this.locals = new Set();
+        this.pushed = new Set();
+        this.pushes = new rxjs_1.Subject();
+        this.changes = new rxjs_1.Observable(subscriber => {
+            const map = new Map();
+            const ctx = this.emptyContext;
+            const watch = (obs) => {
+                const encoder = obs.handler.encode(ctx);
+                return obs.subject.pipe(operators_1.scan((prev, v) => {
+                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c: obs.c };
+                    return { old: encoder(params), params };
+                }, {}), operators_1.filter(({ old: v }, i) => v !== undefined)).subscribe(({ old: data, params }) => {
+                    subscriber.next(['next', [{
+                                c: obs.c, i: 0, data, id: this.map.find(obs),
+                                new: !('old' in (params !== null && params !== void 0 ? params : {})),
+                                type: obs.key
+                            }]]);
+                }, err => subscriber.next(['error', { id: this.map.find(obs) }, err]), () => subscriber.next(['complete', { id: this.map.find(obs) }]));
+            };
+            for (const obs of this.pushed)
+                map.set(obs, watch(obs));
+            subscriber.add(this.pushes.subscribe(([obs, add]) => {
+                if (add)
+                    map.set(obs, watch(obs));
+                else {
+                    // console.log('remove', this.map.find(obs));
+                    subscriber.next(['unsubscribe', { id: this.map.find(obs) }]);
+                    map.get(obs).unsubscribe();
+                    map.delete(obs);
+                }
+                ;
+            }));
+        });
         this.ref = (obs) => {
             const id = this.map.find(obs);
             return { id };
@@ -606,9 +662,20 @@ class Store {
         return typeof id === 'string' ? { id } : id;
     }
     ;
+    watch(callHandler) {
+        const op = callHandler.handlers();
+        return this.changes.subscribe(event => {
+            switch (event[0]) {
+                case 'next': return op.put(event[1]);
+                case 'error': return op.error(event[1], event[2]);
+                case 'complete': return op.complete(event[1]);
+                case 'unsubscribe': return op.unsubscribe(event[1]);
+            }
+        });
+    }
     /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
     _unserialize(key, ctx, models, cache, i) {
-        var _a, _b;
+        var _a, _b, _c;
         const handler = guards_1.byKey(this.handlers, key);
         if (cache[i] !== undefined)
             return cache[i];
@@ -616,7 +683,10 @@ class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        const entry = handler.decode(ctx)(id, model.data, (_b = (_a = this.get(id)) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : null);
+        if (this.locals.has((_a = this.map.get(id)) === null || _a === void 0 ? void 0 : _a[0].origin)) {
+            throw new Error('Unexpected serialized observable');
+        }
+        const entry = handler.decode(ctx)(id, model.data, (_c = (_b = this.get(id)) === null || _b === void 0 ? void 0 : _b[0]) !== null && _c !== void 0 ? _c : null);
         if (usedId !== undefined) {
             const stored = this.map.get(usedId);
             if (stored !== undefined) {
@@ -681,6 +751,7 @@ class Store {
             throw e;
         }
     }
+    /** it does nothing useful, there is no use case for this function and no reason for it to stay here */
     append(key, entry, c) {
         const id = this.getNext();
         const obs = this._insert(key, entry, this.emptyContext, id, c);
@@ -701,7 +772,9 @@ class Store {
                 temp.forEach(s => s.unsubscribe());
                 temp.length = 0;
             };
-            wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
+            wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([
+                obs,
+                obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
                     const wrap = (obs) => {
                         const res = this.push(obs, { ids });
                         temp.push(res.subscription);
@@ -712,15 +785,21 @@ class Store {
                         : args.map(wrap);
                     const ret = rx_utils_1.eagerCombineAll(array);
                     return ret;
-                }, { completeWithInner: true }), operators_1.tap(clear), operators_1.distinctUntilChanged((x, y) => x.length === y.length && x.every((v, i) => {
-                    const w = y[i];
-                    if (v instanceof Array && w instanceof Array) {
-                        return v.length === w.length && v.every((u, i) => u === w[i]);
-                    }
-                    return v === w;
-                })))]).pipe(operators_1.finalize(() => { unload === null || unload === void 0 ? void 0 : unload({ id }); clear(); this.map.delete(id); destroyed = true; }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+                }, { completeWithInner: true }), operators_1.tap(clear))
+            ]).pipe(operators_1.finalize(() => {
+                unload === null || unload === void 0 ? void 0 : unload({ id });
+                this.pushed.delete(obs.origin);
+                this.pushes.next([obs.origin, false]);
+                clear();
+                this.map.delete(id);
+                destroyed = true;
+            }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
             this.map.set(id, [wrapped, {}]);
             subscription = wrapped.subscribe();
+            if (!this.locals.has(obs.origin)) {
+                this.pushed.add(obs.origin);
+                this.pushes.next([obs.origin, true]);
+            }
         }
         else {
             wrapped = this.map.get(id)[0];
@@ -817,51 +896,64 @@ class Store {
             throw new Error('Access to destroyed object');
         return obs;
     }
+    /* #endregion */
     local(fId, param, arg, opt = {}) {
         if (this.functions === null)
             throw new Error('Cannot call local functions from remote store');
         const f = this.functions[fId];
         const obs = f(param, this.getValue(arg)[0]);
-        const { subscription } = this.push(obs);
-        const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
+        if (opt.graph)
+            return new rxjs_1.Observable(subscriber => {
+                const { subscription } = this.push(obs);
+                const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
+                subscriber.add(serialized.subscribe(subscriber));
+                return subscription;
+            });
         return new rxjs_1.Observable(subscriber => {
-            subscriber.add(subscription);
-            subscriber.add(serialized.subscribe(subscriber));
+            const { subscription, ref } = this.push(obs);
+            subscriber.next(ref);
+            return subscription;
         });
     }
     remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
         return new rxjs_1.Observable(subscriber => {
             const op = makeOp();
-            const { subscription: argSubscription, ref: refArg } = this.push(arg, {
-                unload: (ref) => op.call_unsubscribe(ref),
-            });
+            const { subscription: argSubscription, ref: refArg } = this.push(arg, opt.graph ? {
+                unload: (ref) => op.unsubscribe(ref),
+            } : {});
             const callSubscription = new rxjs_1.Subscription();
-            let serializeObs = serialized.get(arg);
-            if (!serializeObs)
-                serialized.set(arg, serializeObs = this.serialize(arg, {
-                    isNew: true
-                }).pipe(rx_async_1.asyncMap((def) => {
-                    const refsPromise = op.put(def);
-                    return refsPromise.then((refs) => ({ ok: true, value: refs[0] }));
-                }), operators_1.tap({
-                    error: e => op.error(refArg, e),
-                    complete: () => op.complete(refArg),
-                }), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
-            const paramSubs = serializeObs.subscribe();
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
             const refTask = makePromise();
-            this.callReturnRef.set(subscriber, refTask[0]);
-            callSubscription.add(() => {
-                if (paramSubs.closed)
+            if (opt.graph) {
+                let serializeObs = serialized.get(arg);
+                if (!serializeObs)
+                    serialized.set(arg, serializeObs = this.serialize(arg, {
+                        isNew: true
+                    }).pipe(rx_async_1.asyncMap((def) => {
+                        const refsPromise = op.put(def);
+                        return refsPromise.then((refs) => ({ ok: true, value: refs[0] }));
+                    }), operators_1.tap({
+                        error: e => op.error(refArg, e),
+                        complete: () => op.complete(refArg),
+                    }), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
+                const paramSubs = serializeObs.subscribe();
+                this.callReturnRef.set(subscriber, refTask[0]);
+                callSubscription.add(() => {
+                    if (paramSubs.closed)
+                        return;
+                    paramSubs.unsubscribe();
+                });
+                if (paramSubs.closed) {
+                    callSubscription.unsubscribe();
                     return;
-                paramSubs.unsubscribe();
-            });
-            if (paramSubs.closed) {
-                callSubscription.unsubscribe();
-                return;
+                }
             }
-            callSubscription.add(() => argSubscription.unsubscribe());
+            callSubscription.add(argSubscription);
             const responseSubs = op.subscribeToResult({
+                resp_id: (ref) => {
+                    responseSubs.add(this.getValue(ref)[0].subscribe(subscriber));
+                    refTask[1](ref);
+                },
                 resp_call: (data) => {
                     var _a;
                     const ref = this.unserialize(data)[0];
@@ -884,10 +976,11 @@ class Store {
             callSubscription.add(responseSubs);
             responseSubs.add(callSubscription);
             op.call(fId, param, refArg, opt);
-            refTask[0].then(refReturn => {
-                const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
-                callSubscription.add(() => subs2.unsubscribe());
-            });
+            if (opt.graph)
+                refTask[0].then(refReturn => {
+                    const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
+                    callSubscription.add(() => subs2.unsubscribe());
+                });
             subscriber.add(callSubscription);
         });
     }

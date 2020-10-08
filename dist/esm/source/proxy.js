@@ -1,5 +1,8 @@
+import { Subscription } from "rxjs";
 import { filter, take } from "rxjs/operators";
 import { QuickPromise } from "../utils/quick-promise";
+export const msg1to2keys = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
+export const msg2to1keys = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
 export const startListener = (store, from, to) => from.subscribe(function ({ channel, type, data }) {
     switch (type) {
         case 'put': {
@@ -7,32 +10,42 @@ export const startListener = (store, from, to) => from.subscribe(function ({ cha
             return to.next({ channel, type: 'response_put', data: JSON.stringify(refs) });
         }
         case 'unsubscribe':
-            return store.get(JSON.parse(data))?.[1].subscription?.unsubscribe();
+            const ref = { id: JSON.parse(data) };
+            return store.getValue(ref)[1].subscription?.unsubscribe();
         case 'error': {
             const { id, msg } = JSON.parse(data);
-            const obs = store.get(id)?.[0];
+            const ref = { id };
+            const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
             return obs.subject.error(msg);
         }
         case 'complete': {
-            const obs = store.get(JSON.parse(data))?.[0];
+            const ref = { id: JSON.parse(data) };
+            const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
             return obs.subject.complete();
         }
         case 'call': {
-            const { fId, param, argId, opt } = JSON.parse(data);
-            const obs = store.local(fId, param, { id: argId }, opt);
+            const json = JSON.parse(data);
+            json.ref = { id: json.argId };
+            const { fId, ref, opt, param } = json;
             const endCallSubs = from.pipe(filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
                 subs.unsubscribe();
             });
-            const subs = obs.subscribe(def => {
-                to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-            }, err => {
-                to.next({ channel, type: 'call_error', data: JSON.stringify(err) });
-            }, () => {
-                to.next({ channel, type: 'call_complete', data: '' });
+            const observer = {
+                error: (err) => to.next({ channel, type: 'call_error', data: JSON.stringify(err) }),
+                complete: () => to.next({ channel, type: 'call_complete', data: '' }),
+            };
+            const subs = opt.graph ? store.local(fId, param, ref, { ...opt, graph: true }).subscribe({
+                ...observer, next: def => {
+                    to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
+                }
+            }) : store.local(fId, param, ref, { ...opt, graph: false }).subscribe({
+                ...observer, next: ref => {
+                    to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) });
+                }
             });
             subs.add(endCallSubs);
             this.add(subs);
@@ -48,21 +61,22 @@ export const createCallHandler = (to, from, channel) => {
             const callChannel = channel[0]++;
             return {
                 end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-                call_unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
-                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+                unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
                 put: (def) => {
                     const ch = channel[0]++;
-                    const promise = from.pipe(filter(m => m.channel === ch), take(1)).toPromise(QuickPromise).then(response => {
-                        if (response.type !== 'response_put')
-                            throw new Error('Unexpected put response message');
+                    const promise = from.pipe(filter(m => m.channel === ch && m.type === 'response_put'), take(1)).toPromise(QuickPromise).then(response => {
                         return JSON.parse(response.data);
                     });
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
                 error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-                subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel)).subscribe(function ({ data, type }) {
+                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+                subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel && x.type in msg2to1keys)).subscribe(function ({ data, type }) {
+                    if (type === 'response_id') {
+                        cbs.resp_id({ id: JSON.parse(data) });
+                    }
                     if (type === 'response_call') {
                         cbs.resp_call(JSON.parse(data));
                     }
@@ -77,5 +91,13 @@ export const createCallHandler = (to, from, channel) => {
             };
         }
     };
+};
+export const createProxy = (store1, store2, msg1to2, msg2to1) => {
+    const subscription = new Subscription();
+    const channel = [0];
+    const callHandler = createCallHandler(msg1to2, msg2to1, channel);
+    subscription.add(startListener(store2, msg1to2, msg2to1));
+    subscription.add(store1.watch(callHandler));
+    return { channel, callHandler, subscription };
 };
 //# sourceMappingURL=proxy.js.map

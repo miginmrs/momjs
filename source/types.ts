@@ -4,7 +4,7 @@ import type { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'depend
 
 
 export type prim = number | string | boolean;
-export type Json = null | prim | Json[] | { [k in string]: Json };
+export type Json = null | prim | JsonObject;
 export type JsonObject = Json[] | { [k in string]: Json };
 
 export type LocalRef<V> = { $: number, _: V };
@@ -197,7 +197,9 @@ export type Functions<
   fdcp extends FdcpConstraint<fIds>,
   fkx extends FkxConstraint<fIds, fdcp>,
   > = {
-    [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]> & { origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx> }, EH, ECtx>) => Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>
+    [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
+      origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>
+    }) => Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>
   };
 
 export type CallHandler<
@@ -209,12 +211,13 @@ export type CallHandler<
   > = {
     handlers: <fId extends fIds>() => {
       end_call: () => void,
-      call_unsubscribe: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
+      unsubscribe: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
       complete: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void,
       put: (def: EModelsDefinition<0, [[fdcp[fId][0][0], fdcp[fId][0][1]]], [fkx[fId][0]], [fkx[fId][1]], [fdcp[fId][0][2]], RH, ECtx>) => PromiseLike<{ 0: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>; } & GlobalRef<any>[]>,
-      call: (fId: fId, param: fdcp[fId][2], ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: { ignore?: string[] }) => void,
+      call: (fId: fId, param: fdcp[fId][2], ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: { ignore?: string[], global?: boolean }) => void,
       error: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, err: any) => void,
       subscribeToResult: (cbs: {
+        resp_id: (ref: GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>) => void;
         resp_call: (data: ModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>) => void;
         err_call: (err: any) => PromiseLike<void>;
         comp_call: () => PromiseLike<void>;

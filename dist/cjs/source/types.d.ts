@@ -2,9 +2,7 @@ import type { Destructable, EntryObs, TypedDestructable } from './destructable';
 import type { TeardownLogic, Observable, Subscription } from 'rxjs';
 import type { KeysOfType, AppX, DepConstaint } from 'dependent-type';
 export declare type prim = number | string | boolean;
-export declare type Json = null | prim | Json[] | {
-    [k in string]: Json;
-};
+export declare type Json = null | prim | JsonObject;
 export declare type JsonObject = Json[] | {
     [k in string]: Json;
 };
@@ -170,23 +168,25 @@ export declare type FkxConstraint<fIds extends FIDS, fdcp extends FdcpConstraint
     [P in fIds]: [TVCDADepConstaint<fdcp[P][0][0], fdcp[P][0][1]>, fdcp[P][0][0], TVCDADepConstaint<fdcp[P][1][0], fdcp[P][1][1]>, fdcp[P][1][0]];
 };
 export declare type Functions<EH extends EHConstraint<EH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>> = {
-    [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]> & {
+    [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
         origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>;
-    }, EH, ECtx>) => Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>;
+    }) => Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>;
 };
 export declare type CallHandler<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>> = {
     handlers: <fId extends fIds>() => {
         end_call: () => void;
-        call_unsubscribe: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void;
+        unsubscribe: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void;
         complete: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>) => void;
         put: (def: EModelsDefinition<0, [[fdcp[fId][0][0], fdcp[fId][0][1]]], [fkx[fId][0]], [fkx[fId][1]], [fdcp[fId][0][2]], RH, ECtx>) => PromiseLike<{
             0: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>;
         } & GlobalRef<any>[]>;
         call: (fId: fId, param: fdcp[fId][2], ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: {
             ignore?: string[];
+            global?: boolean;
         }) => void;
         error: (ref: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, err: any) => void;
         subscribeToResult: (cbs: {
+            resp_id: (ref: GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>) => void;
             resp_call: (data: ModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>) => void;
             err_call: (err: any) => PromiseLike<void>;
             comp_call: () => PromiseLike<void>;

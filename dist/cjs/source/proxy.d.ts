@@ -1,12 +1,23 @@
 import { Store } from "./store";
-import { Subject, Subscription } from "rxjs";
-import { RHConstraint, CallHandler, Json, TVCDA_CIM, FkxConstraint, FIDS } from "./types";
+import { Observable, Subject, Subscription } from "rxjs";
+import { RHConstraint, CallHandler, FkxConstraint, FIDS } from "./types";
 export declare type DataGram<T extends string> = {
     channel: number;
     type: T;
     data: string;
 };
 export declare type msg1to2 = 'put' | 'unsubscribe' | 'error' | 'complete' | 'call' | 'end_call';
-export declare type msg2to1 = 'response_put' | 'response_call' | 'call_error' | 'call_complete';
-export declare const startListener: <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends Record<fIds, [[unknown, TVCDA_CIM, 1 | 2], [unknown, TVCDA_CIM, 1 | 2], Json]>, fkx extends FkxConstraint<fIds, fdcp>>(store: Store<RH, ECtx, fIds, fdcp, fkx>, from: Subject<DataGram<msg1to2>>, to: Subject<DataGram<msg2to1>>) => Subscription;
-export declare const createCallHandler: <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends Record<fIds, [[unknown, TVCDA_CIM, 1 | 2], [unknown, TVCDA_CIM, 1 | 2], Json]>, fkx extends FkxConstraint<fIds, fdcp>>(to: Subject<DataGram<msg1to2>>, from: Subject<DataGram<msg2to1>>, channel: [number]) => CallHandler<RH, ECtx, fIds, fdcp, fkx>;
+export declare type msg2to1 = 'response_put' | 'response_id' | 'response_call' | 'call_error' | 'call_complete';
+export declare const msg1to2keys: Record<msg1to2, 0>;
+export declare const msg2to1keys: Record<msg2to1, 0>;
+export declare const startListener: <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends Record<fIds, [[unknown, import("./types").TVCDA_CIM, 1 | 2], [unknown, import("./types").TVCDA_CIM, 1 | 2], import("./types").Json]>, fkx extends FkxConstraint<fIds, fdcp>, e extends string = never>(store: Store<RH, ECtx, fIds, fdcp, fkx>, from: Observable<DataGram<"complete" | "error" | "unsubscribe" | "put" | "call" | "end_call" | e>>, to: {
+    next: (x: DataGram<msg2to1>) => void;
+}) => Subscription;
+export declare const createCallHandler: <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends Record<fIds, [[unknown, import("./types").TVCDA_CIM, 1 | 2], [unknown, import("./types").TVCDA_CIM, 1 | 2], import("./types").Json]>, fkx extends FkxConstraint<fIds, fdcp>, e extends string = never>(to: {
+    next: (x: DataGram<msg1to2>) => void;
+}, from: Observable<DataGram<"response_put" | "response_id" | "response_call" | "call_error" | "call_complete" | e>>, channel: [number]) => CallHandler<RH, ECtx, fIds, fdcp, fkx>;
+export declare const createProxy: <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends Record<fIds, [[unknown, import("./types").TVCDA_CIM, 1 | 2], [unknown, import("./types").TVCDA_CIM, 1 | 2], import("./types").Json]>, fkx extends FkxConstraint<fIds, fdcp>>(store1: Store<RH, ECtx, fIds, fdcp, fkx>, store2: Store<RH, ECtx, fIds, fdcp, fkx>, msg1to2: Subject<DataGram<"complete" | "error" | "unsubscribe" | "put" | "call" | "end_call" | "response_put" | "response_id" | "response_call" | "call_error" | "call_complete">>, msg2to1: Subject<DataGram<"complete" | "error" | "unsubscribe" | "put" | "call" | "end_call" | "response_put" | "response_id" | "response_call" | "call_error" | "call_complete">>) => {
+    channel: [0];
+    callHandler: CallHandler<RH, ECtx, fIds, fdcp, fkx>;
+    subscription: Subscription;
+};
