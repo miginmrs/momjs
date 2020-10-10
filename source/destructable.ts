@@ -71,11 +71,14 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
         alternMap(({ args, data }) => {
           const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);
           return (eagerCombineAll(array) as Observable<A>).pipe(
-            map(args => [args, data, c] as [A, D, C]),
+            map(args => {
+              if(args[0] instanceof Array && args[0] === args[1]) debugger;
+              return [args, data, c] as [A, D, C]
+            }),
           )
         }, { completeWithInner: true, completeWithSource: true }),
         tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
-        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, data, c, old), null)
+        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, data, c, old, this), null)
       ).subscribe(subscriber);
       subs.add(this.destroy);
       return subs;

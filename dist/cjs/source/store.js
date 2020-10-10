@@ -67,16 +67,16 @@ class BiMap {
 exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '') {
+    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = new Map()) {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.functions = functions;
         this.name = name;
         this.prefix = prefix;
+        this.locals = locals;
         this.map = new BiMap();
         this.next = one;
-        this.locals = new Set();
         this.pushed = new Set();
         this.pushes = new rxjs_1.Subject();
         this.changes = new rxjs_1.Observable(subscriber => {
@@ -100,7 +100,9 @@ class Store {
                     map.set(obs, watch(obs));
                 else {
                     // console.log('remove', this.map.find(obs));
-                    subscriber.next(['unsubscribe', { id: this.map.find(obs) }]);
+                    const isStopped = (obs) => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+                    if (!isStopped(obs))
+                        subscriber.next(['unsubscribe', { id: this.map.find(obs) }]);
                     map.get(obs).unsubscribe();
                     map.delete(obs);
                 }
@@ -112,14 +114,14 @@ class Store {
             return { id };
         };
         this.checkTypes = (v, ...args) => {
-            const err = () => new Error('Type Mismatch : ' + v.origin.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
+            const err = () => new Error('Type Mismatch : ' + v.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
             if (args.length === 1) {
-                if (args[0].length && !args[0].some(([key, c]) => v.origin.handler === guards_1.byKey(this.handlers, key) && v.origin.c === c))
+                if (args[0].length && !args[0].some(([key, c]) => v.handler === guards_1.byKey(this.handlers, key) && v.c === c))
                     throw err();
             }
             else {
                 const handlers = this.handlers;
-                if (args[0].length && !args[0].some(key => v.origin.handler === guards_1.byKey(handlers, key)))
+                if (args[0].length && !args[0].some(key => v.handler === guards_1.byKey(handlers, key)))
                     throw err();
             }
             return v;
@@ -129,13 +131,18 @@ class Store {
                 throw new Error('There is no local context');
             return this.map.get(r.id)[0];
         };
-        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers);
-        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers, 0);
+        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers);
+        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers, 0);
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
         this.callReturnRef = new WeakMap();
         this.functions = functions;
+    }
+    subscribeToLocals() {
+        const subs = new rxjs_1.Subscription();
+        this.locals.forEach((_, obs) => subs.add(this.push(obs).subscription));
+        return subs;
     }
     getNext(id) {
         if (id === undefined)
@@ -167,7 +174,8 @@ class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        if (this.locals.has(this.map.get(id)?.[0].origin)) {
+        const local = this.locals.get(this.map.get(id)?.[0].origin);
+        if (local && !local.in) {
             throw new Error('Unexpected serialized observable');
         }
         const entry = handler.decode(ctx)(id, model.data, this.get(id)?.[0] ?? null);
@@ -242,9 +250,9 @@ class Store {
         return { id, obs, subs };
     }
     /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
-    push(obs, { ids, unload } = {}) {
+    push(obs, { unload, nextId } = {}) {
         const oldId = this.map.find(obs.origin);
-        const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
+        const id = this.getNext(oldId ?? this.locals?.get(obs.origin)?.id ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
         let wrapped = obs;
         let subscription;
         if (oldId === undefined) {
@@ -258,7 +266,7 @@ class Store {
                 obs,
                 obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
                     const wrap = (obs) => {
-                        const res = this.push(obs, { ids });
+                        const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
                         temp.push(res.subscription);
                         return res.wrapped;
                     };
@@ -270,15 +278,19 @@ class Store {
                 }, { completeWithInner: true }), operators_1.tap(clear))
             ]).pipe(operators_1.finalize(() => {
                 unload?.({ id });
-                this.pushed.delete(obs.origin);
-                this.pushes.next([obs.origin, false]);
+                const local = this.locals.get(obs.origin);
+                if (!local || local.out) {
+                    this.pushed.delete(obs.origin);
+                    this.pushes.next([obs.origin, false]);
+                }
                 clear();
                 this.map.delete(id);
                 destroyed = true;
             }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
             this.map.set(id, [wrapped, {}]);
             subscription = wrapped.subscribe();
-            if (!this.locals.has(obs.origin)) {
+            const local = this.locals.get(obs.origin);
+            if (!local || local.out) {
                 this.pushed.add(obs.origin);
                 this.pushes.next([obs.origin, true]);
             }
@@ -386,17 +398,22 @@ class Store {
         const obs = f(param, this.getValue(arg)[0]);
         if (opt.graph)
             return new rxjs_1.Observable(subscriber => {
-                const { subscription } = this.push(obs);
-                const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
-                subscriber.add(serialized.subscribe(subscriber));
-                return subscription;
+                obs.then(obs => {
+                    const { subscription } = this.push(obs);
+                    const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
+                    subscriber.add(serialized.subscribe(subscriber));
+                    subscriber.add(subscription);
+                });
             });
         return new rxjs_1.Observable(subscriber => {
-            const { subscription, ref } = this.push(obs);
-            subscriber.next(ref);
-            return subscription;
+            obs.then(obs => {
+                const { subscription, ref } = this.push(obs);
+                subscriber.next(ref);
+                subscriber.add(subscription);
+            });
         });
     }
+    /* #endregion */
     remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
         return new rxjs_1.Observable(subscriber => {
             const op = makeOp();
@@ -407,9 +424,9 @@ class Store {
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
             const refTask = makePromise();
             if (opt.graph) {
-                let serializeObs = serialized.get(arg);
+                let serializeObs = serialized.get(arg.origin);
                 if (!serializeObs)
-                    serialized.set(arg, serializeObs = this.serialize(arg, {
+                    serialized.set(arg.origin, serializeObs = this.serialize(arg.origin, {
                         isNew: true
                     }).pipe(rx_async_1.asyncMap((def) => {
                         const refsPromise = op.put(def);
@@ -433,7 +450,7 @@ class Store {
             callSubscription.add(argSubscription);
             const responseSubs = op.subscribeToResult({
                 resp_id: (ref) => {
-                    responseSubs.add(this.getValue(ref)[0].subscribe(subscriber));
+                    responseSubs.add(this.getValue(ref)[0].pipe(operators_1.filter((_, index) => index === 0), operators_1.mapTo(ref)).subscribe(subscriber));
                     refTask[1](ref);
                 },
                 resp_call: (data) => {

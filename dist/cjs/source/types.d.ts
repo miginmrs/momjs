@@ -76,8 +76,8 @@ export declare type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
     <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V>;
 };
 export declare type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
-export declare type DestructableCtr<dom, cim extends Omit<TVCDA_CIM, 'T'>, k extends DepConstaint<Exclude<TVCDA, 'T'>, dom, cim>> = {
-    <X extends dom>(args: AppX<'A', cim, k, X>, data: AppX<'D', cim, k, X>, c: AppX<'C', cim, k, X>, old: null | AppX<'V', cim, k, X>): AppX<'V', cim, k, X>;
+export declare type DestructableCtr<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
+    <X extends dom>(args: AppX<'A', cim, k, X>, data: AppX<'D', cim, k, X>, c: AppX<'C', cim, k, X>, old: null | AppX<'V', cim, k, X>, destructable: Destructable<dom, cim, k, X, n, EH, ECtx>): AppX<'V', cim, k, X>;
 };
 export declare type RequestHandlerCompare<dom, cim extends Pick<TVCDA_CIM, 'D' | 'A'>, k extends DepConstaint<'D' | 'A', dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
     <X extends dom>(x: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>, y: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>): boolean;
@@ -92,7 +92,7 @@ export declare type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
         c: AppX<'C', cim, k, X>;
         old?: AppX<'T', cim, k, X>;
     }) => AppX<'T', cim, k, X> | undefined;
-    ctr: DestructableCtr<dom, cim, k>;
+    ctr: DestructableCtr<dom, cim, k, n, EH, ECtx>;
 };
 export declare type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
     decode: (ctx: {
@@ -170,7 +170,9 @@ export declare type FkxConstraint<fIds extends FIDS, fdcp extends FdcpConstraint
 export declare type Functions<EH extends EHConstraint<EH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>> = {
     [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
         origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>;
-    }) => Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>;
+    }) => PromiseLike<ObsWithOrigin<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>, EH, ECtx> & {
+        origin: Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>;
+    }>;
 };
 export declare type CallHandler<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>> = {
     handlers: <fId extends fIds>() => {

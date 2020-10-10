@@ -2,7 +2,6 @@ import { combineLatest, TeardownLogic, Observable, OperatorFunction } from 'rxjs
 declare module 'rxjs/operators' {
     function scan<T, R, V>(accumulator: (acc: R | V, value: T, index: number) => R, seed: V): OperatorFunction<T, R>;
 }
-export declare const EMPTY_ARR: Observable<never[]>;
 /** Like combineLatest but emits if the array of observables is empty
  * and completes when and only when one observable completes */
 export declare const eagerCombineAll: typeof combineLatest;

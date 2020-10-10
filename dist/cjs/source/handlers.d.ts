@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/deep-is.d.ts" />
-import { CtxH, Ref, EHConstraint, DestructableCtr, JsonObject } from './types';
+import { CtxH, Ref, EHConstraint, JsonObject } from './types';
 import { DeepDestructable, TypedDestructable, Destructable } from './destructable';
 import type { BadApp, Fun } from 'dependent-type';
 import { deref } from '.';
@@ -64,7 +64,6 @@ export declare type ArrayTypeKeys = {
 };
 export declare const ArrayN = 1;
 export declare type ArrayN = typeof ArrayN;
-export declare const ArrayCtr: DestructableCtr<unknown[], ArrayCim, ArrayTypeKeys>;
 export declare type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<unknown[], ArrayCim, ArrayTypeKeys, ArrayN, EH, ECtx>;
 export declare const ArrayHandler: <EH extends EHConstraint<EH, ECtx>, ECtx>() => CtxH<unknown[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
 export declare type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
@@ -88,7 +87,6 @@ export declare type JsonTypeKeys = {
     D: typeof F_ID;
     A: typeof F_C;
 };
-export declare const JsonCtr: DestructableCtr<JsonObject, JsonCim, JsonTypeKeys>;
 export declare type JsonHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, EH, ECtx>;
 export declare const JsonHandler: <EH extends EHConstraint<EH, ECtx>, ECtx>() => CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, EH, ECtx>;
 export declare type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;

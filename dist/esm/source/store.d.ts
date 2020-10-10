@@ -66,13 +66,22 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     private functions;
     readonly name?: string | undefined;
     readonly prefix: string;
+    readonly locals: Map<TypedDestructable<any, RH, ECtx>, {
+        id: string;
+        in?: boolean | undefined;
+        out?: boolean | undefined;
+    }>;
     private map;
     private next;
-    private locals;
     private pushed;
     private pushes;
     readonly changes: Observable<Notif<RH, ECtx>>;
-    constructor(handlers: RH, extra: ECtx, promiseCtr: PromiseCtr, functions?: Functions<RH, ECtx, fIds, fdcp, fkx> | null, name?: string | undefined, prefix?: string);
+    constructor(handlers: RH, extra: ECtx, promiseCtr: PromiseCtr, functions?: Functions<RH, ECtx, fIds, fdcp, fkx> | null, name?: string | undefined, prefix?: string, locals?: Map<TypedDestructable<any, RH, ECtx>, {
+        id: string;
+        in?: boolean | undefined;
+        out?: boolean | undefined;
+    }>);
+    subscribeToLocals(): Subscription;
     private getNext;
     findRef<V>(obs: TypedDestructable<V, RH, ECtx>): GlobalRef<V> | undefined;
     watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>): Subscription;
@@ -81,7 +90,7 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     /** inserts a new destructable into the store with a givin id */
     private _insert;
     ref: ref<RH, ECtx>;
-    checkTypes: <indices extends number, dcim extends Record<indices, [any, TVCDA_CIM]>, keys extends { [P in indices]: DepConstaint<"T" | "V" | "C" | "D" | "A", dcim[P][0], dcim[P][1]>; }, X extends { [P_1 in indices]: dcim[P_1][0]; }, N extends Record<indices, 1 | 2>>(v: ObsWithOrigin<{ [P_2 in indices]: dcim[P_2][1]["V"][1]; }[indices], RH, ECtx>, ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
+    checkTypes: <indices extends number, dcim extends Record<indices, [any, TVCDA_CIM]>, keys extends { [P in indices]: DepConstaint<"T" | "V" | "C" | "D" | "A", dcim[P][0], dcim[P][1]>; }, X extends { [P_1 in indices]: dcim[P_1][0]; }, N extends Record<indices, 1 | 2>>(v: TypedDestructable<{ [P_2 in indices]: dcim[P_2][1]["V"][1]; }[indices], RH, ECtx>, ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
     getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>;
     xderef: (getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>) => xderef<RH, ECtx>;
     deref: (getter: <T extends object>(r: Ref<T>) => ObsWithOrigin<T, RH, ECtx>) => deref<RH, ECtx>;
@@ -105,9 +114,9 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
         subs: Subscription;
     };
     /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
-    push<V>(obs: ObsWithOrigin<V, RH, ECtx>, { ids, unload }?: {
-        ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>;
+    push<V>(obs: ObsWithOrigin<V, RH, ECtx>, { unload, nextId }?: {
         unload?: (ref: GlobalRef<V>) => void;
+        nextId?: (obs: ObsWithOrigin<any, RH, ECtx>, parentId?: string) => string | undefined;
     }): {
         wrapped: ObsWithOrigin<V, RH, ECtx>;
         ref: GlobalRef<V>;
@@ -136,9 +145,17 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
         graph?: false;
     }): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;
     callReturnRef: WeakMap<Subscription, PromiseLike<GlobalRef<any>>>;
-    remote<fId extends fIds>(fId: fId, arg: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>, param: fdcp[fId][2], { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>, opt?: {
+    remote<fId extends fIds>(fId: fId, arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, RH, ECtx> & {
+        origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>;
+    }, param: fdcp[fId][2], { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>, opt: {
         ignore?: string[];
-        graph?: boolean;
-    }): Observable<AppX<"V", fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>;
+        graph: true;
+    }): Observable<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>;
+    remote<fId extends fIds>(fId: fId, arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, RH, ECtx> & {
+        origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>;
+    }, param: fdcp[fId][2], { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>, opt?: {
+        ignore?: string[];
+        graph?: false;
+    }): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;
 }
 export {};

@@ -67,11 +67,6 @@ export type ArrayTypeKeys = { T: typeof F_ArrArgs, V: typeof F_ID, C: typeof F_C
 export const ArrayN = 1;
 export type ArrayN = typeof ArrayN;
 
-export const ArrayCtr: DestructableCtr<unknown[], ArrayCim, ArrayTypeKeys> = <X extends unknown[]>(x: X, _d: null, _c: null, old: unknown[] | null) => {
-  if (old) { old.splice(0); x = Object.assign(old, x); }
-  return x;
-}
-
 export type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<unknown[], ArrayCim, ArrayTypeKeys, ArrayN, EH, ECtx>;
 export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHandler<EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)) as any, data: null, n: ArrayN }),
@@ -80,7 +75,10 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
       [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
     ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
-  ctr: ArrayCtr,
+  ctr: <X extends unknown[]>(x: X, _d: null, _c: null, old: unknown[] | null) => {
+    if (old) { old.splice(0); x = Object.assign(old, x); }
+    return x;
+  },
 });
 
 export type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
@@ -149,9 +147,6 @@ const deepUpdate = <T extends JsonObject>(target: JsonObject, source: T) => {
   for (const key of onlyTargetKeys) delete target[key];
   return target as T;
 }
-export const JsonCtr: DestructableCtr<JsonObject, JsonCim, JsonTypeKeys> = <X extends JsonObject>(
-  _: [], data: X, _c: null, old: X | null
-) => old ? deepUpdate(old, data) : data;
 
 const clone = <T extends Json>(o: T): T => {
   return o === null ? o : o instanceof Array ? o.map(clone) as T : typeof o === 'object' ? Object.fromEntries(Object.entries(o as JsonObject).map(([k, v]) => [k, clone(v)])) as T : o;
@@ -161,7 +156,9 @@ export type JsonHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<JsonObje
 export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): JsonHandler<EH, ECtx> => ({
   decode: () => (_id, data) => ({ args: [] as [], data, n: 1 }),
   encode: () => ({ data, old }) => old && equal(data, old) ? undefined : clone(data),
-  ctr: JsonCtr,
+  ctr: <X extends JsonObject>(
+    _: [], data: X, _c: null, old: X | null
+  ) => old ? deepUpdate(old, data) : data,
 });
 export type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
 export const wrapJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(handlers: EH) => <X extends JsonObject>(
