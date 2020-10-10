@@ -132,7 +132,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   > {
   private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
   private next = one;
-  private locals = new Set<TypedDestructable<any, RH, ECtx>>();
   private pushed = new Set<TypedDestructable<any, RH, ECtx>>();
   private pushes = new Subject<[TypedDestructable<any, RH, ECtx>, boolean]>();
   readonly changes = new Observable<Notif<RH, ECtx>>(subscriber => {
@@ -168,8 +167,15 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
     private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
     readonly name?: string, readonly prefix = '',
+    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, string>()
   ) {
     this.functions = functions;
+  }
+
+  subscribeToLocals() {
+    const subs = new Subscription();
+    this.locals.forEach((_, obs) => subs.add(this.push(obs).subscription));
+    return subs;
   }
 
   private getNext(id?: string): string {
@@ -377,13 +383,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { ids, unload }: {
-      ids?: WeakMap<TypedDestructable<any, RH, ECtx>, string>,
+    { unload }: {
       unload?: (ref: GlobalRef<V>) => void,
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const oldId = this.map.find(obs.origin);
-    const id = this.getNext(oldId ?? ids?.get(obs.origin) ?? this.map.usedId(obs.origin));
+    const id = this.getNext(oldId ?? this.locals?.get(obs.origin) ?? this.map.usedId(obs.origin));
     let wrapped = obs;
     let subscription: Subscription;
 
@@ -400,7 +405,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           obs.origin.subject.pipe(
             alternMap(({ args, n }) => {
               const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
-                const res = this.push(obs, { ids });
+                const res = this.push(obs);
                 temp.push(res.subscription);
                 return res.wrapped;
               };
@@ -415,8 +420,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         ]).pipe(
           finalize(() => {
             unload?.({ id } as GlobalRef<V>);
-            this.pushed.delete(obs.origin);
-            this.pushes.next([obs.origin, false]);
+            if (!this.locals.has(obs.origin)) {
+              this.pushed.delete(obs.origin);
+              this.pushes.next([obs.origin, false]);
+            }
             clear(); this.map.delete(id);
             destroyed = true;
           }),
