@@ -12,7 +12,7 @@ import { byKey } from '../utils/guards';
 import { map as dep_map } from 'dependent-type';
 import { eagerCombineAll, current } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, tap } from 'rxjs/operators';
+import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { Json, DeepDestructable } from '.';
@@ -156,7 +156,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       if (add) map.set(obs, watch(obs));
       else {
         // console.log('remove', this.map.find(obs));
-        subscriber.next(['unsubscribe', { id: this.map.find(obs) } as GlobalRef<any>])
+        const isStopped = (obs: TypedDestructable<any, RH, ECtx>): boolean => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+        if (!isStopped(obs)) subscriber.next(['unsubscribe', { id: this.map.find(obs) } as GlobalRef<any>])
         map.get(obs)!.unsubscribe();
         map.delete(obs);
       };
@@ -561,29 +562,57 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const f = this.functions[fId];
     const obs = f(param, this.getValue(arg)[0]);
     if (opt.graph) return new Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>(subscriber => {
-      const { subscription } = this.push(obs);
-      const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
-      subscriber.add(serialized.subscribe(subscriber));
-      return subscription;
+      obs.then(obs => {
+        const { subscription } = this.push(obs);
+        const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
+        subscriber.add(serialized.subscribe(subscriber));
+        subscriber.add(subscription);
+      })
     });
     return new Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>(subscriber => {
-      const { subscription, ref } = this.push(obs);
-      subscriber.next(ref);
-      return subscription;
+      obs.then(obs => {
+        const { subscription, ref } = this.push(obs);
+        subscriber.next(ref);
+        subscriber.add(subscription);
+      })
     });
   }
 
   callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<any>>>();
+
+  /* #region remote */
   remote<fId extends fIds>(
     fId: fId,
-    arg: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>,
+    arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, RH, ECtx> & {
+      origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>
+    },
+    param: fdcp[fId][2],
+    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>,
+    opt: { ignore?: string[], graph: true },
+  ): Observable<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>;
+  remote<fId extends fIds>(
+    fId: fId,
+    arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, RH, ECtx> & {
+      origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>
+    },
+    param: fdcp[fId][2],
+    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>,
+    opt?: { ignore?: string[], graph?: false },
+  ): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;
+  /* #endregion */
+
+  remote<fId extends fIds>(
+    fId: fId,
+    arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, RH, ECtx> & {
+      origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], RH, ECtx>
+    },
     param: fdcp[fId][2],
     { handlers: makeOp, serialized }: CallHandler<RH, ECtx, fIds, fdcp, fkx>,
     opt: { ignore?: string[], graph?: boolean } = {},
   ) {
-    return new Observable<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>(subscriber => {
-      type V = AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>;
-      type V2 = AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>;
+    type V = AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>;
+    type V2 = AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>;
+    return new Observable<V2 | GlobalRef<V2>>(subscriber => {
       const op = makeOp<fId>();
       const { subscription: argSubscription, ref: refArg } = this.push(arg, opt.graph ? {
         unload: (ref) => op.unsubscribe(ref),
@@ -592,8 +621,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
       const refTask = makePromise<GlobalRef<V2>>();
       if (opt.graph) {
-        let serializeObs = serialized.get(arg);
-        if (!serializeObs) serialized.set(arg, serializeObs = this.serialize(arg, {
+        let serializeObs = serialized.get(arg.origin);
+        if (!serializeObs) serialized.set(arg.origin, serializeObs = this.serialize(arg.origin, {
           isNew: true
         }).pipe(asyncMap((def) => {
           const refsPromise = op.put(def);
@@ -616,7 +645,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       callSubscription.add(argSubscription);
       const responseSubs = op.subscribeToResult({
         resp_id: (ref) => {
-          responseSubs.add(this.getValue(ref)[0].subscribe(subscriber));
+          responseSubs.add(this.getValue(ref)[0].pipe(
+            filter((_, index) => index === 0),
+            mapTo(ref),
+          ).subscribe(subscriber));
           refTask[1](ref);
         },
         resp_call: (data) => {

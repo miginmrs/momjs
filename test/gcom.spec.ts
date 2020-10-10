@@ -9,6 +9,7 @@ import { QuickPromise } from '../utils/quick-promise';
 import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
 import { collect, msg, xn } from './common';
+import { alternMap } from 'altern-map';
 
 namespace RequestHandlers {
   export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
@@ -17,7 +18,7 @@ namespace RequestHandlers {
 type RH = typeof RequestHandlers;
 
 
-describe('Stores Communication', () => {
+describe('Stores Global Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[], remainingKeys2: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const handlers = RequestHandlers;
@@ -48,10 +49,12 @@ describe('Stores Communication', () => {
           e => obs.subject.error(e),
           () => obs.subject.complete()
         ));
-        return obs;
+        return Promise.resolve(obs);
       }
     }, 'store2');
     const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, null, 'store1', '$');
+    (global as any).store1 = store1;
+    (global as any).store2 = store2;
     const msg1to2 = new Subject<DataGram<msg1to2 | msg2to1>>();
     const msg2to1 = new Subject<DataGram<msg1to2 | msg2to1>>();
     const { subscription: store2Subs, callHandler } = createProxy(store1, store2, msg1to2, msg2to1);
@@ -77,13 +80,13 @@ describe('Stores Communication', () => {
 
     store1.remote(
       fMul, arg, null, callHandler
-    ).pipe(take(2), map(v => v.slice()), toArray()).subscribe(
+    ).pipe(alternMap(ref => store1.getValue(ref)[0]), take(2), map(v => v.slice()), toArray()).subscribe(
       v => firstCallResult = v
     );
 
     const receivedValues: xn[][] = [];
     // STORE1
-    const ret = store1.remote(fMul, arg, null, callHandler);
+    const ret = store1.remote(fMul, arg, null, callHandler).pipe(alternMap(ref => store1.getValue(ref)[0]));
     ret.subscribe(async function (this: SafeSubscriber<xn>, v) {
       receivedValues.push(v.slice());
       if (v.slice(-1)[0].x !== 50) return;
@@ -118,6 +121,7 @@ describe('Stores Communication', () => {
         expect(firstCall).deep.eq([{ x: 50 }, { x: 40 }].reduce(collect, []));
       })
       it('should alter the dependencies of the call function argument', async () => {
+        console.log('what happened?')
         const { secondCall } = await p;
         expect(secondCall).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }].reduce(collect, []));
       })

@@ -61,7 +61,7 @@ describe('Stores Communication', () => {
           e => obs.subject.error(e),
           () => obs.subject.complete()
         ));
-        return obs;
+        return Promise.resolve(obs);
       }
     }, 'store2');
     startListener(store2, store1_to_store2, store2_to_store1);

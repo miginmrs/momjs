@@ -10,11 +10,10 @@ class CompleteDestination<T> extends Subscriber<T> {
   notifyComplete() { this.destination.complete?.(); }
 }
 
-export const EMPTY_ARR = concat(of([]), NEVER);
 /** Like combineLatest but emits if the array of observables is empty 
  * and completes when and only when one observable completes */
 export const eagerCombineAll: typeof combineLatest = function (this: any, ...args: any[]) {
-  if (args.length === 0 || args.length === 1 && args[0] instanceof Array && args[0].length === 0) return EMPTY_ARR;
+  if (args.length === 0 || args.length === 1 && args[0] instanceof Array && args[0].length === 0) return concat(of([]), NEVER);
   const obs = combineLatest.apply(this, args);
   (obs.operator as CombineLatestOperator<any, any>).call = function (sink, source) {
     const subscriber: CombineLatestSubscriber<any, any> = CombineLatestOperator.prototype.call(sink, source);
