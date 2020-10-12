@@ -273,15 +273,15 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: dcim[P][0] },
     N extends Record<indices, 1 | 2>,
-    >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
+    >(v: TypedDestructable<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
       ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => {
-    const err = () => new Error('Type Mismatch : ' + v.origin.key + ' not in ' + JSON.stringify(
+    const err = () => new Error('Type Mismatch : ' + v.key + ' not in ' + JSON.stringify(
       depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, N, RH, ECtx, indices> | derefHandler<indices, dcim, keys, N, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
     if (args.length === 1) {
-      if (args[0].length && !args[0].some(([key, c]) => v.origin.handler === byKey(this.handlers, key) && v.origin.c === c)) throw err();
+      if (args[0].length && !args[0].some(([key, c]) => v.handler === byKey(this.handlers, key) && v.c === c)) throw err();
     } else {
       const handlers: EHConstraint<RH, ECtx> = this.handlers;
-      if (args[0].length && !args[0].some(key => v.origin.handler === byKey(handlers, key))) throw err();
+      if (args[0].length && !args[0].some(key => v.handler === byKey(handlers, key))) throw err();
     }
     return v as derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
   };
@@ -298,7 +298,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     >(
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>
-    ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref), handlers);
+    ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref).origin, handlers);
   deref = (getter: <T extends object>(r: Ref<T>) => ObsWithOrigin<T, RH, ECtx>): deref<RH, ECtx> => <
     indices extends number,
     dcim extends Record<indices, [any, TVCDA_CIM]>,
@@ -308,7 +308,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     >(
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: derefHandlers<indices, dcim, keys, N, RH, ECtx>
-    ) => this.checkTypes<indices, dcim, keys, X, N>(getter(ref), handlers, 0);
+    ) => this.checkTypes<indices, dcim, keys, X, N>(getter(ref).origin, handlers, 0);
   emptyContext = {
     deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
   };
