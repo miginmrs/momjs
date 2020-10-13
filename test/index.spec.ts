@@ -34,10 +34,6 @@ type ArrayTypeKeys2 = {
   A: typeof F_ID;
 }
 type ArrayCim2 = { T: [never, Ref<any>[][]], V: [never, any[]], C: [null, null], D: [null, null], A: [never, any[][]] };
-const ArrayCtr2: DestructableCtr<any[][], ArrayCim2, ArrayTypeKeys2> = <X extends any[]>(x: X, _d: null, _c: null, old: any[] | null) => {
-  if (old) { old.splice(0); x = Object.assign(old, x); }
-  return x;
-}
 const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[][], ArrayCim2, ArrayTypeKeys2, 2, EH, ECtx> => ({
   decode: ({ deref }) => (_id, data) => ({ args: data.map(refs => refs.map(ref => deref(ref))) as any, data: null, n: 2 }),
   encode: ({ ref }) => <C extends any[][]>({ args }: { args: DeepDestructable<C, 2, EH, ECtx> }): ToRef2<C> => {
@@ -56,7 +52,10 @@ const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[][],
       return item;
     });
   },
-  ctr: ArrayCtr2,
+  ctr: <X extends any[]>(x: X, _d: null, _c: null, old: any[] | null) => {
+    if (old) { old.splice(0); x = Object.assign(old, x); }
+    return x;
+  },
 });
 
 
@@ -160,7 +159,7 @@ describe('Store', () => {
     const handlers = RequestHandlers;
     const newArray = wrapArray<RH, {}>(handlers);
     const newJson = wrapJson<RH, {}>(handlers);
-    
+
     let subs: Subscription;
     it('should chain insertion', async () => {
       jsonObs = newJson({ msg: 'hi' });
