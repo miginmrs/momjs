@@ -384,12 +384,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { unload }: {
+    { unload, nextId }: {
       unload?: (ref: GlobalRef<V>) => void,
+      nextId?: (obs: ObsWithOrigin<V, RH, ECtx>, parentId?: string) => string | undefined
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const oldId = this.map.find(obs.origin);
-    const id = this.getNext(oldId ?? this.locals?.get(obs.origin) ?? this.map.usedId(obs.origin));
+    const id = this.getNext(oldId ?? this.locals?.get(obs.origin) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
     let wrapped = obs;
     let subscription: Subscription;
 
@@ -406,7 +407,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           obs.origin.subject.pipe(
             alternMap(({ args, n }) => {
               const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
-                const res = this.push(obs);
+                const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
                 temp.push(res.subscription);
                 return res.wrapped;
               };
