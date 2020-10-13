@@ -168,7 +168,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
     private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
     readonly name?: string, readonly prefix = '',
-    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, string>()
+    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, {id: string, in?: boolean, out?: boolean}>()
   ) {
     this.functions = functions;
   }
@@ -221,7 +221,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
     const id = this.getNext(usedId);
-    if (this.locals.has(this.map.get(id)?.[0].origin!)) {
+    const local = this.locals.get(this.map.get(id)?.[0].origin!);
+    if (local && !local.in) {
       throw new Error('Unexpected serialized observable');
     }
     const entry = handler.decode(ctx)(id, model.data, this.get(id)?.[0] ?? null);
@@ -386,11 +387,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
     { unload, nextId }: {
       unload?: (ref: GlobalRef<V>) => void,
-      nextId?: (obs: ObsWithOrigin<V, RH, ECtx>, parentId?: string) => string | undefined
+      nextId?: (obs: ObsWithOrigin<any, RH, ECtx>, parentId?: string) => string | undefined
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const oldId = this.map.find(obs.origin);
-    const id = this.getNext(oldId ?? this.locals?.get(obs.origin) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
+    const id = this.getNext(oldId ?? this.locals?.get(obs.origin)?.id ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
     let wrapped = obs;
     let subscription: Subscription;
 
@@ -422,7 +423,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         ]).pipe(
           finalize(() => {
             unload?.({ id } as GlobalRef<V>);
-            if (!this.locals.has(obs.origin)) {
+            const local = this.locals.get(obs.origin);
+            if (!local || local.out) {
               this.pushed.delete(obs.origin);
               this.pushes.next([obs.origin, false]);
             }
@@ -435,7 +437,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       );
       this.map.set(id, [wrapped, {}]);
       subscription = wrapped.subscribe();
-      if (!this.locals.has(obs.origin)) {
+      const local = this.locals.get(obs.origin);
+      if (!local || local.out) {
         this.pushed.add(obs.origin);
         this.pushes.next([obs.origin, true]);
       }
