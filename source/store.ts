@@ -156,7 +156,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       if (add) map.set(obs, watch(obs));
       else {
         // console.log('remove', this.map.find(obs));
-        const isStopped = (obs: TypedDestructable<any, RH, ECtx>): boolean => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+        const isStopped = (obs: ObsWithOrigin<any, RH, ECtx>): boolean => {
+          const subject = obs.origin.subject;
+          if (subject.isStopped) return true;
+          return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args))
+        };
         if (!isStopped(obs)) subscriber.next(['unsubscribe', { id: this.map.find(obs) } as GlobalRef<any>])
         map.get(obs)!.unsubscribe();
         map.delete(obs);
@@ -168,7 +172,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
     private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
     readonly name?: string, readonly prefix = '',
-    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, {id: string, in?: boolean, out?: boolean}>()
+    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, { id: string, in?: boolean, out?: boolean }>()
   ) {
     this.functions = functions;
   }
@@ -407,7 +411,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           obs,
           obs.origin.subject.pipe(
             alternMap(({ args, n }) => {
-              const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
+              const wrap = (obs: ObsWithOrigin<any, RH, ECtx>) => {
                 const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
                 temp.push(res.subscription);
                 return res.wrapped;
