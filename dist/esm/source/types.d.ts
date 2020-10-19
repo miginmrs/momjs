@@ -1,4 +1,4 @@
-import type { Destructable, EntryObs, TypedDestructable } from './destructable';
+import type { Destructable, EntryObs } from './destructable';
 import type { TeardownLogic, Observable, Subscription } from 'rxjs';
 import type { KeysOfType, AppX, DepConstaint } from 'dependent-type';
 export declare type prim = number | string | boolean;
@@ -46,7 +46,9 @@ export declare type derefReturn<indices extends number, dcim extends Record<indi
 }, X extends {
     [P in indices]: dcim[P][0];
 }, N extends Record<indices, 1 | 2>, EH extends EHConstraint<EH, ECtx>, ECtx> = {
-    [P in indices]: Destructable<dcim[P][0], dcim[P][1], keys[P], X[P], N[P], EH, ECtx>;
+    [P in indices]: ObsWithOrigin<AppX<'V', dcim[P][1], keys[P], X[P]>, EH, ECtx> & {
+        origin: Destructable<dcim[P][0], dcim[P][1], keys[P], X[P], N[P], EH, ECtx, (v: AppX<'V', dcim[P][1], keys[P], X[P]>) => void>;
+    };
 }[indices];
 export declare type derefHandlers<indices extends number, dcim extends Record<indices, [unknown, TVCDA_CIM]>, keys extends {
     [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]>;
@@ -63,7 +65,7 @@ export declare type xderef<EH extends EHConstraint<EH, ECtx>, ECtx> = {
     }[indices]>, ...handlers: xDerefHandlers<indices, dcim, keys, X, N, EH, ECtx>): derefReturn<indices, dcim, keys, X, N, EH, ECtx>;
 };
 export declare type deref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
-    <V>(ref: Ref<V>): TypedDestructable<V, EH, ECtx>;
+    <V>(ref: Ref<V>): ObsWithOrigin<V, EH, ECtx>;
     <indices extends number, dcim extends Record<indices, [unknown, TVCDA_CIM]>, keys extends {
         [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]>;
     }, X extends {
@@ -72,8 +74,9 @@ export declare type deref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
         [P in indices]: AppX<'V', dcim[P][1], keys[P], X[P]>;
     }[indices]>, ...handlers: derefHandlers<indices, dcim, keys, N, EH, ECtx>): derefReturn<indices, dcim, keys, X, N, EH, ECtx>;
 };
+export declare type ArrKeys = Exclude<keyof any[], number>;
 export declare type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
-    <V>(obs: TypedDestructable<V, EH, ECtx>): Ref<V>;
+    <V>(obs: ObsWithOrigin<V, EH, ECtx>): Ref<V>;
 };
 export declare type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
 export declare type DestructableCtr<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
@@ -98,9 +101,9 @@ export declare type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint
     decode: (ctx: {
         deref: deref<EH, ECtx>;
         xderef: xderef<EH, ECtx>;
-    } & ECtx) => <X extends dom>(id: string, args: AppX<'T', cim, k, X>, old: (ObsWithOrigin<AppX<'V', cim, k, X>, EH, ECtx> & {
+    } & ECtx) => <X extends dom>(id: string, args: AppX<'T', cim, k, X>, old: ObsWithOrigin<AppX<'V', cim, k, X>, EH, ECtx> & {
         origin: Destructable<dom, cim, k, X, n, EH, ECtx>;
-    }) | null) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>;
+    } | null) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>;
     compare?: (ctx: ECtx) => RequestHandlerCompare<dom, cim, k, n, EH, ECtx>;
     destroy?: (ctx: ECtx) => RequestHandlerDestroy<dom, cim, k>;
 };
@@ -157,6 +160,7 @@ export declare type EModelsDefinition<indices extends number, dcim extends Recor
         i: P;
     };
 } & (AnyModelDefinition<EH, ECtx, indices>)[];
+export declare type TypedDestructable<T, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<any, any, any, any, any, EH, ECtx, (v: T) => void>;
 export declare type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
     parent: ObsWithOrigin<V, EH, ECtx>;
     origin: TypedDestructable<V, EH, ECtx>;
@@ -194,5 +198,5 @@ export declare type CallHandler<RH extends RHConstraint<RH, ECtx>, ECtx, fIds ex
             comp_call: () => PromiseLike<void>;
         }) => Subscription;
     };
-    serialized: WeakMap<TypedDestructable<any, RH, ECtx>, Observable<GlobalRef<any>>>;
+    serialized: WeakMap<ObsWithOrigin<any, RH, ECtx>, Observable<GlobalRef<any>>>;
 };

@@ -37,21 +37,53 @@ export class BiMap {
         return this.byId.delete(id);
     }
     set(id, value) {
+        if (this.byObs.has(value[0].origin))
+            throw new Error('Object already in store');
+        if (this.byId.has(id))
+            throw new Error('Id already used');
         this.byObs.set(value[0].origin, id);
         this.oldId.set(value[0].origin, id);
         this.byId.set(id, value);
     }
     ;
     reuseId(obs, id) {
-        this.oldId.set(obs, id);
+        this.oldId.set(obs.origin, id);
     }
     ;
-    find(obs) {
-        return this.byObs.get(obs);
+    finddir(obs) {
+        const origin = obs.origin, id = this.byObs.get(origin);
+        if (id === undefined)
+            return undefined;
+        const found = this.byId.get(id)[0];
+        let upfound = found, upobs = obs;
+        if (found === obs)
+            return [id, 'exact'];
+        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+        const err = new Error('Another observable with the same origin is in the store');
+        while (true) {
+            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
+            if (obsParents.has(upfound)) {
+                if (upfound === obs)
+                    return [id, 'down'];
+                throw err;
+            }
+            if (foundParents.has(upobs)) {
+                if (upobs === found)
+                    return [id, 'up'];
+                throw err;
+            }
+            if (done)
+                throw err;
+            upobs = upobs.parent;
+            upfound = upfound.parent;
+        }
+    }
+    find(obs, any = false) {
+        return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
     }
     ;
     usedId(obs) {
-        return this.oldId.get(obs);
+        return this.oldId.get(obs.origin);
     }
     ;
     get size() { return this.byId.size; }
@@ -61,42 +93,47 @@ export class BiMap {
 }
 const one = BigInt(1);
 export class Store {
-    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = new Map()) {
+    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.functions = functions;
         this.name = name;
         this.prefix = prefix;
-        this.locals = locals;
-        this.map = new BiMap();
+        this.base = base;
         this.next = one;
-        this.pushed = new Set();
+        this.pushed = new Map();
         this.pushes = new Subject();
         this.changes = new Observable(subscriber => {
             const map = new Map();
             const ctx = this.emptyContext;
-            const watch = (obs) => {
-                const encoder = obs.handler.encode(ctx);
-                return obs.subject.pipe(scan((prev, v) => {
-                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c: obs.c };
+            const watch = (obs, id) => {
+                const origin = obs.origin, encoder = origin.handler.encode(ctx);
+                return origin.subject.pipe(scan((prev, v) => {
+                    const c = origin.c;
+                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
                     return { old: encoder(params), params };
-                }, {}), filter(({ old: v }, i) => v !== undefined)).subscribe(({ old: data, params }) => {
+                }, {}), filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
                     subscriber.next(['next', [{
-                                c: obs.c, i: 0, data, id: this.map.find(obs), new: !('old' in (params ?? {})), type: obs.key
+                                c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
                             }]]);
-                }, err => subscriber.next(['error', { id: this.map.find(obs) }, err]), () => subscriber.next(['complete', { id: this.map.find(obs) }]));
+                }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
             };
-            for (const obs of this.pushed)
-                map.set(obs, watch(obs));
-            subscriber.add(this.pushes.subscribe(([obs, add]) => {
+            for (const [obs, id] of this.pushed)
+                map.set(obs, watch(obs, id));
+            subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
                 if (add)
-                    map.set(obs, watch(obs));
+                    map.set(obs, watch(obs, id));
                 else {
                     // console.log('remove', this.map.find(obs));
-                    const isStopped = (obs) => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+                    const isStopped = (obs) => {
+                        const subject = obs.origin.subject;
+                        if (subject.isStopped)
+                            return true;
+                        return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+                    };
                     if (!isStopped(obs))
-                        subscriber.next(['unsubscribe', { id: this.map.find(obs) }]);
+                        subscriber.next(['unsubscribe', { id }]);
                     map.get(obs).unsubscribe();
                     map.delete(obs);
                 }
@@ -108,14 +145,15 @@ export class Store {
             return { id };
         };
         this.checkTypes = (v, ...args) => {
-            const err = () => new Error('Type Mismatch : ' + v.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
+            const origin = v.origin;
+            const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
             if (args.length === 1) {
-                if (args[0].length && !args[0].some(([key, c]) => v.handler === byKey(this.handlers, key) && v.c === c))
+                if (args[0].length && !args[0].some(([key, c]) => origin.handler === byKey(this.handlers, key) && origin.c === c))
                     throw err();
             }
             else {
                 const handlers = this.handlers;
-                if (args[0].length && !args[0].some(key => v.handler === byKey(handlers, key)))
+                if (args[0].length && !args[0].some(key => origin.handler === byKey(handlers, key)))
                     throw err();
             }
             return v;
@@ -123,19 +161,28 @@ export class Store {
         this.getter = (r) => {
             if (!('id' in r))
                 throw new Error('There is no local context');
-            return this.map.get(r.id)[0];
+            return this.getValue(r)[0];
         };
-        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers);
-        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers, 0);
+        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers);
+        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers, 0);
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
         this.callReturnRef = new WeakMap();
         this.functions = functions;
+        this.map = new BiMap();
+        this.locals = new BiMap();
+        for (const [obs, { id, in: isIn, out: isOut }] of locals)
+            this.locals.set(id, [obs, { in: isIn, out: isOut }]);
     }
     subscribeToLocals() {
         const subs = new Subscription();
-        this.locals.forEach((_, obs) => subs.add(this.push(obs).subscription));
+        const local = this.base ? [true] : undefined;
+        for (const [, [obs]] of this.locals.entries()) {
+            subs.add(this.push(obs, { local }).subscription);
+        }
+        if (local)
+            local[0] = false;
         return subs;
     }
     getNext(id) {
@@ -143,11 +190,6 @@ export class Store {
             return `${this.prefix}${this.next++}`;
         return id;
     }
-    findRef(obs) {
-        const id = this.map.find(obs);
-        return typeof id === 'string' ? { id } : id;
-    }
-    ;
     watch(callHandler) {
         const op = callHandler.handlers();
         return this.changes.subscribe(event => {
@@ -168,7 +210,7 @@ export class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        const local = this.locals.get(this.map.get(id)?.[0].origin);
+        const local = this.locals.get(id)?.[1];
         if (local && !local.in) {
             throw new Error('Unexpected serialized observable');
         }
@@ -207,7 +249,7 @@ export class Store {
             const _models = Object.assign(models, { [i]: m });
             return { ...this._unserialize(m.type, ctx, _models, session, i), m };
         };
-        const getter = (r) => ('id' in r ? this.map.get(r.id)[0] : _push(r.$).obs);
+        const getter = (r) => ('id' in r ? this.getValue(r)[0] : _push(r.$).obs);
         const ref = this.ref;
         const deref = this.deref(getter);
         const xderef = this.xderef(getter);
@@ -244,23 +286,23 @@ export class Store {
         return { id, obs, subs };
     }
     /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
-    push(obs, { unload, nextId } = {}) {
-        const oldId = this.map.find(obs.origin);
-        const id = this.getNext(oldId ?? this.locals?.get(obs.origin)?.id ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
-        let wrapped = obs;
+    push(obs, { unload, nextId, local: $local } = {}) {
+        const old = this.map.finddir(obs);
+        const id = this.getNext(old?.[0] ?? this.locals.find(obs, true) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
+        let result = obs;
         let subscription;
-        if (oldId === undefined) {
+        if (old === undefined) {
             let destroyed = false;
             const temp = [];
-            const clear = () => {
-                temp.forEach(s => s.unsubscribe());
+            const clear = function () {
+                temp.forEach(this.add.bind(this));
                 temp.length = 0;
             };
-            wrapped = defineProperty(Object.assign(eagerCombineAll([
+            const wrapped = defineProperty(Object.assign(eagerCombineAll([
                 obs,
                 obs.origin.subject.pipe(alternMap(({ args, n }) => {
                     const wrap = (obs) => {
-                        const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
+                        const res = this.push(obs, { local: $local?.[0] ? $local : undefined, nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
                         temp.push(res.subscription);
                         return res.wrapped;
                     };
@@ -272,28 +314,32 @@ export class Store {
                 }, { completeWithInner: true }), tap(clear))
             ]).pipe(finalize(() => {
                 unload?.({ id });
-                const local = this.locals.get(obs.origin);
+                const local = this.locals.get(id)?.[1];
                 if (!local || local.out) {
-                    this.pushed.delete(obs.origin);
-                    this.pushes.next([obs.origin, false]);
+                    this.pushed.delete(obs);
+                    this.pushes.next([obs, id, false]);
                 }
-                clear();
+                clear.call(Subscription.EMPTY);
                 this.map.delete(id);
                 destroyed = true;
             }), map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-            this.map.set(id, [wrapped, {}]);
+            const islocal = $local ? $local[0] : false;
+            if (!islocal)
+                result = wrapped;
+            this.map.set(id, [result, {}]);
             subscription = wrapped.subscribe();
-            const local = this.locals.get(obs.origin);
+            const local = this.locals.get(id)?.[1];
             if (!local || local.out) {
-                this.pushed.add(obs.origin);
-                this.pushes.next([obs.origin, true]);
+                this.pushed.set(obs, id);
+                this.pushes.next([obs, id, true]);
             }
         }
         else {
-            wrapped = this.map.get(id)[0];
-            subscription = wrapped.subscribe();
+            if (old[1] === 'down')
+                result = this.map.get(id)[0];
+            subscription = result.subscribe();
         }
-        return { ref: { id }, wrapped, subscription };
+        return { ref: { id }, wrapped: result, subscription };
     }
     /**
      * serialize any destructable object regardless wether its in the store
@@ -310,7 +356,7 @@ export class Store {
             const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
             const inMap = (arg) => this.map.find(arg) !== undefined;
             const ref = (iObs) => {
-                const entry = iObs.subject.value;
+                const origin = iObs.origin, entry = iObs.origin.subject.value;
                 const value = current(iObs);
                 const id = this.map.find(iObs);
                 if (id !== undefined && ignore.indexOf(id) !== -1)
@@ -321,7 +367,7 @@ export class Store {
                     oldData = old.get(iObs);
                 }
                 const old = oldData ? { old: oldData.data } : {};
-                const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
+                const encode = () => origin.handler.encode(ctx)({ ...entry, c: origin.c, ...old });
                 if (oldData) { //if (isHere)
                     data = { data: encode() };
                     if (data.data === undefined && id !== undefined) {
@@ -348,9 +394,13 @@ export class Store {
                             usedId = this.map.usedId(iObs);
                         }
                     }
-                    const attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
+                    const attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
                     attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
-                    session.set($, [iObs, attr]);
+                    const stored = session.get($);
+                    if (stored)
+                        stored[1] = attr;
+                    else
+                        session.set($, [iObs, attr]);
                 }
                 return { $ };
             };
@@ -418,9 +468,9 @@ export class Store {
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
             const refTask = makePromise();
             if (opt.graph) {
-                let serializeObs = serialized.get(arg.origin);
+                let serializeObs = serialized.get(arg);
                 if (!serializeObs)
-                    serialized.set(arg.origin, serializeObs = this.serialize(arg.origin, {
+                    serialized.set(arg, serializeObs = this.serialize(arg, {
                         isNew: true
                     }).pipe(asyncMap((def) => {
                         const refsPromise = op.put(def);

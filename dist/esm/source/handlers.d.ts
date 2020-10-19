@@ -1,6 +1,7 @@
 /// <reference path="../../../typings/deep-is.d.ts" />
-import { CtxH, Ref, EHConstraint, JsonObject } from './types';
-import { DeepDestructable, TypedDestructable, Destructable } from './destructable';
+import { CtxH, Ref, EHConstraint, JsonObject, ObsWithOrigin, ArrKeys } from './types';
+import { DeepDestructable, Destructable } from './destructable';
+import { AppX } from 'dependent-type';
 import type { BadApp, Fun } from 'dependent-type';
 import { deref } from '.';
 import { TeardownLogic } from 'rxjs';
@@ -25,8 +26,8 @@ export declare const F_Destructable: unique symbol;
 export declare type F_Destructable = typeof F_Destructable;
 export declare const F_Ref: unique symbol;
 export declare type F_Ref = typeof F_Ref;
-export declare type ToRef<X extends unknown[]> = Ref<unknown>[] & {
-    [P in Exclude<keyof X, keyof any[]>]: Ref<X[P]>;
+export declare type ToRef<X extends unknown[]> = Ref<X[number]>[] & {
+    [P in Exclude<keyof X, keyof any[]>]: Ref<X[P] & X[number]>;
 };
 export declare type ToRefMap<X extends [object, unknown]> = [Ref<X[0]>, Ref<X[1]>][];
 declare module 'dependent-type' {
@@ -34,22 +35,16 @@ declare module 'dependent-type' {
         [F_F]: X extends C ? X : BadApp<Fun<typeof F_F, C>, X>;
         [F_C]: C;
         [F_ID]: X;
-        [F_ArrArgs]: X extends unknown[] ? ToRef<X> : BadApp<Fun<typeof F_ArrArgs, C>, X>;
+        [F_ArrArgs]: ToRef<X & unknown[]>;
         [F_MapArr]: X extends [object, unknown] ? [X[0], X[1]][] : BadApp<Fun<typeof F_MapArr, C>, X>;
         [F_ToMap]: X extends [object, unknown] ? Map<X[0], X[1]> : BadApp<Fun<typeof F_ToMap, C>, X>;
         [F_MapArgs]: X extends [object, unknown] ? ToRefMap<X> : BadApp<Fun<typeof F_ArrArgs, C>, X>;
-        [F_Destructable]: TypedDestructable<C[0 & keyof C][X & keyof C[0 & keyof C]], C[1 & keyof C], C[2 & keyof C]>;
-        [F_Ref]: Ref<C[X & keyof C]>;
-    }
-}
-export declare const F_Any: unique symbol;
-declare module 'dependent-type' {
-    interface TypeFuncs<C, X> {
-        [F_Any]: any;
+        [F_Destructable]: ObsWithOrigin<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number], C[1 & keyof C], C[2 & keyof C]>;
+        [F_Ref]: Ref<C[X & Exclude<keyof C, ArrKeys>] & C[keyof C & number]>;
     }
 }
 export declare type ArrayCim = {
-    T: [never, Ref<any>[]];
+    T: [never, Ref<unknown>[]];
     V: [never, unknown[]];
     C: [null, null];
     D: [null, null];
@@ -67,12 +62,21 @@ export declare type ArrayN = typeof ArrayN;
 export declare type ArrayHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<unknown[], ArrayCim, ArrayTypeKeys, ArrayN, EH, ECtx>;
 export declare const ArrayHandler: <EH extends EHConstraint<EH, ECtx>, ECtx>() => CtxH<unknown[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
 export declare type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
+export declare type ArrayWithOrigin<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = ObsWithOrigin<A, EH, ECtx> & {
+    origin: ArrayDestructable<A, EH, ECtx>;
+};
 export declare const wrapArray: <EH extends EHConstraint<EH, ECtx> & {
     Array: CtxH<unknown[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
-}, ECtx>(handlers: EH) => <A extends unknown[]>(args: DeepDestructable<A, 1, EH, ECtx>, ...teardownList: TeardownLogic[]) => ArrayDestructable<A, EH, ECtx>;
+}, ECtx>(handlers: EH) => <A extends unknown[]>(args: DeepDestructable<AppX<"A", ArrayCim, ArrayTypeKeys, A>, 1, EH, ECtx>, ...teardownList: TeardownLogic[]) => ArrayDestructable<A, EH, ECtx>;
 export declare const toArray: <EH extends EHConstraint<EH, ECtx> & {
     Array: CtxH<unknown[], ArrayCim, ArrayTypeKeys, 1, EH, ECtx>;
-}, ECtx>(deref: deref<EH, ECtx>) => <T extends unknown[]>(p: Ref<T>) => Destructable<unknown[], ArrayCim, ArrayTypeKeys, T, 1, EH, ECtx>;
+}, ECtx>(deref: deref<EH, ECtx>) => <T extends unknown[]>(p: Ref<T>) => import("rxjs").Observable<AppX<"V", ArrayCim, ArrayTypeKeys, T>> & {
+    parent: ObsWithOrigin<AppX<"V", ArrayCim, ArrayTypeKeys, T>, EH, ECtx>;
+    origin: import("./types").TypedDestructable<AppX<"V", ArrayCim, ArrayTypeKeys, T>, EH, ECtx>;
+    readonly destroyed: boolean;
+} & {
+    origin: Destructable<unknown[], ArrayCim, ArrayTypeKeys, T, 1, EH, ECtx, (v: AppX<"V", ArrayCim, ArrayTypeKeys, T>) => void>;
+};
 export declare type JsonCim = {
     T: [never, JsonObject];
     V: [never, JsonObject];
@@ -95,4 +99,10 @@ export declare const wrapJson: <EH extends EHConstraint<EH, ECtx> & {
 }, ECtx>(handlers: EH) => <X extends JsonObject>(data: X, ...teardownList: TeardownLogic[]) => JsonDestructable<X, EH, ECtx>;
 export declare const toJson: <EH extends EHConstraint<EH, ECtx> & {
     Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, EH, ECtx>;
-}, ECtx>(deref: deref<EH, ECtx>) => (p: Ref<JsonObject>) => Destructable<JsonObject, JsonCim, JsonTypeKeys, JsonObject, 1, EH, ECtx>;
+}, ECtx>(deref: deref<EH, ECtx>) => (p: Ref<JsonObject>) => import("rxjs").Observable<JsonObject> & {
+    parent: ObsWithOrigin<JsonObject, EH, ECtx>;
+    origin: import("./types").TypedDestructable<JsonObject, EH, ECtx>;
+    readonly destroyed: boolean;
+} & {
+    origin: Destructable<JsonObject, JsonCim, JsonTypeKeys, JsonObject, 1, EH, ECtx, (v: JsonObject) => void>;
+};

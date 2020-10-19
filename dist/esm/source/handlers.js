@@ -1,13 +1,20 @@
 /// <reference path="../typings/deep-is.d.ts" />
 import { Destructable } from './destructable';
 import { map as dep_map } from 'dependent-type';
-import { toCond } from '../utils/guards';
 import equal from 'deep-is';
 const { depMap } = dep_map;
 export const ArrayN = 1;
 export const ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: ArrayN }),
-    encode: ({ ref }) => ({ args }) => toCond(depMap(args, ref)),
+    decode: ({ deref }) => (_id, data) => {
+        return {
+            args: depMap(data, ref => deref(ref)),
+            data: null, n: ArrayN
+        };
+    },
+    encode: ({ ref }) => ({ args }) => {
+        const encoded = depMap(args, (x) => ref(x));
+        return encoded;
+    },
     ctr: (x, _d, _c, old) => {
         if (old) {
             old.splice(0);

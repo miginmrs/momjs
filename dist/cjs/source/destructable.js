@@ -11,7 +11,7 @@ exports.destructableCmp = ({ compareData = (x, y) => x === y, compareObs = (x, y
     const vItem = v, yItem = y.args[i];
     if (vItem instanceof Array) {
         if (yItem instanceof Array)
-            return vItem.length === yItem.length && vItem.every((x, i) => x === yItem[i]);
+            return vItem.length === yItem.length && vItem.every(x => x === yItem[i]);
         return false;
     }
     if (yItem instanceof Array)
@@ -38,11 +38,7 @@ class Destructable extends rxjs_1.Observable {
         this.source = new rxjs_1.Observable(subscriber => {
             const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);
-                return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => {
-                    if (args[0] instanceof Array && args[0] === args[1])
-                        debugger;
-                    return [args, data, c];
-                }));
+                return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => [args, data, c]));
             }, { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, data, c, old, this), null)).subscribe(subscriber);
             subs.add(this.destroy);
             return subs;
@@ -52,6 +48,9 @@ class Destructable extends rxjs_1.Observable {
     get destroyed() { return this.destroy.closed; }
     get handler() {
         return guards_1.byKey(this.handlers, this.key);
+    }
+    add(teardown) {
+        return this.destroy.add(teardown);
     }
 }
 exports.Destructable = Destructable;

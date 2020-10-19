@@ -1,21 +1,21 @@
-import { Subscription, Observable, ObservedValueOf, Subject, BehaviorSubject } from 'rxjs';
+import { Subscription, Observable, Subject } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
   xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler,
-  AnyModelDefinition, CallHandler, Functions, FdcpConstraint, FkxConstraint, FIDS
+  AnyModelDefinition, CallHandler, Functions, FdcpConstraint, FkxConstraint, FIDS, TypedDestructable
 } from './types'
-import { Destructable, EntryObs, TypedDestructable } from './destructable';
-import { KeysOfType, TypeFuncs, AppX, App, Fun, BadApp, DepConstaint } from 'dependent-type';
+import { Destructable, EntryObs } from './destructable';
+import { KeysOfType, TypeFuncs, AppX, App, Fun } from 'dependent-type';
 import { NonUndefined } from 'utility-types';
 import { byKey } from '../utils/guards';
 import { map as dep_map } from 'dependent-type';
 import { eagerCombineAll, current } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, distinctUntilChanged, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
+import { map, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
-import { Json, DeepDestructable } from '.';
+import { DeepDestructable } from '.';
 
 const { depMap } = dep_map;
 
@@ -39,9 +39,8 @@ export declare const F_I_X: unique symbol;
 
 type ParentOfC = { 0: any, 1: any, 2: any };
 type RefHelper<C extends ParentOfC, X extends number> = App<Fun<C[1][X], C[0][X][0]>, C[2][X]> & C[0][X][1];
-type RefTypeError<C, X> = BadApp<Fun<typeof F_Custom_Ref, C>, X>;
-type CondRefHelper<C, X> = X extends number ? C extends ParentOfC ? RefHelper<C, X> : RefTypeError<C, X> : RefTypeError<C, X>;
-type GlobalRefHelper<indices extends number, C extends ParentOfC> = { [i in indices]: i extends number ? RefHelper<C, i> : RefTypeError<C, i> } & any[]
+type CondRefHelper<C, X> = RefHelper<C & ParentOfC, X & number>;
+type GlobalRefHelper<indices extends number, C extends ParentOfC> = { [i in indices]: RefHelper<C, i & number> } & GlobalRef<unknown>[]
 declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
     [F_Custom_Ref]: CondRefHelper<C, X>;
@@ -68,35 +67,60 @@ export function* wait<T>(x: T | PromiseLike<T>): Generator<T | PromiseLike<T>, T
   return yield x;
 }
 
-export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R>;
-export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U | void, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg?: U): (...args: T) => PromiseLike<R>;
-export function asAsync<T extends any[], R, U = void, N = any>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R> {
+export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R>;
+export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U | void, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg?: U): (...args: T) => PromiseLike<R>;
+export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R> {
   return (...args: T) => runit(f.call(thisArg, ...args as T), promiseCtr);
 }
-
 export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
   private byId = new Map<k, [ObsWithOrigin<any, EH, ECtx>, D]>();
-  private byObs = new Map<TypedDestructable<any, EH, ECtx>, k>();
-  private oldId = new WeakMap<TypedDestructable<any, EH, ECtx>, k>();
+  private byObs = new Map<TypedDestructable<unknown, EH, ECtx>, k>();
+  private oldId = new WeakMap<TypedDestructable<unknown, EH, ECtx>, k>();
+  constructor() { }
   get(id: k) { return this.byId.get(id); }
   delete(id: k) {
     const stored = this.byId.get(id);
     if (stored) this.byObs.delete(stored[0].origin);
     return this.byId.delete(id);
   }
-  set(id: k, value: [ObsWithOrigin<any, EH, ECtx>, D]) {
+  set(id: k, value: [ObsWithOrigin<unknown, EH, ECtx>, D]) {
+    if (this.byObs.has(value[0].origin)) throw new Error('Object already in store');
+    if (this.byId.has(id)) throw new Error('Id already used');
     this.byObs.set(value[0].origin, id);
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
-  reuseId(obs: TypedDestructable<any, EH, ECtx>, id: k) {
-    this.oldId.set(obs, id);
+  reuseId(obs: ObsWithOrigin<unknown, EH, ECtx>, id: k) {
+    this.oldId.set(obs.origin, id);
   };
-  find(obs: TypedDestructable<any, EH, ECtx>) {
-    return this.byObs.get(obs);
+  finddir(obs: ObsWithOrigin<unknown, EH, ECtx>): [k, 'up' | 'down' | 'exact'] | undefined {
+    const origin = obs.origin, id = this.byObs.get(origin);
+    if (id === undefined) return undefined;
+    const found = this.byId.get(id)![0];
+    let upfound = found, upobs = obs;
+    if (found === obs) return [id, 'exact'];
+    const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+    const err = new Error('Another observable with the same origin is in the store');
+    while (true) {
+      const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
+      if (obsParents.has(upfound)) {
+        if (upfound === obs) return [id, 'down'];
+        throw err;
+      }
+      if (foundParents.has(upobs)) {
+        if (upobs === found) return [id, 'up'];
+        throw err;
+      }
+      if (done) throw err;
+      upobs = upobs.parent;
+      upfound = upfound.parent;
+    }
+  }
+  find(obs: ObsWithOrigin<unknown, EH, ECtx>, any = false) {
+    return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
   };
-  usedId(obs: TypedDestructable<any, EH, ECtx>) {
-    return this.oldId.get(obs);
+  usedId(obs: ObsWithOrigin<unknown, EH, ECtx>) {
+    return this.oldId.get(obs.origin);
   };
   get size() { return this.byId.size }
   keys() { return this.byId.keys() }
@@ -106,7 +130,7 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
 
 type Notif<RH extends RHConstraint<RH, ECtx>, ECtx> = [
   'next', EModelsDefinition<0, [[unknown, TVCDA_CIM]], [TVCDADepConstaint<unknown, TVCDA_CIM>], [unknown], [1 | 2], RH, ECtx>
-] | ['error', GlobalRef<any>, unknown] | ['complete', GlobalRef<any>] | ['unsubscribe', GlobalRef<any>];
+] | ['error', GlobalRef<unknown>, unknown] | ['complete', GlobalRef<unknown>] | ['unsubscribe', GlobalRef<unknown>];
 
 const one = BigInt(1);
 
@@ -125,57 +149,73 @@ type SerializationOptions = {
   ignore?: string[],
 }
 
+export type LocalObs<RH extends RHConstraint<RH, ECtx>, ECtx> = [ObsWithOrigin<unknown, RH, ECtx>, { id: string, in?: boolean, out?: boolean }];
+
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   fIds extends FIDS,
   fdcp extends FdcpConstraint<fIds>,
   fkx extends FkxConstraint<fIds, fdcp>,
   > {
-  private map = new BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>();
+  private map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
+  readonly locals: BiMap<RH, ECtx, { in?: boolean, out?: boolean }>;
+  constructor(
+    readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
+    private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
+    readonly name?: string, readonly prefix = '',
+    locals: LocalObs<RH, ECtx>[] = [],
+    readonly base = false,
+  ) {
+    this.functions = functions;
+    this.map = new BiMap();
+    this.locals = new BiMap();
+    for (const [obs, { id, in: isIn, out: isOut }] of locals) this.locals.set(id, [obs, { in: isIn, out: isOut }]);
+  }
+
   private next = one;
-  private pushed = new Set<TypedDestructable<any, RH, ECtx>>();
-  private pushes = new Subject<[TypedDestructable<any, RH, ECtx>, boolean]>();
+  private pushed = new Map<ObsWithOrigin<unknown, RH, ECtx>, string>();
+  private pushes = new Subject<[ObsWithOrigin<unknown, RH, ECtx>, string, boolean]>();
   readonly changes = new Observable<Notif<RH, ECtx>>(subscriber => {
-    const map = new Map<TypedDestructable<any, RH, ECtx>, Subscription>();
+    const map = new Map<ObsWithOrigin<unknown, RH, ECtx>, Subscription>();
     const ctx = this.emptyContext;
-    const watch = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: Destructable<dom, cim, k, X, n, RH, ECtx>): Subscription => {
-      const encoder = obs.handler.encode(ctx);
-      return obs.subject.pipe(scan((prev: { old?: AppX<'T', cim, k, dom> }, v) => {
-        const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c: obs.c };
+    const watch = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: ObsWithOrigin<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Destructable<dom, cim, k, X, n, RH, ECtx> }, id: string): Subscription => {
+      const origin = obs.origin, encoder = origin.handler.encode(ctx);
+      return origin.subject.pipe(scan((prev: { old?: AppX<'T', cim, k, X> }, v) => {
+        const c: AppX<"C", cim, k, X> = origin.c;
+        const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
         return { old: encoder(params), params }
-      }, {}), filter(({ old: v }, i) => v !== undefined)).subscribe(
+      }, {}), filter(({ old: v }) => v !== undefined)).subscribe(
         ({ old: data, params }) => {
           subscriber.next(['next', [{
-            c: obs.c, i: 0, data, id: this.map.find(obs), new: !('old' in (params ?? {})), type: obs.key
-          }]])
+            c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
+          }]]);
         },
-        err => subscriber.next(['error', { id: this.map.find(obs) } as GlobalRef<any>, err]),
-        () => subscriber.next(['complete', { id: this.map.find(obs) } as GlobalRef<any>]));
+        err => subscriber.next(['error', { id } as GlobalRef<unknown>, err]),
+        () => subscriber.next(['complete', { id } as GlobalRef<unknown>]));
     }
-    for (const obs of this.pushed) map.set(obs, watch(obs));
-    subscriber.add(this.pushes.subscribe(([obs, add]) => {
-      if (add) map.set(obs, watch(obs));
+    for (const [obs, id] of this.pushed) map.set(obs, watch(obs, id));
+    subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
+      if (add) map.set(obs, watch(obs, id));
       else {
         // console.log('remove', this.map.find(obs));
-        const isStopped = (obs: TypedDestructable<any, RH, ECtx>): boolean => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
-        if (!isStopped(obs)) subscriber.next(['unsubscribe', { id: this.map.find(obs) } as GlobalRef<any>])
+        const isStopped = (obs: ObsWithOrigin<unknown, RH, ECtx>): boolean => {
+          const subject = obs.origin.subject;
+          if (subject.isStopped) return true;
+          return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args))
+        };
+        if (!isStopped(obs)) subscriber.next(['unsubscribe', { id } as GlobalRef<unknown>])
         map.get(obs)!.unsubscribe();
         map.delete(obs);
       };
     }))
   });
 
-  constructor(
-    readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
-    private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
-    readonly name?: string, readonly prefix = '',
-    readonly locals = new Map<TypedDestructable<any, RH, ECtx>, {id: string, in?: boolean, out?: boolean}>()
-  ) {
-    this.functions = functions;
-  }
-
   subscribeToLocals() {
     const subs = new Subscription();
-    this.locals.forEach((_, obs) => subs.add(this.push(obs).subscription));
+    const local: [boolean] | undefined = this.base ? [true] : undefined;
+    for (const [, [obs]] of this.locals.entries()) {
+      subs.add(this.push(obs, { local }).subscription);
+    }
+    if (local) local[0] = false;
     return subs;
   }
 
@@ -183,11 +223,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     if (id === undefined) return `${this.prefix}${this.next++}`;
     return id;
   }
-
-  findRef<V>(obs: TypedDestructable<V, RH, ECtx>) {
-    const id = this.map.find(obs);
-    return typeof id === 'string' ? { id } as GlobalRef<V> : id;
-  };
 
   watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>) {
     const op = callHandler.handlers<0>();
@@ -204,9 +239,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
   private _unserialize<
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: any },
+    X extends { [P in indices]: unknown },
     N extends Record<indices, 1 | 2>,
     i extends indices,
     >(
@@ -221,7 +256,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
     const id = this.getNext(usedId);
-    const local = this.locals.get(this.map.get(id)?.[0].origin!);
+    const local = this.locals.get(id)?.[1];
     if (local && !local.in) {
       throw new Error('Unexpected serialized observable');
     }
@@ -245,9 +280,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   /** inserts a new destructable into the store with a givin id */
   private _insert<
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: any },
+    X extends { [P in indices]: unknown },
     N extends Record<indices, 1 | 2>,
     i extends indices,
     >(
@@ -264,67 +299,68 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     this.map.set(id, [obs, {}]);
     return obs;
   }
-  ref: ref<RH, ECtx> = <V>(obs: TypedDestructable<V, RH, ECtx>): GlobalRef<V> => {
+  ref: ref<RH, ECtx> = <V>(obs: ObsWithOrigin<V, RH, ECtx>): GlobalRef<V> => {
     const id = this.map.find(obs)!;
     return { id } as GlobalRef<V>;
   };
   checkTypes = <
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: dcim[P][0] },
     N extends Record<indices, 1 | 2>,
-    >(v: TypedDestructable<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
+    >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
       ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => {
-    const err = () => new Error('Type Mismatch : ' + v.key + ' not in ' + JSON.stringify(
+    const origin = v.origin;
+    const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(
       depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, N, RH, ECtx, indices> | derefHandler<indices, dcim, keys, N, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
     if (args.length === 1) {
-      if (args[0].length && !args[0].some(([key, c]) => v.handler === byKey(this.handlers, key) && v.c === c)) throw err();
+      if (args[0].length && !args[0].some(([key, c]) => origin.handler === byKey(this.handlers, key) && origin.c === c)) throw err();
     } else {
       const handlers: EHConstraint<RH, ECtx> = this.handlers;
-      if (args[0].length && !args[0].some(key => v.handler === byKey(handlers, key))) throw err();
+      if (args[0].length && !args[0].some(key => origin.handler === byKey(handlers, key))) throw err();
     }
     return v as derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
   };
   getter = <T extends object, V extends T = T>(r: Ref<T>) => {
     if (!('id' in r)) throw new Error('There is no local context');
-    return this.map.get(r.id)![0] as ObsWithOrigin<V, RH, ECtx>;
+    return this.getValue(r)[0] as ObsWithOrigin<V, RH, ECtx>;
   }
   xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>): xderef<RH, ECtx> => <
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: dcim[P][0] },
     N extends Record<indices, 1 | 2>,
     >(
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>
-    ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref).origin, handlers);
+    ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref), handlers);
   deref = (getter: <T extends object>(r: Ref<T>) => ObsWithOrigin<T, RH, ECtx>): deref<RH, ECtx> => <
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
     X extends { [P in indices]: dcim[P][0] },
     N extends Record<indices, 1 | 2>,
     >(
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: derefHandlers<indices, dcim, keys, N, RH, ECtx>
-    ) => this.checkTypes<indices, dcim, keys, X, N>(getter(ref).origin, handlers, 0);
+    ) => this.checkTypes<indices, dcim, keys, X, N>(getter(ref), handlers, 0);
   emptyContext = {
     deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
   };
   /** inserts or updates multiple entries from serialized data with stored subscription to new ones */
   unserialize<
     indices extends number,
-    dcim extends Record<indices, [any, TVCDA_CIM]>,
+    dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
-    X extends { [P in indices]: any },
+    X extends { [P in indices]: unknown },
     N extends Record<indices, 1 | 2>,
     >(
       getModels: ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx> | ((
         ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>
       ) => ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx>),
-  ): { [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>> } & GlobalRef<any>[] {
+  ): { [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>> } & GlobalRef<unknown>[] {
     const session = [] as ObsCache<indices, dcim, keys, X, N, RH, ECtx>;
     const models = getModels instanceof Function ? getModels(<i extends number>(i: i) => ({ $: i } as { $: i, _: any })) : getModels;
     const _push = <i extends indices>(i: i) => {
@@ -333,7 +369,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const _models = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, N, i>(m.type, ctx, _models, session, i), m };
     }
-    const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as TypedDestructable<V, RH, ECtx>;
+    const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.getValue(r)[0] : _push(r.$ as indices).obs) as ObsWithOrigin<V, RH, ECtx>;
     const ref: ref<RH, ECtx> = this.ref;
     const deref: deref<RH, ECtx> = this.deref(getter);
     const xderef: xderef<RH, ECtx> = this.xderef(getter);
@@ -385,105 +421,110 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { unload, nextId }: {
+    { unload, nextId, local: $local }: {
       unload?: (ref: GlobalRef<V>) => void,
-      nextId?: (obs: ObsWithOrigin<any, RH, ECtx>, parentId?: string) => string | undefined
+      nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined,
+      local?: [boolean],
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
-    const oldId = this.map.find(obs.origin);
-    const id = this.getNext(oldId ?? this.locals?.get(obs.origin)?.id ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
-    let wrapped = obs;
+    const old = this.map.finddir(obs);
+    const id = this.getNext(old?.[0] ?? this.locals.find(obs, true) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
+    let result = obs;
     let subscription: Subscription;
 
-    if (oldId === undefined) {
+    if (old === undefined) {
       let destroyed = false;
       const temp: Subscription[] = [];
-      const clear = () => {
-        temp.forEach(s => s.unsubscribe());
+      const clear = function (this: Subscription) {
+        temp.forEach(this.add.bind(this));
         temp.length = 0;
-      };
-      wrapped = defineProperty(
+      }
+      const wrapped = defineProperty(
         Object.assign(eagerCombineAll([
           obs,
           obs.origin.subject.pipe(
             alternMap(({ args, n }) => {
-              const wrap = (obs: TypedDestructable<any, RH, ECtx>) => {
-                const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
+              const wrap = (obs: ObsWithOrigin<unknown, RH, ECtx>) => {
+                const res = this.push(obs, { local: $local?.[0] ? $local : undefined, nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
                 temp.push(res.subscription);
                 return res.wrapped;
               };
-              const array: (ObsWithOrigin<any, RH, ECtx> | Observable<any[]>)[] = n === 2
-                ? (args as DeepDestructable<any, 2, RH, ECtx>).map(arg => eagerCombineAll(arg.map(wrap)))
-                : (args as DeepDestructable<any, 1, RH, ECtx>).map(wrap);
-              const ret: Observable<any[]> = eagerCombineAll(array);
+              const array: (ObsWithOrigin<unknown, RH, ECtx> | Observable<unknown[]>)[] = n === 2
+                ? (args as DeepDestructable<unknown[], 2, RH, ECtx>).map(arg => eagerCombineAll(arg.map(wrap)))
+                : (args as DeepDestructable<unknown[], 1, RH, ECtx>).map(wrap);
+              const ret: Observable<unknown[]> = eagerCombineAll(array);
               return ret;
             }, { completeWithInner: true }),
-            tap(clear)
+            tap(clear),
           )
         ]).pipe(
           finalize(() => {
             unload?.({ id } as GlobalRef<V>);
-            const local = this.locals.get(obs.origin);
+            const local = this.locals.get(id)?.[1];
             if (!local || local.out) {
-              this.pushed.delete(obs.origin);
-              this.pushes.next([obs.origin, false]);
+              this.pushed.delete(obs);
+              this.pushes.next([obs, id, false]);
             }
-            clear(); this.map.delete(id);
+            clear.call(Subscription.EMPTY);
+            this.map.delete(id);
             destroyed = true;
           }),
           map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
         ), { origin: obs.origin, parent: obs }),
         'destroyed', { get() { return destroyed } }
       );
-      this.map.set(id, [wrapped, {}]);
+      const islocal = $local ? $local[0] : false;
+      if (!islocal) result = wrapped;
+      this.map.set(id, [result, {}]);
       subscription = wrapped.subscribe();
-      const local = this.locals.get(obs.origin);
+      const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
-        this.pushed.add(obs.origin);
-        this.pushes.next([obs.origin, true]);
+        this.pushed.set(obs, id);
+        this.pushes.next([obs, id, true]);
       }
     } else {
-      wrapped = this.map.get(id)![0];
-      subscription = wrapped.subscribe();
+      if(old[1] === 'down') result = this.map.get(id)![0];
+      subscription = result.subscribe();
     }
-    return { ref: { id } as GlobalRef<V>, wrapped, subscription };
+    return { ref: { id } as GlobalRef<V>, wrapped: result, subscription };
   }
+
   /**
    * serialize any destructable object regardless wether its in the store
    * @param {Destructable} obs the observable to serialize
    * @param {SerializationOptions} opt options of serialization
    */
   serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
-    obs: Destructable<dom, cim, k, X, n, RH, ECtx>,
+    obs: ObsWithOrigin<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Destructable<dom, cim, k, X, n, RH, ECtx> },
     opt: SerializationOptions
   ) {
     const { isNew, push = true, ignore = [] } = opt;
     type Attr = {
-      type: keyof RH & string, value: any, data: any, new?: boolean,
-      resolve?: (x: GlobalRef<any>) => void, id?: string, c: any,
+      type: keyof RH & string, value: unknown, data: unknown, new?: boolean,
+      resolve?: (x: GlobalRef<unknown>) => void, id?: string, c: unknown,
     };
     type Session = BiMap<RH, ECtx, Attr | null, number>;
     type V = AppX<'V', cim, k, X>;
-    type SMRS = [Session, Map<TypedDestructable<any, RH, ECtx>, { data: any }>, Ref<V>, Subscription];
+    type SMRS = [Session, Map<ObsWithOrigin<unknown, RH, ECtx>, { data: unknown }>, Ref<V>, Subscription];
     return obs.pipe(scan<V, SMRS, null>((previous) => {
       const session: Session = new BiMap;
       const allData: SMRS[1] = new Map();
       const subs = new Subscription;
       let next = 1;
-      const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id) : session.get(r.$))![0] as TypedDestructable<V, RH, ECtx>;
-      const inMap = (arg: TypedDestructable<any, RH, ECtx>) => this.map.find(arg) !== undefined;
-      const ref: ref<RH, ECtx> = <V>(iObs: TypedDestructable<V, RH, ECtx>): Ref<V> => {
-        const entry = iObs.subject.value;
+      const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id) : session.get(r.$))![0] as ObsWithOrigin<V, RH, ECtx>;
+      const inMap = (arg: ObsWithOrigin<unknown, RH, ECtx>) => this.map.find(arg) !== undefined;
+      const ref: ref<RH, ECtx> = <V>(iObs: ObsWithOrigin<V, RH, ECtx>): Ref<V> => {
+        const origin = iObs.origin, entry = iObs.origin.subject.value;
         const value = current(iObs);
         const id = this.map.find(iObs);
         if (id !== undefined && ignore.indexOf(id) !== -1) return { id } as GlobalRef<V>;
-        let oldData: { data: any } | undefined = undefined, data: { data: any } | undefined;
+        let oldData: { data: unknown } | undefined = undefined, data: { data: unknown } | undefined;
         if (id !== undefined && previous) {
           const [, old] = previous;
           oldData = old.get(iObs);
         }
         const old = oldData ? { old: oldData.data } : {};
-        const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
+        const encode = () => origin.handler.encode(ctx)({ ...entry, c: origin.c, ...old });
         if (oldData) { //if (isHere)
           data = { data: encode() };
           if (data.data === undefined && id !== undefined) {
@@ -509,9 +550,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
               usedId = this.map.usedId(iObs);
             }
           }
-          const attr: Attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
+          const attr: Attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
           attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
-          session.set($, [iObs, attr]);
+          const stored = session.get($);
+          if (stored) stored[1] = attr;
+          else session.set($, [iObs, attr]);
         }
         return { $ } as LocalRef<V>;
       };
@@ -582,7 +625,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     });
   }
 
-  callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<any>>>();
+  callReturnRef = new WeakMap<Subscription, PromiseLike<GlobalRef<unknown>>>();
 
   /* #region remote */
   remote<fId extends fIds>(
@@ -625,8 +668,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
       const refTask = makePromise<GlobalRef<V2>>();
       if (opt.graph) {
-        let serializeObs = serialized.get(arg.origin);
-        if (!serializeObs) serialized.set(arg.origin, serializeObs = this.serialize(arg.origin, {
+        let serializeObs = serialized.get(arg);
+        if (!serializeObs) serialized.set(arg, serializeObs = this.serialize(arg, {
           isNew: true
         }).pipe(asyncMap((def) => {
           const refsPromise = op.put(def);

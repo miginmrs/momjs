@@ -7,13 +7,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.toJson = exports.wrapJson = exports.JsonHandler = exports.toArray = exports.wrapArray = exports.ArrayHandler = exports.ArrayN = void 0;
 const destructable_1 = require("./destructable");
 const dependent_type_1 = require("dependent-type");
-const guards_1 = require("../utils/guards");
 const deep_is_1 = __importDefault(require("deep-is"));
 const { depMap } = dependent_type_1.map;
 exports.ArrayN = 1;
 exports.ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: exports.ArrayN }),
-    encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
+    decode: ({ deref }) => (_id, data) => {
+        return {
+            args: depMap(data, ref => deref(ref)),
+            data: null, n: exports.ArrayN
+        };
+    },
+    encode: ({ ref }) => ({ args }) => {
+        const encoded = depMap(args, (x) => ref(x));
+        return encoded;
+    },
     ctr: (x, _d, _c, old) => {
         if (old) {
             old.splice(0);

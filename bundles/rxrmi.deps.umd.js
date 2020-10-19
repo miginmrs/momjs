@@ -96,37 +96,47 @@ return /******/ (function(modules) { // webpackBootstrap
 /************************************************************************/
 /******/ ({
 
-/***/ "./node_modules/altern-map/dist/esm/altern-map.js":
-/*!********************************************************!*\
-  !*** ./node_modules/altern-map/dist/esm/altern-map.js ***!
-  \********************************************************/
-/*! exports provided: alternMap */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./node_modules/altern-map/source/altern-map.ts":
+/*!******************************************************!*\
+  !*** ./node_modules/altern-map/source/altern-map.ts ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "alternMap", function() { return alternMap; });
-/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! rxjs */ "rxjs");
-/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(rxjs__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
-/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(rxjs_operators__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var rxjs_internal_OuterSubscriber__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! rxjs/internal/OuterSubscriber */ "rxjs/internal/OuterSubscriber");
-/* harmony import */ var rxjs_internal_OuterSubscriber__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(rxjs_internal_OuterSubscriber__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var rxjs_internal_InnerSubscriber__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxjs/internal/InnerSubscriber */ "rxjs/internal/InnerSubscriber");
-/* harmony import */ var rxjs_internal_InnerSubscriber__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(rxjs_internal_InnerSubscriber__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var rxjs_internal_util_subscribeToResult__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxjs/internal/util/subscribeToResult */ "rxjs/internal/util/subscribeToResult");
-/* harmony import */ var rxjs_internal_util_subscribeToResult__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(rxjs_internal_util_subscribeToResult__WEBPACK_IMPORTED_MODULE_4__);
 
-
-
-
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.alternMap = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
+const OuterSubscriber_1 = __webpack_require__(/*! rxjs/internal/OuterSubscriber */ "rxjs/internal/OuterSubscriber");
+const InnerSubscriber_1 = __webpack_require__(/*! rxjs/internal/InnerSubscriber */ "rxjs/internal/InnerSubscriber");
+const subscribeToResult_1 = __webpack_require__(/*! rxjs/internal/util/subscribeToResult */ "rxjs/internal/util/subscribeToResult");
+/* tslint:enable:max-line-length */
+/**
+ *
+ * Same as switchMap except that, unlike switchMap, alternMap will unsubscribe from its previous inner Observable only after subscribing to the new inner Observable
+ *
+ * @see {@link switchMap}
+ * @see {@link mergeMap}
+ *
+ * @param {function(value: T, ?index: number): ObservableInput} project A function
+ * that, when applied to an item emitted by the source Observable, returns an
+ * Observable.
+ * @return {Observable} An Observable that emits the result of applying the
+ * projection function (and the optional deprecated `resultSelector`) to each item
+ * emitted by the source Observable and taking only the values from the most recently
+ * projected inner Observable.
+ * @method alternMap
+ * @owner Observable
+ */
 function alternMap(project, options, resultSelector) {
     if (typeof resultSelector === 'function') {
-        return (source) => source.pipe(alternMap((a, i) => Object(rxjs__WEBPACK_IMPORTED_MODULE_0__["from"])(project(a, i)).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_1__["map"])((b, ii) => resultSelector(a, b, i, ii))), options));
+        return (source) => source.pipe(alternMap((a, i) => rxjs_1.from(project(a, i)).pipe(operators_1.map((b, ii) => resultSelector(a, b, i, ii))), options));
     }
     return (source) => source.lift(new AlternMapOperator(project, options || {}));
 }
+exports.alternMap = alternMap;
 class AlternMapOperator {
     constructor(project, options) {
         this.project = project;
@@ -136,7 +146,12 @@ class AlternMapOperator {
         return source.subscribe(new AlternMapSubscriber(subscriber, this.project, this.options));
     }
 }
-class AlternMapSubscriber extends rxjs_internal_OuterSubscriber__WEBPACK_IMPORTED_MODULE_2__["OuterSubscriber"] {
+/**
+ * We need this JSDoc comment for affecting ESDoc.
+ * @ignore
+ * @extends {Ignored}
+ */
+class AlternMapSubscriber extends OuterSubscriber_1.OuterSubscriber {
     constructor(destination, project, options) {
         super(destination);
         this.project = project;
@@ -157,10 +172,13 @@ class AlternMapSubscriber extends rxjs_internal_OuterSubscriber__WEBPACK_IMPORTE
     }
     _innerSub(result, value, index) {
         const innerSubscription = this.innerSubscription;
-        const innerSubscriber = new rxjs_internal_InnerSubscriber__WEBPACK_IMPORTED_MODULE_3__["InnerSubscriber"](this, value, index);
+        const innerSubscriber = new InnerSubscriber_1.InnerSubscriber(this, value, index);
         const destination = this.destination;
         destination.add(innerSubscriber);
-        this.innerSubscription = Object(rxjs_internal_util_subscribeToResult__WEBPACK_IMPORTED_MODULE_4__["subscribeToResult"])(this, result, undefined, undefined, innerSubscriber);
+        this.innerSubscription = subscribeToResult_1.subscribeToResult(this, result, undefined, undefined, innerSubscriber);
+        // The returned subscription will usually be the subscriber that was
+        // passed. However, interop subscribers will be wrapped and for
+        // unsubscriptions to chain correctly, the wrapper needs to be added, too.
         if (this.innerSubscription !== innerSubscriber) {
             destination.add(this.innerSubscription);
         }
@@ -190,24 +208,32 @@ class AlternMapSubscriber extends rxjs_internal_OuterSubscriber__WEBPACK_IMPORTE
         this.destination.next(innerValue);
     }
 }
-//# sourceMappingURL=altern-map.js.map
+
 
 /***/ }),
 
-/***/ "./node_modules/altern-map/dist/esm/index.js":
-/*!***************************************************!*\
-  !*** ./node_modules/altern-map/dist/esm/index.js ***!
-  \***************************************************/
-/*! exports provided: alternMap */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./node_modules/altern-map/source/index.ts":
+/*!*************************************************!*\
+  !*** ./node_modules/altern-map/source/index.ts ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _altern_map__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./altern-map */ "./node_modules/altern-map/dist/esm/altern-map.js");
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "alternMap", function() { return _altern_map__WEBPACK_IMPORTED_MODULE_0__["alternMap"]; });
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(__webpack_require__(/*! ./altern-map */ "./node_modules/altern-map/source/altern-map.ts"), exports);
 
-//# sourceMappingURL=index.js.map
 
 /***/ }),
 
@@ -348,11 +374,12 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.map = void 0;
 exports.map = __importStar(__webpack_require__(/*! ./map */ "./node_modules/dependent-type/source/map.ts"));
 
 
@@ -383,29 +410,25 @@ exports.asyncDepMap = (arr, p, Promise = exports.conf.Promise) => {
 
 /***/ }),
 
-/***/ "./node_modules/rx-async/dist/esm/async-map.js":
-/*!*****************************************************!*\
-  !*** ./node_modules/rx-async/dist/esm/async-map.js ***!
-  \*****************************************************/
-/*! exports provided: iterate, asyncMap, iterateMap */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./node_modules/rx-async/source/async-map.ts":
+/*!***************************************************!*\
+  !*** ./node_modules/rx-async/source/async-map.ts ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "iterate", function() { return iterate; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "asyncMap", function() { return asyncMap; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "iterateMap", function() { return iterateMap; });
-/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! rxjs */ "rxjs");
-/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(rxjs__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _linked_list__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./linked-list */ "./node_modules/rx-async/dist/esm/linked-list.js");
 
-
-const iterate = async (it, getPauser, onCancel) => {
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.iterateMap = exports.asyncMap = exports.iterate = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const linked_list_1 = __webpack_require__(/*! ./linked-list */ "./node_modules/rx-async/source/linked-list.ts");
+exports.iterate = async (it, getPauser, onCancel) => {
     let cancelled = false, v = await it.next();
     if (onCancel)
         onCancel(() => {
             cancelled = true;
-            it.next(true).catch(rxjs__WEBPACK_IMPORTED_MODULE_0__["noop"]);
+            it.next(true).catch(rxjs_1.noop);
         });
     while (!cancelled && !v.done) {
         const pauser = getPauser && getPauser();
@@ -416,18 +439,18 @@ const iterate = async (it, getPauser, onCancel) => {
     }
     return !cancelled && v.done ? { ok: true, value: v.value } : {};
 };
-const asyncMap = (map, { handleException, wait = false, mode = 'concurrent' } = {}) => (source) => new rxjs__WEBPACK_IMPORTED_MODULE_0__["Observable"](subscriber => {
-    let lift = rxjs__WEBPACK_IMPORTED_MODULE_0__["Subscription"].EMPTY;
+exports.asyncMap = (map, { handleException, wait = false, mode = 'concurrent' } = {}) => (source) => new rxjs_1.Observable(subscriber => {
+    let lift = rxjs_1.Subscription.EMPTY;
     const merge = mode === 'merge', continuous = mode === 'recent';
-    const list = new _linked_list__WEBPACK_IMPORTED_MODULE_1__["List"](), pause = !merge && !continuous, switchMode = mode === 'switch';
+    const list = new linked_list_1.List(), pause = !merge && !continuous, switchMode = mode === 'switch';
     const promiseMap = new WeakMap(), resolveMap = new WeakMap();
     const sourceSubscription = source.subscribe({
         next: v => {
-            const prev = lift, actual = lift = new rxjs__WEBPACK_IMPORTED_MODULE_0__["Subscription"](), node = list.unshift();
+            const prev = lift, actual = lift = new rxjs_1.Subscription(), node = list.unshift();
             promiseMap.set(node, new Promise(r => resolveMap.set(node, r)));
             actual.add(() => list.remove(node));
             const promise = map(v, node, { get closed() { return actual.closed; } }, () => pause && node.next ? promiseMap.get(node.next) : undefined, cb => actual.add(cb)).then(undefined, e => ({ ok: false, error: e }));
-            actual.add(Object(rxjs__WEBPACK_IMPORTED_MODULE_0__["from"])(promise).subscribe(({ ok, value, error }) => {
+            actual.add(rxjs_1.from(promise).subscribe(({ ok, value, error }) => {
                 if (!ok) {
                     if (error && handleException) {
                         const cancellable = handleException(error);
@@ -452,48 +475,54 @@ const asyncMap = (map, { handleException, wait = false, mode = 'concurrent' } = 
         error: e => subscriber.error(e),
         complete: () => lift.add(() => subscriber.complete())
     });
-    const subs = wait ? new rxjs__WEBPACK_IMPORTED_MODULE_0__["Subscription"]() : sourceSubscription;
+    const subs = wait ? new rxjs_1.Subscription() : sourceSubscription;
     if (wait)
         subs.add(sourceSubscription);
     subs.add(() => lift.unsubscribe());
     return subs;
 });
-const iterateMap = (map, config = { mode: 'concurrent' }) => asyncMap((value, node, status, getPause, onCancel) => iterate(map(value, node, status), getPause, onCancel), config);
-//# sourceMappingURL=async-map.js.map
+exports.iterateMap = (map, config = { mode: 'concurrent' }) => exports.asyncMap((value, node, status, getPause, onCancel) => exports.iterate(map(value, node, status), getPause, onCancel), config);
+
 
 /***/ }),
 
-/***/ "./node_modules/rx-async/dist/esm/index.js":
-/*!*************************************************!*\
-  !*** ./node_modules/rx-async/dist/esm/index.js ***!
-  \*************************************************/
-/*! exports provided: iterate, asyncMap, iterateMap */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./node_modules/rx-async/source/index.ts":
+/*!***********************************************!*\
+  !*** ./node_modules/rx-async/source/index.ts ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _async_map__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./async-map */ "./node_modules/rx-async/dist/esm/async-map.js");
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "iterate", function() { return _async_map__WEBPACK_IMPORTED_MODULE_0__["iterate"]; });
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "asyncMap", function() { return _async_map__WEBPACK_IMPORTED_MODULE_0__["asyncMap"]; });
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(__webpack_require__(/*! ./async-map */ "./node_modules/rx-async/source/async-map.ts"), exports);
+__exportStar(__webpack_require__(/*! ./linked-list */ "./node_modules/rx-async/source/linked-list.ts"), exports);
 
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "iterateMap", function() { return _async_map__WEBPACK_IMPORTED_MODULE_0__["iterateMap"]; });
-
-
-//# sourceMappingURL=index.js.map
 
 /***/ }),
 
-/***/ "./node_modules/rx-async/dist/esm/linked-list.js":
-/*!*******************************************************!*\
-  !*** ./node_modules/rx-async/dist/esm/linked-list.js ***!
-  \*******************************************************/
-/*! exports provided: List */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./node_modules/rx-async/source/linked-list.ts":
+/*!*****************************************************!*\
+  !*** ./node_modules/rx-async/source/linked-list.ts ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "List", function() { return List; });
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.List = void 0;
 ;
 class List {
     *iterator(node = this.head) {
@@ -529,7 +558,8 @@ class List {
         }
     }
 }
-//# sourceMappingURL=linked-list.js.map
+exports.List = List;
+
 
 /***/ }),
 
@@ -545,7 +575,7 @@ class List {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Destructable = exports.destructableCmp = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
-const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/dist/esm/index.js");
+const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
 const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
@@ -554,7 +584,7 @@ exports.destructableCmp = ({ compareData = (x, y) => x === y, compareObs = (x, y
     const vItem = v, yItem = y.args[i];
     if (vItem instanceof Array) {
         if (yItem instanceof Array)
-            return vItem.length === yItem.length && vItem.every((x, i) => x === yItem[i]);
+            return vItem.length === yItem.length && vItem.every(x => x === yItem[i]);
         return false;
     }
     if (yItem instanceof Array)
@@ -581,11 +611,7 @@ class Destructable extends rxjs_1.Observable {
         this.source = new rxjs_1.Observable(subscriber => {
             const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);
-                return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => {
-                    if (args[0] instanceof Array && args[0] === args[1])
-                        debugger;
-                    return [args, data, c];
-                }));
+                return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => [args, data, c]));
             }, { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, data, c, old, this), null)).subscribe(subscriber);
             subs.add(this.destroy);
             return subs;
@@ -595,6 +621,9 @@ class Destructable extends rxjs_1.Observable {
     get destroyed() { return this.destroy.closed; }
     get handler() {
         return guards_1.byKey(this.handlers, this.key);
+    }
+    add(teardown) {
+        return this.destroy.add(teardown);
     }
 }
 exports.Destructable = Destructable;
@@ -619,13 +648,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.toJson = exports.wrapJson = exports.JsonHandler = exports.toArray = exports.wrapArray = exports.ArrayHandler = exports.ArrayN = void 0;
 const destructable_1 = __webpack_require__(/*! ./destructable */ "./source/destructable.ts");
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
-const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
 const deep_is_1 = __importDefault(__webpack_require__(/*! deep-is */ "./node_modules/deep-is/index.js"));
 const { depMap } = dependent_type_1.map;
 exports.ArrayN = 1;
 exports.ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => ({ args: data.map(ref => deref(ref)), data: null, n: exports.ArrayN }),
-    encode: ({ ref }) => ({ args }) => guards_1.toCond(depMap(args, ref)),
+    decode: ({ deref }) => (_id, data) => {
+        return {
+            args: depMap(data, ref => deref(ref)),
+            data: null, n: exports.ArrayN
+        };
+    },
+    encode: ({ ref }) => ({ args }) => {
+        const encoded = depMap(args, (x) => ref(x));
+        return encoded;
+    },
     ctr: (x, _d, _c, old) => {
         if (old) {
             old.splice(0);
@@ -688,24 +724,25 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
     o["default"] = v;
 });
 var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.utils = exports.altern_map = exports.rx_async = void 0;
 __exportStar(__webpack_require__(/*! ./store */ "./source/store.ts"), exports);
 __exportStar(__webpack_require__(/*! ./handlers */ "./source/handlers.ts"), exports);
 __exportStar(__webpack_require__(/*! ./destructable */ "./source/destructable.ts"), exports);
 __exportStar(__webpack_require__(/*! ./types */ "./source/types.ts"), exports);
 __exportStar(__webpack_require__(/*! ./proxy */ "./source/proxy.ts"), exports);
 __exportStar(__webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts"), exports);
-exports.rx_async = __importStar(__webpack_require__(/*! rx-async */ "./node_modules/rx-async/dist/esm/index.js"));
-exports.altern_map = __importStar(__webpack_require__(/*! altern-map */ "./node_modules/altern-map/dist/esm/index.js"));
+exports.rx_async = __importStar(__webpack_require__(/*! rx-async */ "./node_modules/rx-async/source/index.ts"));
+exports.altern_map = __importStar(__webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts"));
 exports.utils = __importStar(__webpack_require__(/*! ../utils */ "./utils/index.ts"));
 
 
@@ -847,8 +884,8 @@ const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modul
 const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
 const global_1 = __webpack_require__(/*! ../utils/global */ "./utils/global.ts");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
-const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/dist/esm/index.js");
-const rx_async_1 = __webpack_require__(/*! rx-async */ "./node_modules/rx-async/dist/esm/index.js");
+const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
+const rx_async_1 = __webpack_require__(/*! rx-async */ "./node_modules/rx-async/source/index.ts");
 const { depMap } = dependent_type_1.map;
 exports.runit = (gen, promiseCtr) => {
     const runThen = (...args) => {
@@ -881,21 +918,54 @@ class BiMap {
         return this.byId.delete(id);
     }
     set(id, value) {
+        if (this.byObs.has(value[0].origin))
+            throw new Error('Object already in store');
+        if (this.byId.has(id))
+            throw new Error('Id already used');
         this.byObs.set(value[0].origin, id);
         this.oldId.set(value[0].origin, id);
         this.byId.set(id, value);
     }
     ;
     reuseId(obs, id) {
-        this.oldId.set(obs, id);
+        this.oldId.set(obs.origin, id);
     }
     ;
-    find(obs) {
-        return this.byObs.get(obs);
+    finddir(obs) {
+        const origin = obs.origin, id = this.byObs.get(origin);
+        if (id === undefined)
+            return undefined;
+        const found = this.byId.get(id)[0];
+        let upfound = found, upobs = obs;
+        if (found === obs)
+            return [id, 'exact'];
+        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+        const err = new Error('Another observable with the same origin is in the store');
+        while (true) {
+            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
+            if (obsParents.has(upfound)) {
+                if (upfound === obs)
+                    return [id, 'down'];
+                throw err;
+            }
+            if (foundParents.has(upobs)) {
+                if (upobs === found)
+                    return [id, 'up'];
+                throw err;
+            }
+            if (done)
+                throw err;
+            upobs = upobs.parent;
+            upfound = upfound.parent;
+        }
+    }
+    find(obs, any = false) {
+        var _a;
+        return any ? this.byObs.get(obs.origin) : (_a = this.finddir(obs)) === null || _a === void 0 ? void 0 : _a[0];
     }
     ;
     usedId(obs) {
-        return this.oldId.get(obs);
+        return this.oldId.get(obs.origin);
     }
     ;
     get size() { return this.byId.size; }
@@ -906,44 +976,49 @@ class BiMap {
 exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = new Map()) {
+    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
         this.handlers = handlers;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.functions = functions;
         this.name = name;
         this.prefix = prefix;
-        this.locals = locals;
-        this.map = new BiMap();
+        this.base = base;
         this.next = one;
-        this.pushed = new Set();
+        this.pushed = new Map();
         this.pushes = new rxjs_1.Subject();
         this.changes = new rxjs_1.Observable(subscriber => {
             const map = new Map();
             const ctx = this.emptyContext;
-            const watch = (obs) => {
-                const encoder = obs.handler.encode(ctx);
-                return obs.subject.pipe(operators_1.scan((prev, v) => {
-                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c: obs.c };
+            const watch = (obs, id) => {
+                const origin = obs.origin, encoder = origin.handler.encode(ctx);
+                return origin.subject.pipe(operators_1.scan((prev, v) => {
+                    const c = origin.c;
+                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
                     return { old: encoder(params), params };
-                }, {}), operators_1.filter(({ old: v }, i) => v !== undefined)).subscribe(({ old: data, params }) => {
+                }, {}), operators_1.filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
                     subscriber.next(['next', [{
-                                c: obs.c, i: 0, data, id: this.map.find(obs),
+                                c: origin.c, i: 0, data, id,
                                 new: !('old' in (params !== null && params !== void 0 ? params : {})),
-                                type: obs.key
+                                type: origin.key
                             }]]);
-                }, err => subscriber.next(['error', { id: this.map.find(obs) }, err]), () => subscriber.next(['complete', { id: this.map.find(obs) }]));
+                }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
             };
-            for (const obs of this.pushed)
-                map.set(obs, watch(obs));
-            subscriber.add(this.pushes.subscribe(([obs, add]) => {
+            for (const [obs, id] of this.pushed)
+                map.set(obs, watch(obs, id));
+            subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
                 if (add)
-                    map.set(obs, watch(obs));
+                    map.set(obs, watch(obs, id));
                 else {
                     // console.log('remove', this.map.find(obs));
-                    const isStopped = (obs) => obs.subject.isStopped || obs.subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+                    const isStopped = (obs) => {
+                        const subject = obs.origin.subject;
+                        if (subject.isStopped)
+                            return true;
+                        return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args));
+                    };
                     if (!isStopped(obs))
-                        subscriber.next(['unsubscribe', { id: this.map.find(obs) }]);
+                        subscriber.next(['unsubscribe', { id }]);
                     map.get(obs).unsubscribe();
                     map.delete(obs);
                 }
@@ -955,14 +1030,15 @@ class Store {
             return { id };
         };
         this.checkTypes = (v, ...args) => {
-            const err = () => new Error('Type Mismatch : ' + v.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
+            const origin = v.origin;
+            const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
             if (args.length === 1) {
-                if (args[0].length && !args[0].some(([key, c]) => v.handler === guards_1.byKey(this.handlers, key) && v.c === c))
+                if (args[0].length && !args[0].some(([key, c]) => origin.handler === guards_1.byKey(this.handlers, key) && origin.c === c))
                     throw err();
             }
             else {
                 const handlers = this.handlers;
-                if (args[0].length && !args[0].some(key => v.handler === guards_1.byKey(handlers, key)))
+                if (args[0].length && !args[0].some(key => origin.handler === guards_1.byKey(handlers, key)))
                     throw err();
             }
             return v;
@@ -970,19 +1046,28 @@ class Store {
         this.getter = (r) => {
             if (!('id' in r))
                 throw new Error('There is no local context');
-            return this.map.get(r.id)[0];
+            return this.getValue(r)[0];
         };
-        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers);
-        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref).origin, handlers, 0);
+        this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers);
+        this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers, 0);
         this.emptyContext = {
             deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
         };
         this.callReturnRef = new WeakMap();
         this.functions = functions;
+        this.map = new BiMap();
+        this.locals = new BiMap();
+        for (const [obs, { id, in: isIn, out: isOut }] of locals)
+            this.locals.set(id, [obs, { in: isIn, out: isOut }]);
     }
     subscribeToLocals() {
         const subs = new rxjs_1.Subscription();
-        this.locals.forEach((_, obs) => subs.add(this.push(obs).subscription));
+        const local = this.base ? [true] : undefined;
+        for (const [, [obs]] of this.locals.entries()) {
+            subs.add(this.push(obs, { local }).subscription);
+        }
+        if (local)
+            local[0] = false;
         return subs;
     }
     getNext(id) {
@@ -990,11 +1075,6 @@ class Store {
             return `${this.prefix}${this.next++}`;
         return id;
     }
-    findRef(obs) {
-        const id = this.map.find(obs);
-        return typeof id === 'string' ? { id } : id;
-    }
-    ;
     watch(callHandler) {
         const op = callHandler.handlers();
         return this.changes.subscribe(event => {
@@ -1016,7 +1096,7 @@ class Store {
         if (model.data === undefined)
             throw new Error('Trying to access a destructed object');
         const id = this.getNext(usedId);
-        const local = this.locals.get((_a = this.map.get(id)) === null || _a === void 0 ? void 0 : _a[0].origin);
+        const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
         if (local && !local.in) {
             throw new Error('Unexpected serialized observable');
         }
@@ -1056,7 +1136,7 @@ class Store {
             const _models = Object.assign(models, { [i]: m });
             return { ...this._unserialize(m.type, ctx, _models, session, i), m };
         };
-        const getter = (r) => ('id' in r ? this.map.get(r.id)[0] : _push(r.$).obs);
+        const getter = (r) => ('id' in r ? this.getValue(r)[0] : _push(r.$).obs);
         const ref = this.ref;
         const deref = this.deref(getter);
         const xderef = this.xderef(getter);
@@ -1093,24 +1173,24 @@ class Store {
         return { id, obs, subs };
     }
     /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
-    push(obs, { unload, nextId } = {}) {
+    push(obs, { unload, nextId, local: $local } = {}) {
         var _a, _b, _c, _d;
-        const oldId = this.map.find(obs.origin);
-        const id = this.getNext((_d = (_c = oldId !== null && oldId !== void 0 ? oldId : (_b = (_a = this.locals) === null || _a === void 0 ? void 0 : _a.get(obs.origin)) === null || _b === void 0 ? void 0 : _b.id) !== null && _c !== void 0 ? _c : this.map.usedId(obs.origin)) !== null && _d !== void 0 ? _d : nextId === null || nextId === void 0 ? void 0 : nextId(obs));
-        let wrapped = obs;
+        const old = this.map.finddir(obs);
+        const id = this.getNext((_c = (_b = (_a = old === null || old === void 0 ? void 0 : old[0]) !== null && _a !== void 0 ? _a : this.locals.find(obs, true)) !== null && _b !== void 0 ? _b : this.map.usedId(obs.origin)) !== null && _c !== void 0 ? _c : nextId === null || nextId === void 0 ? void 0 : nextId(obs));
+        let result = obs;
         let subscription;
-        if (oldId === undefined) {
+        if (old === undefined) {
             let destroyed = false;
             const temp = [];
-            const clear = () => {
-                temp.forEach(s => s.unsubscribe());
+            const clear = function () {
+                temp.forEach(this.add.bind(this));
                 temp.length = 0;
             };
-            wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([
+            const wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([
                 obs,
                 obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
                     const wrap = (obs) => {
-                        const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId !== null && pId !== void 0 ? pId : id))) });
+                        const res = this.push(obs, { local: ($local === null || $local === void 0 ? void 0 : $local[0]) ? $local : undefined, nextId: (nextId && ((obs, pId) => nextId(obs, pId !== null && pId !== void 0 ? pId : id))) });
                         temp.push(res.subscription);
                         return res.wrapped;
                     };
@@ -1121,29 +1201,34 @@ class Store {
                     return ret;
                 }, { completeWithInner: true }), operators_1.tap(clear))
             ]).pipe(operators_1.finalize(() => {
+                var _a;
                 unload === null || unload === void 0 ? void 0 : unload({ id });
-                const local = this.locals.get(obs.origin);
+                const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
                 if (!local || local.out) {
-                    this.pushed.delete(obs.origin);
-                    this.pushes.next([obs.origin, false]);
+                    this.pushed.delete(obs);
+                    this.pushes.next([obs, id, false]);
                 }
-                clear();
+                clear.call(rxjs_1.Subscription.EMPTY);
                 this.map.delete(id);
                 destroyed = true;
             }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-            this.map.set(id, [wrapped, {}]);
+            const islocal = $local ? $local[0] : false;
+            if (!islocal)
+                result = wrapped;
+            this.map.set(id, [result, {}]);
             subscription = wrapped.subscribe();
-            const local = this.locals.get(obs.origin);
+            const local = (_d = this.locals.get(id)) === null || _d === void 0 ? void 0 : _d[1];
             if (!local || local.out) {
-                this.pushed.add(obs.origin);
-                this.pushes.next([obs.origin, true]);
+                this.pushed.set(obs, id);
+                this.pushes.next([obs, id, true]);
             }
         }
         else {
-            wrapped = this.map.get(id)[0];
-            subscription = wrapped.subscribe();
+            if (old[1] === 'down')
+                result = this.map.get(id)[0];
+            subscription = result.subscribe();
         }
-        return { ref: { id }, wrapped, subscription };
+        return { ref: { id }, wrapped: result, subscription };
     }
     /**
      * serialize any destructable object regardless wether its in the store
@@ -1160,7 +1245,7 @@ class Store {
             const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
             const inMap = (arg) => this.map.find(arg) !== undefined;
             const ref = (iObs) => {
-                const entry = iObs.subject.value;
+                const origin = iObs.origin, entry = iObs.origin.subject.value;
                 const value = rx_utils_1.current(iObs);
                 const id = this.map.find(iObs);
                 if (id !== undefined && ignore.indexOf(id) !== -1)
@@ -1171,7 +1256,7 @@ class Store {
                     oldData = old.get(iObs);
                 }
                 const old = oldData ? { old: oldData.data } : {};
-                const encode = () => iObs.handler.encode(ctx)({ ...entry, c: iObs.c, ...old });
+                const encode = () => origin.handler.encode(ctx)({ ...entry, c: origin.c, ...old });
                 if (oldData) { //if (isHere)
                     data = { data: encode() };
                     if (data.data === undefined && id !== undefined) {
@@ -1198,9 +1283,13 @@ class Store {
                             usedId = this.map.usedId(iObs);
                         }
                     }
-                    const attr = { type: iObs.key, value, ...data, c: iObs.c, id: usedId };
+                    const attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
                     attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
-                    session.set($, [iObs, attr]);
+                    const stored = session.get($);
+                    if (stored)
+                        stored[1] = attr;
+                    else
+                        session.set($, [iObs, attr]);
                 }
                 return { $ };
             };
@@ -1268,9 +1357,9 @@ class Store {
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
             const refTask = makePromise();
             if (opt.graph) {
-                let serializeObs = serialized.get(arg.origin);
+                let serializeObs = serialized.get(arg);
                 if (!serializeObs)
-                    serialized.set(arg.origin, serializeObs = this.serialize(arg.origin, {
+                    serialized.set(arg, serializeObs = this.serialize(arg, {
                         isNew: true
                     }).pipe(rx_async_1.asyncMap((def) => {
                         const refsPromise = op.put(def);
@@ -1376,11 +1465,12 @@ exports.defineProperty = defineProperty;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subKey = exports.byKey = exports.asCond = exports.toCond = void 0;
+exports.toSuperKey = exports.subKey = exports.byKey = exports.asCond = exports.toCond = void 0;
 exports.toCond = (x) => x;
 exports.asCond = (x) => x;
 exports.byKey = (o, k) => o[k];
 exports.subKey = (k) => k;
+exports.toSuperKey = (o) => o;
 
 
 /***/ }),
@@ -1409,11 +1499,12 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.rx_utils = exports.QuickPromise = exports.guards = exports.defineProperty = void 0;
 var global_1 = __webpack_require__(/*! ./global */ "./utils/global.ts");
 Object.defineProperty(exports, "defineProperty", { enumerable: true, get: function () { return global_1.defineProperty; } });
 exports.guards = __importStar(__webpack_require__(/*! ./guards */ "./utils/guards.ts"));
