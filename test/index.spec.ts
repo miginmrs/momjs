@@ -4,26 +4,27 @@ import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_D
 import { TestScheduler } from 'rxjs/testing';
 import {
   Destructable, AppX, ObsWithOrigin, CtxH, Ref, EHConstraint, DeepDestructable, TypedDestructable,
-  DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable, JsonObject
+  DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable, JsonObject, ArrKeys, EntryObs, TwoDestructable
 } from '../source';
 import { Subscription, ObservedValueOf, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
-import { map as dep_map } from 'dependent-type';
+import { App, DepConstaint, Fun, map as dep_map, TypeFuncs } from 'dependent-type';
 import _ from 'lodash';
 
 const { depMap } = dep_map;
 
-type ToRef1<X> = Ref<any>[] & { [P in keyof X]: Ref<X[P]> }
-type ToRef2<X> = ToRef1<X[Exclude<keyof X, keyof any[]>]>[] & { [P in Exclude<keyof X, keyof any[]>]: ToRef1<X[P]> };
+type ToRef1<C> = Ref<C[keyof C & number]>[] & { [P in Exclude<keyof C, keyof any[]>]: Ref<C[P] & C[keyof C & number]> }
+type ToRef2<C> = Ref<C[keyof C & number][keyof C[keyof C & number] & number]>[][] & {
+  [P in Exclude<keyof C, keyof any[]>]: ToRef1<C[P]>; };
 declare const F_Destructable2: unique symbol;
 declare const F_ArrArgs2: unique symbol;
 declare const F_Ref2: unique symbol;
 declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
-    [F_Destructable2]: DeepDestructable<C[0 & keyof C][keyof C[0 & keyof C]] & any[], 1, C[1 & keyof C], C[2 & keyof C]>,
+    [F_Destructable2]: DeepDestructable<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number] & unknown[], 1, C[1 & keyof C], C[2 & keyof C]>,
     [F_ArrArgs2]: ToRef2<X>,
-    [F_Ref2]: ToRef1<C[X & keyof C]>,
+    [F_Ref2]: Ref<C[keyof C & number][keyof C[keyof C & number] & number]>[] & ToRef1<C[X & keyof C]>,
   }
 }
 type ArrayTypeKeys2 = {
@@ -33,26 +34,52 @@ type ArrayTypeKeys2 = {
   D: typeof F_C;
   A: typeof F_ID;
 }
-type ArrayCim2 = { T: [never, Ref<any>[][]], V: [never, any[]], C: [null, null], D: [null, null], A: [never, any[][]] };
-const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<any[][], ArrayCim2, ArrayTypeKeys2, 2, EH, ECtx> => ({
-  decode: ({ deref }) => (_id, data) => ({ args: data.map(refs => refs.map(ref => deref(ref))) as any, data: null, n: 2 }),
-  encode: ({ ref }) => <C extends any[][]>({ args }: { args: DeepDestructable<C, 2, EH, ECtx> }): ToRef2<C> => {
-    type PC = { [P in Exclude<keyof C, keyof any[]>]: C[P] };
+type ArrayCim2 = { T: [never, Ref<any>[][]], V: [never, unknown[]], C: [null, null], D: [null, null], A: [never, unknown[][]] };
+
+const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<unknown[][], ArrayCim2, ArrayTypeKeys2, 2, EH, ECtx> => ({
+  //decosde: ({ deref }) => (_id, data) => ({ args: data.map(refs => refs.map(ref => deref(ref))) as any, data: null, n: 2 }),
+  decode: ({ deref }) => <C extends unknown[][]>(_id: string, data: AppX<'T', ArrayCim2, ArrayTypeKeys2, C>) => {
+    type dom = Exclude<keyof C, keyof any[]>;
     type cim = [
-      [[PC, EH, ECtx], DeepDestructable<PC[keyof PC] & any[], 1, EH, ECtx>],
-      [PC, ToRef1<PC[keyof PC]>]
+      [C, unknown],
+      [[C, EH, ECtx], DeepDestructable<C[number] & unknown[], 1, EH, ECtx>],
+    ];
+    type k = [typeof F_Ref2, typeof F_Destructable2];
+    const mapper = <X extends dom>(refs: AppX<0, cim, k, X>, i: number): TwoDestructable<C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[], EH, ECtx> => {
+      type CX = C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[];
+      type dom2 = Exclude<keyof CX, keyof any[]>;
+      type cim2 = [[CX, unknown], [[CX, EH, ECtx], ObsWithOrigin<CX[number], EH, ECtx>]];
+      type k2 = [F_Ref, F_Destructable];
+      type out = ObsWithOrigin<CX[number], EH, ECtx>[] & {
+        [k in dom2]: ObsWithOrigin<CX[k] & CX[number], EH, ECtx>;
+      };
+      return depMap<dom2, cim2, k2>(refs, ref => deref(ref)) as out;
+    };
+    const args: DeepDestructable<C[number] & unknown[], 1, EH, ECtx>[] & {
+      [k in dom]: DeepDestructable<C[k] & unknown[], 1, EH, ECtx>;
+    } = depMap<dom, cim, k>(data, mapper);
+    return { args, data: null, n: 2 };
+  },
+  encode: ({ ref }) => <C extends unknown[][]>({ args }: { args: DeepDestructable<AppX<'A', ArrayCim2, ArrayTypeKeys2, C>, 2, EH, ECtx> }): ToRef2<C> => {
+    type dom = Exclude<keyof C, keyof any[]>;
+    type cim = [
+      [[C, EH, ECtx], unknown],
+      [C, Ref<C[number][number]>[]]
     ];
     type k = [typeof F_Destructable2, typeof F_Ref2];
-    return depMap<keyof PC, cim, k>(args, <X extends keyof PC>(arg: DeepDestructable<PC[], 1, EH, ECtx>): AppX<1, cim, k, X> => {
-      const item: ToRef1<PC[X]> = depMap<
-        keyof PC[X], [
-          [[PC[X], EH, ECtx], TypedDestructable<PC[X][keyof PC[X]], EH, ECtx>],
-          [PC[X], Ref<PC[X][keyof PC[X]]>]
+    const mapper = <X extends dom>(arg: AppX<0, cim, k, X>
+    ): AppX<1, cim, k, X> => {
+      type dom2 = Exclude<keyof C[X], keyof any[]>;
+      const item: { [P in dom2]: Ref<C[X][P & Exclude<keyof C[X], keyof any[]>] & C[X][number & keyof C[X]]> } & Ref<C[X][keyof C[X] & number]>[] = depMap<
+        dom2, [
+          [[C[X], EH, ECtx], unknown],
+          [C[X], Ref<C[X][keyof C[X] & number]>]
         ], [typeof F_Destructable, typeof F_Ref]>(arg, ref);
       return item;
-    });
+    }
+    return depMap<dom, cim, k>(args, mapper);
   },
-  ctr: <X extends any[]>(x: X, _d: null, _c: null, old: any[] | null) => {
+  ctr: <X extends unknown[]>(x: X, _d: null, _c: null, old: any[] | null) => {
     if (old) { old.splice(0); x = Object.assign(old, x); }
     return x;
   },
@@ -229,6 +256,7 @@ describe('Store', () => {
       const handlers = RequestHandlers;
       jsonObs = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n: 1 });
       const { ref: rf, subscription } = await store.push(jsonObs);
+      debugger;
       const [ref] = store.unserialize<0, [[any[], ArrayCim2]], [ArrayTypeKeys2], [[[json]]], [2]>([{
         c: null, i: 0, type: 'Array2', data: [[rf]]
       }])!;

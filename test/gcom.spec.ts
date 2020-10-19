@@ -121,7 +121,6 @@ describe('Stores Global Communication', () => {
         expect(firstCall).deep.eq([{ x: 50 }, { x: 40 }].reduce(collect, []));
       })
       it('should alter the dependencies of the call function argument', async () => {
-        console.log('what happened?')
         const { secondCall } = await p;
         expect(secondCall).deep.eq([{ x: 50 }, { x: 40 }, { x: 30 }, { x: 200 }, { x: 300 }].reduce(collect, []));
       })
