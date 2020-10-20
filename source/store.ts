@@ -196,7 +196,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   subscribeToLocals() {
     const subs = new Subscription();
     for (const [, [obs]] of this.locals.entries()) {
-      subs.add(this.push(obs, { local: this.base }).subscription);
+      subs.add(this.push(obs).subscription);
     }
     return subs;
   }
@@ -408,10 +408,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { unload, nextId, local: islocal = false }: {
+    { unload, nextId }: {
       unload?: (ref: GlobalRef<V>) => void,
       nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined,
-      local?: boolean,
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const oldId = this.map.find(obs);
@@ -422,15 +421,14 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     if (oldId === undefined) {
       let destroyed = false;
       const temp: Subscription[] = [];
-      const fclear = <T>(addTo: (subs: T) => (child: Subscription) => void) => function (this: T) {
-        temp.forEach(addTo(this));
+      const clear = () => {
+        temp.forEach(subs => subs.unsubscribe());
         temp.length = 0;
       }
-      const clear = ((f = Subscription.prototype.unsubscribe) => fclear<void>(() => f.call.bind(f)))(), clearLocal = fclear<Subscription>(subs => subs.add.bind(subs));
       const asubj = obs.origin.subject.pipe(
         alternMap(({ args, n }) => {
           const wrap = (obs: ObsWithOrigin<unknown, RH, ECtx>) => {
-            const res = this.push(obs, { local: islocal, nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
+            const res = this.push(obs, { nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
             temp.push(res.subscription);
             return res.wrapped;
           };
@@ -440,7 +438,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           const ret: Observable<unknown[]> = eagerCombineAll(array);
           return ret;
         }, { completeWithInner: true }),
-        tap(islocal || this.base ? clearLocal : clear),
+        tap(clear),
       );
       const subs = new Subscription;
       const teardown = () => {
@@ -454,24 +452,24 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         clear(); this.map.delete(id);
         destroyed = true;
       };
-      if (this.base && !islocal) {
+      if (this.base) {
         result.subscribe().unsubscribe();
         if (result.destroyed) throw new Error('Base store observable should be subscribed outside');
         this.map.set(id, [result, {}]);
         subscription = new Subscription();
         subscription.add(result.add(asubj.subscribe()));
         subscription.add(result.add(teardown));
+        result.add(subscription);
       } else {
-        const wrapped = defineProperty(
+        result = defineProperty(
           Object.assign(eagerCombineAll([obs, asubj]).pipe(
             finalize(teardown),
             map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
           ), { origin: obs.origin, parent: obs, add: subs.add.bind(subs) }),
           'destroyed', { get() { return destroyed } }
         );
-        if (!islocal) result = wrapped;
         this.map.set(id, [result, {}]);
-        subscription = wrapped.subscribe();
+        subscription = result.subscribe();
       }
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
