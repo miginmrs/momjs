@@ -197,11 +197,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   subscribeToLocals() {
     const subs = new Subscription();
-    const local: [boolean] = [this.base];
+    const local: [boolean] | undefined = this.base ? [true] : undefined;
     for (const [, [obs]] of this.locals.entries()) {
       subs.add(this.push(obs, { local }).subscription);
     }
-    local[0] = false;
+    if (local) local[0] = false;
     return subs;
   }
 
@@ -315,7 +315,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   };
   getter = <T extends object, V extends T = T>(r: Ref<T>) => {
     if (!('id' in r)) throw new Error('There is no local context');
-    return this.map.get(r.id)![0] as ObsWithOrigin<V, RH, ECtx>;
+    return this.getValue(r)[0] as ObsWithOrigin<V, RH, ECtx>;
   }
   xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => ObsWithOrigin<V, RH, ECtx>): xderef<RH, ECtx> => <
     indices extends number,
@@ -360,7 +360,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const _models = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, N, i>(m.type, ctx, _models, session, i), m };
     }
-    const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id)![0] : _push(r.$ as indices).obs) as ObsWithOrigin<V, RH, ECtx>;
+    const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.getValue(r)[0] : _push(r.$ as indices).obs) as ObsWithOrigin<V, RH, ECtx>;
     const ref: ref<RH, ECtx> = this.ref;
     const deref: deref<RH, ECtx> = this.deref(getter);
     const xderef: xderef<RH, ECtx> = this.xderef(getter);
@@ -464,8 +464,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         ), { origin: obs.origin, parent: obs }),
         'destroyed', { get() { return destroyed } }
       );
-      if (!$local?.[0]) result = wrapped;
-      this.map.set(id, [result, {}], false);
+      const islocal = $local ? $local[0] : false;
+      if (!islocal) result = wrapped;
+      this.map.set(id, [result, {}], islocal && this.base);
       subscription = wrapped.subscribe();
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
