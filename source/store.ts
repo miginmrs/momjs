@@ -1,4 +1,4 @@
-import { Subscription, Observable, Subject } from 'rxjs';
+import { Subscription, Observable, Subject, TeardownLogic } from 'rxjs';
 import {
   GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
   ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
@@ -426,47 +426,57 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         temp.forEach(addTo(this));
         temp.length = 0;
       }
-      const clear = ((f = Subscription.prototype.unsubscribe)=>fclear<void>(() => f.call.bind(f)))(), clearLocal = fclear<Subscription>(subs => subs.add.bind(subs));
-      const wrapped = defineProperty(
-        Object.assign(eagerCombineAll([
-          obs,
-          obs.origin.subject.pipe(
-            alternMap(({ args, n }) => {
-              const wrap = (obs: ObsWithOrigin<unknown, RH, ECtx>) => {
-                const res = this.push(obs, { local: islocal, nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
-                temp.push(res.subscription);
-                return res.wrapped;
-              };
-              const array: (ObsWithOrigin<unknown, RH, ECtx> | Observable<unknown[]>)[] = n === 2
-                ? (args as DeepDestructable<unknown[], 2, RH, ECtx>).map(arg => eagerCombineAll(arg.map(wrap)))
-                : (args as DeepDestructable<unknown[], 1, RH, ECtx>).map(wrap);
-              const ret: Observable<unknown[]> = eagerCombineAll(array);
-              return ret;
-            }, { completeWithInner: true }),
-            tap(islocal ? clearLocal : clear),
-          )
-        ]).pipe(
-          finalize(() => {
-            unload?.({ id } as GlobalRef<V>);
-            const local = this.locals.get(id)?.[1];
-            if (!local || local.out) {
-              this.pushed.delete(obs.origin);
-              this.pushes.next([obs.origin, false]);
-            }
-            clear(); this.map.delete(id);
-            destroyed = true;
-          }),
-          map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
-        ), { origin: obs.origin, parent: obs }),
-        'destroyed', { get() { return destroyed } }
+      const clear = ((f = Subscription.prototype.unsubscribe) => fclear<void>(() => f.call.bind(f)))(), clearLocal = fclear<Subscription>(subs => subs.add.bind(subs));
+      const asubj = obs.origin.subject.pipe(
+        alternMap(({ args, n }) => {
+          const wrap = (obs: ObsWithOrigin<unknown, RH, ECtx>) => {
+            const res = this.push(obs, { local: islocal, nextId: (nextId && ((obs, pId) => nextId(obs, pId ?? id))) });
+            temp.push(res.subscription);
+            return res.wrapped;
+          };
+          const array: (ObsWithOrigin<unknown, RH, ECtx> | Observable<unknown[]>)[] = n === 2
+            ? (args as DeepDestructable<unknown[], 2, RH, ECtx>).map(arg => eagerCombineAll(arg.map(wrap)))
+            : (args as DeepDestructable<unknown[], 1, RH, ECtx>).map(wrap);
+          const ret: Observable<unknown[]> = eagerCombineAll(array);
+          return ret;
+        }, { completeWithInner: true }),
+        tap(islocal || this.base ? clearLocal : clear),
       );
-      if (!islocal) result = wrapped;
-      this.map.set(id, [result, {}]);
-      subscription = wrapped.subscribe();
+      const subs = new Subscription;
+      const teardown = () => {
+        subs.unsubscribe();
+        unload?.({ id } as GlobalRef<V>);
+        const local = this.locals.get(id)?.[1];
+        if (!local || local.out) {
+          this.pushed.delete(obs);
+          this.pushes.next([obs, false]);
+        }
+        clear(); this.map.delete(id);
+        destroyed = true;
+      };
+      if (this.base && !islocal) {
+        result.subscribe().unsubscribe();
+        if (result.destroyed) throw new Error('Base store observable should be subscribed outside');
+        this.map.set(id, [result, {}]);
+        subscription = new Subscription();
+        subscription.add(result.add(asubj.subscribe()));
+        subscription.add(result.add(teardown));
+      } else {
+        const wrapped = defineProperty(
+          Object.assign(eagerCombineAll([obs, asubj]).pipe(
+            finalize(teardown),
+            map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
+          ), { origin: obs.origin, parent: obs, add: subs.add.bind(subs) }),
+          'destroyed', { get() { return destroyed } }
+        );
+        if (!islocal) result = wrapped;
+        this.map.set(id, [result, {}]);
+        subscription = wrapped.subscribe();
+      }
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
-        this.pushed.add(obs.origin);
-        this.pushes.next([obs.origin, true]);
+        this.pushed.add(obs);
+        this.pushes.next([obs, true]);
       }
     } else {
       result = this.map.get(id)![0];
@@ -597,7 +607,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     if (opt.graph) return new Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>(subscriber => {
       obs.then(obs => {
         const { subscription } = this.push(obs);
-        const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
+        const serialized = this.serialize(obs, { isNew: true, ignore: opt.ignore });
         subscriber.add(serialized.subscribe(subscriber));
         subscriber.add(subscription);
       })

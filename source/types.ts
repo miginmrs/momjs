@@ -182,9 +182,10 @@ export type EModelsDefinition<
   } & (AnyModelDefinition<EH, ECtx, indices>)[];
 export type TypedDestructable<T, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<any, any, any, any, any, EH, ECtx, (v: T) => void>;
 export type ObsWithOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
-  parent: ObsWithOrigin<V, EH, ECtx>,
-  origin: TypedDestructable<V, EH, ECtx>,
+  parent: ObsWithOrigin<V, EH, ECtx>;
+  origin: TypedDestructable<V, EH, ECtx>;
   readonly destroyed: boolean;
+  add(teardown: TeardownLogic): Subscription;
 }
 export type FIDS = number | string;
 export type FdcpConstraint<fIds extends FIDS> = Record<fIds, [[unknown, TVCDA_CIM, 1 | 2], [unknown, TVCDA_CIM, 1 | 2], Json]>;

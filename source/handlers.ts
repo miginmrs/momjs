@@ -71,7 +71,7 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
     type dom = Exclude<keyof C, keyof any[]>;
     type cim = [[[C, EH, ECtx], unknown], [C, Ref<C[dom]>],];
     const encoded: Ref<C[dom]>[] & { [X in dom]: Ref<C[X]> } = depMap<dom, cim, [typeof F_Destructable, typeof F_Ref]>(
-      args, <X extends dom>(x: AppX<0, cim, [typeof F_Destructable], X>): AppX<0, [cim[1]], [typeof F_Ref], X> => ref<C[X & Exclude<keyof C, ArrKeys>] & C[number]>(x.origin)
+      args, <X extends dom>(x: AppX<0, cim, [typeof F_Destructable], X>): AppX<0, [cim[1]], [typeof F_Ref], X> => ref<C[X & Exclude<keyof C, ArrKeys>] & C[number]>(x)
     );
     return encoded;
   },

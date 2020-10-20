@@ -38,13 +38,16 @@ export const destructableCmp = <dom, cim extends TVCDA_CIM, k extends TVCDADepCo
 export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx, $V extends (v: AppX<'V', cim, k, X>) => void = (v: AppX<'V', cim, k, X>) => void>
   extends Observable<Parameters<$V>[0]> implements ObsWithOrigin<Parameters<$V>[0], EH, ECtx> {
   readonly subject: BehaviorSubject<EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>>;
-  private destroy: Subscription
+  private destroy: Subscription;
   get destroyed() { return this.destroy.closed }
   source: Observable<Parameters<$V>[0]>;
   readonly origin = this;
   readonly parent = this;
   get handler(): CtxEH<dom, cim, k, n, EH, ECtx> {
     return byKey<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>>(this.handlers, this.key);
+  }
+  add(teardown: TeardownLogic) {
+    return this.destroy.add(teardown);
   }
   constructor(
     readonly handlers: EH,
@@ -72,7 +75,7 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
         alternMap(({ args, data }) => {
           const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);
           return (eagerCombineAll(array) as Observable<A>).pipe(
-            map(args =>[args, data, c] as [A, D, C]),
+            map(args => [args, data, c] as [A, D, C]),
           )
         }, { completeWithInner: true, completeWithSource: true }),
         tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
