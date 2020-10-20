@@ -406,6 +406,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     return { id, obs, subs };
   }
 
+  global = new Subscription();
+
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
     { unload, nextId }: {
@@ -456,8 +458,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         result.subscribe().unsubscribe();
         if (result.destroyed) throw new Error('Base store observable should be subscribed outside');
         this.map.set(id, [result, {}]);
-        result.add(asubj.subscribe());
-        result.add(teardown);
+        const subs = asubj.subscribe();
+        subs.add(teardown);
+        this.global.add(subs);
+        result.add(subs);
       } else {
         result = defineProperty(
           Object.assign(eagerCombineAll([obs, asubj]).pipe(
