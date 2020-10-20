@@ -456,10 +456,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         result.subscribe().unsubscribe();
         if (result.destroyed) throw new Error('Base store observable should be subscribed outside');
         this.map.set(id, [result, {}]);
-        subscription = new Subscription();
-        subscription.add(result.add(asubj.subscribe()));
-        subscription.add(result.add(teardown));
-        result.add(subscription);
+        result.add(asubj.subscribe());
+        result.add(teardown);
       } else {
         result = defineProperty(
           Object.assign(eagerCombineAll([obs, asubj]).pipe(
@@ -469,8 +467,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           'destroyed', { get() { return destroyed } }
         );
         this.map.set(id, [result, {}]);
-        subscription = result.subscribe();
       }
+      subscription = result.subscribe();
+      if(this.base) result.add(subscription);
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
         this.pushed.add(obs);
@@ -479,6 +478,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     } else {
       result = this.map.get(id)![0];
       subscription = result.subscribe();
+      if(this.base) result.add(subscription);
     }
     return { ref: { id } as GlobalRef<V>, wrapped: result, subscription };
   }
