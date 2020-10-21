@@ -76,7 +76,6 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
   private byId = new Map<k, [ObsWithOrigin<any, EH, ECtx>, D]>();
   private byObs = new Map<TypedDestructable<unknown, EH, ECtx>, k>();
   private oldId = new WeakMap<TypedDestructable<unknown, EH, ECtx>, k>();
-  private baseId = new WeakMap<TypedDestructable<unknown, EH, ECtx>, boolean>();
   constructor() { }
   get(id: k) { return this.byId.get(id); }
   delete(id: k) {
@@ -84,26 +83,41 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     if (stored) this.byObs.delete(stored[0].origin);
     return this.byId.delete(id);
   }
-  set(id: k, value: [ObsWithOrigin<unknown, EH, ECtx>, D], base: boolean) {
+  set(id: k, value: [ObsWithOrigin<unknown, EH, ECtx>, D]) {
     if (this.byObs.has(value[0].origin)) throw new Error('Object already in store');
     if (this.byId.has(id)) throw new Error('Id already used');
     this.byObs.set(value[0].origin, id);
     this.oldId.set(value[0].origin, id);
-    this.baseId.set(value[0].origin, base);
     this.byId.set(id, value);
   };
   reuseId(obs: ObsWithOrigin<unknown, EH, ECtx>, id: k) {
     this.oldId.set(obs.origin, id);
   };
-  find(obs: ObsWithOrigin<unknown, EH, ECtx>) {
+  finddir(obs: ObsWithOrigin<unknown, EH, ECtx>): [k, 'up' | 'down' | 'exact'] | undefined {
     const origin = obs.origin, id = this.byObs.get(origin);
-    const found = id && this.byId.get(id)?.[0];
-    if (found === undefined) return undefined;
-    let [toUp, check] = this.baseId.get(origin) ? [obs, found] : [found, obs];
-    for (let parent = toUp.parent; true; toUp = parent, parent = toUp.parent) {
-      if (toUp === check) return id;
-      if (toUp === parent) throw new Error('Another observable with the same origin is in the store');
+    if (id === undefined) return undefined;
+    const found = this.byId.get(id)![0];
+    let upfound = found, upobs = obs;
+    if (found === obs) return [id, 'exact'];
+    const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+    const err = new Error('Another observable with the same origin is in the store');
+    while (true) {
+      const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
+      if (obsParents.has(upfound)) {
+        if (upfound === obs) return [id, 'down'];
+        throw err;
+      }
+      if (foundParents.has(upobs)) {
+        if (upobs === found) return [id, 'up'];
+        throw err;
+      }
+      if (done) throw err;
+      upobs = upobs.parent;
+      upfound = upfound.parent;
     }
+  }
+  find(obs: ObsWithOrigin<unknown, EH, ECtx>, any = false) {
+    return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
   };
   usedId(obs: ObsWithOrigin<unknown, EH, ECtx>) {
     return this.oldId.get(obs.origin);
@@ -154,16 +168,16 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     this.functions = functions;
     this.map = new BiMap();
     this.locals = new BiMap();
-    for (const [obs, { id, in: isIn, out: isOut }] of locals) this.locals.set(id, [obs, { in: isIn, out: isOut }], true);
+    for (const [obs, { id, in: isIn, out: isOut }] of locals) this.locals.set(id, [obs, { in: isIn, out: isOut }]);
   }
 
   private next = one;
-  private pushed = new Set<ObsWithOrigin<unknown, RH, ECtx>>();
-  private pushes = new Subject<[ObsWithOrigin<unknown, RH, ECtx>, boolean]>();
+  private pushed = new Map<ObsWithOrigin<unknown, RH, ECtx>, string>();
+  private pushes = new Subject<[ObsWithOrigin<unknown, RH, ECtx>, string, boolean]>();
   readonly changes = new Observable<Notif<RH, ECtx>>(subscriber => {
     const map = new Map<ObsWithOrigin<unknown, RH, ECtx>, Subscription>();
     const ctx = this.emptyContext;
-    const watch = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: ObsWithOrigin<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Destructable<dom, cim, k, X, n, RH, ECtx> }): Subscription => {
+    const watch = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: ObsWithOrigin<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Destructable<dom, cim, k, X, n, RH, ECtx> }, id: string): Subscription => {
       const origin = obs.origin, encoder = origin.handler.encode(ctx);
       return origin.subject.pipe(scan((prev: { old?: AppX<'T', cim, k, X> }, v) => {
         const c: AppX<"C", cim, k, X> = origin.c;
@@ -172,15 +186,15 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       }, {}), filter(({ old: v }) => v !== undefined)).subscribe(
         ({ old: data, params }) => {
           subscriber.next(['next', [{
-            c: origin.c, i: 0, data, id: this.map.find(obs), new: !('old' in (params ?? {})), type: origin.key
+            c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
           }]]);
         },
-        err => subscriber.next(['error', { id: this.map.find(obs) } as GlobalRef<unknown>, err]),
-        () => subscriber.next(['complete', { id: this.map.find(obs) } as GlobalRef<unknown>]));
+        err => subscriber.next(['error', { id } as GlobalRef<unknown>, err]),
+        () => subscriber.next(['complete', { id } as GlobalRef<unknown>]));
     }
-    for (const obs of this.pushed) map.set(obs, watch(obs));
-    subscriber.add(this.pushes.subscribe(([obs, add]) => {
-      if (add) map.set(obs, watch(obs));
+    for (const [obs, id] of this.pushed) map.set(obs, watch(obs, id));
+    subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
+      if (add) map.set(obs, watch(obs, id));
       else {
         // console.log('remove', this.map.find(obs));
         const isStopped = (obs: ObsWithOrigin<unknown, RH, ECtx>): boolean => {
@@ -188,7 +202,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           if (subject.isStopped) return true;
           return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args))
         };
-        if (!isStopped(obs)) subscriber.next(['unsubscribe', { id: this.map.find(obs) } as GlobalRef<unknown>])
+        if (!isStopped(obs)) subscriber.next(['unsubscribe', { id } as GlobalRef<unknown>])
         map.get(obs)!.unsubscribe();
         map.delete(obs);
       };
@@ -209,11 +223,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     if (id === undefined) return `${this.prefix}${this.next++}`;
     return id;
   }
-
-  findRef<V>(obs: ObsWithOrigin<V, RH, ECtx>) {
-    const id = this.map.find(obs);
-    return typeof id === 'string' ? { id } as GlobalRef<V> : id;
-  };
 
   watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>) {
     const op = callHandler.handlers<0>();
@@ -287,7 +296,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const compare = handler.compare?.(ctx);
     const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(
       this.handlers, key, c, entry, compare, handler.destroy?.(ctx)(entry.data), () => this.map.delete(id));
-    this.map.set(id, [obs, {}], true);
+    this.map.set(id, [obs, {}]);
     return obs;
   }
   ref: ref<RH, ECtx> = <V>(obs: ObsWithOrigin<V, RH, ECtx>): GlobalRef<V> => {
@@ -418,12 +427,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       local?: [boolean],
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
-    const oldId = this.map.find(obs);
-    const id = this.getNext(oldId ?? this.locals.find(obs) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
+    const old = this.map.finddir(obs);
+    const id = this.getNext(old?.[0] ?? this.locals.find(obs, true) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
     let result = obs;
     let subscription: Subscription;
 
-    if (oldId === undefined) {
+    if (old === undefined) {
       let destroyed = false;
       const temp: Subscription[] = [];
       const clear = function (this: Subscription) {
@@ -454,7 +463,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
             const local = this.locals.get(id)?.[1];
             if (!local || local.out) {
               this.pushed.delete(obs);
-              this.pushes.next([obs, false]);
+              this.pushes.next([obs, id, false]);
             }
             clear.call(Subscription.EMPTY);
             this.map.delete(id);
@@ -466,15 +475,15 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       );
       const islocal = $local ? $local[0] : false;
       if (!islocal) result = wrapped;
-      this.map.set(id, [result, {}], islocal && this.base);
+      this.map.set(id, [result, {}]);
       subscription = wrapped.subscribe();
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
-        this.pushed.add(obs);
-        this.pushes.next([obs, true]);
+        this.pushed.set(obs, id);
+        this.pushes.next([obs, id, true]);
       }
     } else {
-      result = this.map.get(id)![0];
+      if(old[1] === 'down') result = this.map.get(id)![0];
       subscription = result.subscribe();
     }
     return { ref: { id } as GlobalRef<V>, wrapped: result, subscription };
@@ -527,7 +536,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         const $ = i ?? (iObs === obs ? 0 : next++);
         if (i === undefined) {
           if (!data) {
-            session.set($, [iObs, null], false);
+            session.set($, [iObs, null]);
             data = { data: encode() };
           }
           allData.set(iObs, data);
@@ -545,7 +554,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           attr.new = $ === 0 && previous === null && (isNew || !inMap(iObs));
           const stored = session.get($);
           if (stored) stored[1] = attr;
-          else session.set($, [iObs, attr], false);
+          else session.set($, [iObs, attr]);
         }
         return { $ } as LocalRef<V>;
       };
