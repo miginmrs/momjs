@@ -103,11 +103,8 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     const err = new Error('Another observable with the same origin is in the store');
     while (true) {
       const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-      if (obsParents.has(upfound)) {
+      if (obsParents.has(upfound) || foundParents.has(upobs)) {
         if (upfound === obs) return [id, 'down'];
-        throw err;
-      }
-      if (foundParents.has(upobs)) {
         if (upobs === found) return [id, 'up'];
         throw err;
       }
@@ -156,7 +153,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   fdcp extends FdcpConstraint<fIds>,
   fkx extends FkxConstraint<fIds, fdcp>,
   > {
-  private map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
+  protected map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
   readonly locals: BiMap<RH, ECtx, { in?: boolean, out?: boolean }>;
   constructor(
     readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
@@ -209,13 +206,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     }))
   });
 
-  subscribeToLocals() {
+  subscribeToLocals($local?: Subscription | undefined) {
     const subs = new Subscription();
-    const local: Subscription | undefined = this.base ? new Subscription : undefined;
+    const local: Subscription | undefined = $local ?? (this.base ? subs : undefined);
     for (const [, [obs]] of this.locals.entries()) {
       subs.add(this.push(obs, { local }).subscription);
     }
-    if (local) local.unsubscribe();
     return subs;
   }
 
@@ -425,11 +421,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
 
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { unload, nextId, local: $local, once }: {
+    { unload, nextId, local: $local }: {
       unload?: (ref: GlobalRef<V>) => void,
       nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined,
       local?: Subscription,
-      once?: boolean,
     } = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const old = this.map.finddir(obs);
@@ -495,7 +490,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       if (old[1] === 'down') wrapped = this.map.get(id)![0];
       subscription = wrapped.subscribe();
     }
-    if (once) { $local?.unsubscribe(); $local = undefined; }
     return { ref: { id } as GlobalRef<V>, wrapped, subscription };
   }
 
@@ -598,29 +592,31 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   }
 
   /* #region  local method signatures */
-  local<fId extends fIds>(
+  call<fId extends fIds>(
     fId: fId, param: fdcp[fId][2],
     arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>,
     opt?: { ignore?: string[], graph: true },
   ): Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>;
-  local<fId extends fIds>(
+  call<fId extends fIds>(
     fId: fId, param: fdcp[fId][2],
     arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>,
     opt: { ignore?: string[], graph?: false },
   ): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;
   /* #endregion */
 
-  local<fId extends fIds>(
+  call<fId extends fIds>(
     fId: fId, param: fdcp[fId][2],
     arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>,
     opt: { ignore?: string[], graph?: boolean } = {},
   ) {
     if (this.functions === null) throw new Error('Cannot call local functions from remote store');
     const f = this.functions[fId];
-    const obs = f(param, this.getValue(arg)[0]);
+    const subs = new Subscription();
+    const obs = f(param, this.getValue(arg)[0], subs);
     if (opt.graph) return new Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>(subscriber => {
       obs.then(obs => {
         const { subscription } = this.push(obs);
+        subs.unsubscribe();
         const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
         subscriber.add(serialized.subscribe(subscriber));
         subscriber.add(subscription);
@@ -629,6 +625,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     return new Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>(subscriber => {
       obs.then(obs => {
         const { subscription, ref } = this.push(obs);
+        subs.unsubscribe();
         subscriber.next(ref);
         subscriber.add(subscription);
       })
