@@ -7,6 +7,7 @@
   "sideEffects": true,
   "scripts": {
     "push": "yarn dist && node inc-version.js && npm publish",
+    "light": "yarn run dist:build:cjs && yarn test:js && yarn dist:build:bundle:dev:full",
     "test": "mocha -r ts-node/register test/**/*.ts",
     "test:js": "mocha dist/cjs/test/**/*.js",
     "test:js:debug": "mocha --inspect-brk dist/cjs/test/**/*.js",
