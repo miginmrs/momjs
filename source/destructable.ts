@@ -63,9 +63,9 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     type A = AppX<'A', cim, k, X>;
     type V = Parameters<$V>[0];
     const handler = this.handler;
+    let current: D = init.data;
     this.subject = new BehaviorSubject(init);
-    const destroy = this.destroy = new Subscription();
-    destroy.add(handler.destroy?.(init.data));
+    const destroy = this.destroy = new Subscription(() => handler.destroy?.(current));
     teardownList.forEach(cb => destroy.add(cb));
     destroy.add(() => {
       if (!this.subject.isStopped) this.subject.unsubscribe();
@@ -81,7 +81,7 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
           )
         }, { completeWithInner: true, completeWithSource: true }),
         tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
-        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, data, c, old, this), null)
+        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)
       ).subscribe(subscriber);
       subs.add(this.destroy);
       return subs;
