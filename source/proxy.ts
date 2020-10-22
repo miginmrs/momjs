@@ -89,9 +89,9 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds 
           to.next({ channel: ch, type: 'put', data: JSON.stringify(def) })
           return promise;
         },
-        error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-        complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
-        call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+        error: (ref, e) => to.next({ channel: callChannel, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
+        complete: ref => to.next({ channel: callChannel, type: 'complete', data: JSON.stringify(ref.id) }),
+        call: (fId, param, ref, opt) => to.next({ channel: callChannel, type: 'call', data: JSON.stringify({ fId, param, argId: ref.id, opt }) }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel && x.type in msg2to1keys)).subscribe(
           function (this: Subscription, { data, type }) {
             if (type === 'response_id') {

@@ -457,8 +457,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const teardown = () => {
         unload?.({ id } as GlobalRef<V>);
         const local = this.locals.get(id)?.[1];
-        if (!local || local.out) {
-          this.pushed.delete(obs);
+        if ((!local || local.out) && this.pushed.delete(obs)) {
           this.pushes.next([obs, id, false]);
         }
         clear.call(Subscription.EMPTY);
