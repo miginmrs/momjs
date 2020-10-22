@@ -41,11 +41,11 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
                 error: (err) => to.next({ channel, type: 'call_error', data: JSON.stringify(err) }),
                 complete: () => to.next({ channel, type: 'call_complete', data: '' }),
             };
-            const subs = opt.graph ? store.local(fId, param, ref, { ...opt, graph: true }).subscribe({
+            const subs = opt.graph ? store.call(fId, param, ref, { ...opt, graph: true }).subscribe({
                 ...observer, next: def => {
                     to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
                 }
-            }) : store.local(fId, param, ref, { ...opt, graph: false }).subscribe({
+            }) : store.call(fId, param, ref, { ...opt, graph: false }).subscribe({
                 ...observer, next: ref => {
                     to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) });
                 }

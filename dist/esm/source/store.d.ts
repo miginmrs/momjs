@@ -76,7 +76,10 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     readonly name?: string | undefined;
     readonly prefix: string;
     readonly base: boolean;
-    private map;
+    protected map: BiMap<RH, ECtx, {
+        subscription?: Subscription;
+        externalId?: PromiseLike<string>;
+    }>;
     readonly locals: BiMap<RH, ECtx, {
         in?: boolean;
         out?: boolean;
@@ -86,7 +89,7 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     private pushed;
     private pushes;
     readonly changes: Observable<Notif<RH, ECtx>>;
-    subscribeToLocals(): Subscription;
+    subscribeToLocals($local?: Subscription | undefined): Subscription;
     private getNext;
     watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>): Subscription;
     /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
@@ -121,7 +124,7 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
     push<V>(obs: ObsWithOrigin<V, RH, ECtx>, { unload, nextId, local: $local }?: {
         unload?: (ref: GlobalRef<V>) => void;
         nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined;
-        local?: [boolean];
+        local?: Subscription;
     }): {
         wrapped: ObsWithOrigin<V, RH, ECtx>;
         ref: GlobalRef<V>;
@@ -143,11 +146,11 @@ export declare class Store<RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends
         subscription?: Subscription | undefined;
         externalId?: PromiseLike<string> | undefined;
     }];
-    local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt?: {
+    call<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt?: {
         ignore?: string[];
         graph: true;
     }): Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>;
-    local<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: {
+    call<fId extends fIds>(fId: fId, param: fdcp[fId][2], arg: GlobalRef<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>>, opt: {
         ignore?: string[];
         graph?: false;
     }): Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>;

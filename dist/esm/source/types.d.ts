@@ -96,6 +96,7 @@ export declare type CtxEH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
         old?: AppX<'T', cim, k, X>;
     }) => AppX<'T', cim, k, X> | undefined;
     ctr: DestructableCtr<dom, cim, k, n, EH, ECtx>;
+    destroy?: RequestHandlerDestroy<dom, cim, k>;
 };
 export declare type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
     decode: (ctx: {
@@ -105,7 +106,6 @@ export declare type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint
         origin: Destructable<dom, cim, k, X, n, EH, ECtx>;
     } | null) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>;
     compare?: (ctx: ECtx) => RequestHandlerCompare<dom, cim, k, n, EH, ECtx>;
-    destroy?: (ctx: ECtx) => RequestHandlerDestroy<dom, cim, k>;
 };
 export declare type RequestRemoveCtx<O extends CtxH<any, any, any, any, any, any>> = O extends (ctx: any) => infer T ? T : never;
 export declare type CtxHandlerTVCDA<O extends CtxH<any, any, any, any, any, any>> = O extends CtxH<infer dom, infer cim, infer k, infer n, infer RH, infer ECtx> ? [dom, cim, k, n, RH, ECtx] : never;
@@ -174,7 +174,7 @@ export declare type FkxConstraint<fIds extends FIDS, fdcp extends FdcpConstraint
 export declare type Functions<EH extends EHConstraint<EH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>> = {
     [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
         origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>;
-    }) => PromiseLike<ObsWithOrigin<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>, EH, ECtx> & {
+    }, subs: Subscription) => PromiseLike<ObsWithOrigin<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>, EH, ECtx> & {
         origin: Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>;
     }>;
 };

@@ -28,13 +28,15 @@ class Destructable extends rxjs_1.Observable {
         this.parent = this;
         const handler = this.handler;
         this.subject = new rxjs_1.BehaviorSubject(init);
-        this.destroy = new rxjs_1.Subscription(() => {
+        const destroy = this.destroy = new rxjs_1.Subscription();
+        destroy.add(handler.destroy?.(init.data));
+        teardownList.forEach(cb => destroy.add(cb));
+        destroy.add(() => {
             if (!this.subject.isStopped)
                 this.subject.unsubscribe();
             else
                 this.subject.closed = true;
         });
-        teardownList.forEach(cb => this.destroy.add(cb));
         this.source = new rxjs_1.Observable(subscriber => {
             const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);

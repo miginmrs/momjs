@@ -25,13 +25,15 @@ export class Destructable extends Observable {
         this.parent = this;
         const handler = this.handler;
         this.subject = new BehaviorSubject(init);
-        this.destroy = new Subscription(() => {
+        const destroy = this.destroy = new Subscription();
+        destroy.add(handler.destroy?.(init.data));
+        teardownList.forEach(cb => destroy.add(cb));
+        destroy.add(() => {
             if (!this.subject.isStopped)
                 this.subject.unsubscribe();
             else
                 this.subject.closed = true;
         });
-        teardownList.forEach(cb => this.destroy.add(cb));
         this.source = new Observable(subscriber => {
             const subs = this.subject.pipe(distinctUntilChanged(compare), alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);

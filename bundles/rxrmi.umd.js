@@ -239,6 +239,7 @@ exports.destructableCmp = ({ compareData = (x, y) => x === y, compareObs = (x, y
 }) && compareData(x.data, y.data);
 class Destructable extends rxjs_1.Observable {
     constructor(handlers, key, c, init, compare = exports.destructableCmp(), ...teardownList) {
+        var _a;
         super();
         this.handlers = handlers;
         this.key = key;
@@ -247,13 +248,15 @@ class Destructable extends rxjs_1.Observable {
         this.parent = this;
         const handler = this.handler;
         this.subject = new rxjs_1.BehaviorSubject(init);
-        this.destroy = new rxjs_1.Subscription(() => {
+        const destroy = this.destroy = new rxjs_1.Subscription();
+        destroy.add((_a = handler.destroy) === null || _a === void 0 ? void 0 : _a.call(handler, init.data));
+        teardownList.forEach(cb => destroy.add(cb));
+        destroy.add(() => {
             if (!this.subject.isStopped)
                 this.subject.unsubscribe();
             else
                 this.subject.closed = true;
         });
-        teardownList.forEach(cb => this.destroy.add(cb));
         this.source = new rxjs_1.Observable(subscriber => {
             const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
                 const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);
@@ -446,11 +449,11 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
                 error: (err) => to.next({ channel, type: 'call_error', data: JSON.stringify(err) }),
                 complete: () => to.next({ channel, type: 'call_complete', data: '' }),
             };
-            const subs = opt.graph ? store.local(fId, param, ref, { ...opt, graph: true }).subscribe({
+            const subs = opt.graph ? store.call(fId, param, ref, { ...opt, graph: true }).subscribe({
                 ...observer, next: def => {
                     to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
                 }
-            }) : store.local(fId, param, ref, { ...opt, graph: false }).subscribe({
+            }) : store.call(fId, param, ref, { ...opt, graph: false }).subscribe({
                 ...observer, next: ref => {
                     to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) });
                 }
@@ -589,12 +592,9 @@ class BiMap {
         const err = new Error('Another observable with the same origin is in the store');
         while (true) {
             const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-            if (obsParents.has(upfound)) {
+            if (obsParents.has(upfound) || foundParents.has(upobs)) {
                 if (upfound === obs)
                     return [id, 'down'];
-                throw err;
-            }
-            if (foundParents.has(upobs)) {
                 if (upobs === found)
                     return [id, 'up'];
                 throw err;
@@ -706,14 +706,12 @@ class Store {
         for (const [obs, { id, in: isIn, out: isOut }] of locals)
             this.locals.set(id, [obs, { in: isIn, out: isOut }]);
     }
-    subscribeToLocals() {
+    subscribeToLocals($local) {
         const subs = new rxjs_1.Subscription();
-        const local = this.base ? [true] : undefined;
+        const local = $local !== null && $local !== void 0 ? $local : (this.base ? subs : undefined);
         for (const [, [obs]] of this.locals.entries()) {
             subs.add(this.push(obs, { local }).subscription);
         }
-        if (local)
-            local[0] = false;
         return subs;
     }
     getNext(id) {
@@ -765,10 +763,10 @@ class Store {
     }
     /** inserts a new destructable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
-        var _a, _b;
+        var _a;
         const handler = guards_1.byKey(this.handlers, key);
         const compare = (_a = handler.compare) === null || _a === void 0 ? void 0 : _a.call(handler, ctx);
-        const obs = new destructable_1.Destructable(this.handlers, key, c, entry, compare, (_b = handler.destroy) === null || _b === void 0 ? void 0 : _b.call(handler, ctx)(entry.data), () => this.map.delete(id));
+        const obs = new destructable_1.Destructable(this.handlers, key, c, entry, compare, () => this.map.delete(id));
         this.map.set(id, [obs, {}]);
         return obs;
     }
@@ -796,8 +794,11 @@ class Store {
                 const isNew = m.new !== false;
                 if (isNew && subs !== undefined)
                     throw new Error('Trying to subscribe to an already subscribed entity');
-                if (isNew)
-                    subscriptions.push(this.map.get(id)[1].subscription = obs.subscribe(() => { }));
+                if (isNew) {
+                    const attr = this.map.get(id)[1];
+                    subscriptions.push(attr.subscription = obs.subscribe(() => { }));
+                    attr.subscription.add(() => attr.subscription = undefined);
+                }
                 else if (!obs.subject.isStopped)
                     temp.push(obs.subscribe(() => { }));
                 const ref = { id };
@@ -823,7 +824,7 @@ class Store {
         var _a, _b, _c, _d;
         const old = this.map.finddir(obs);
         const id = this.getNext((_c = (_b = (_a = old === null || old === void 0 ? void 0 : old[0]) !== null && _a !== void 0 ? _a : this.locals.find(obs, true)) !== null && _b !== void 0 ? _b : this.map.usedId(obs.origin)) !== null && _c !== void 0 ? _c : nextId === null || nextId === void 0 ? void 0 : nextId(obs));
-        let result = obs;
+        let wrapped = obs;
         let subscription;
         if (old === undefined) {
             let destroyed = false;
@@ -832,21 +833,19 @@ class Store {
                 temp.forEach(this.add.bind(this));
                 temp.length = 0;
             };
-            const wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([
-                obs,
-                obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
-                    const wrap = (obs) => {
-                        const res = this.push(obs, { local: ($local === null || $local === void 0 ? void 0 : $local[0]) ? $local : undefined, nextId: (nextId && ((obs, pId) => nextId(obs, pId !== null && pId !== void 0 ? pId : id))) });
-                        temp.push(res.subscription);
-                        return res.wrapped;
-                    };
-                    const array = n === 2
-                        ? args.map(arg => rx_utils_1.eagerCombineAll(arg.map(wrap)))
-                        : args.map(wrap);
-                    const ret = rx_utils_1.eagerCombineAll(array);
-                    return ret;
-                }, { completeWithInner: true }), operators_1.tap(clear))
-            ]).pipe(operators_1.finalize(() => {
+            const asubj = obs.origin.subject.pipe(altern_map_1.alternMap(({ args, n }) => {
+                const wrap = (obs) => {
+                    const res = this.push(obs, { local: $local, nextId: (nextId && ((obs, pId) => nextId(obs, pId !== null && pId !== void 0 ? pId : id))) });
+                    temp.push(res.subscription);
+                    return res.wrapped;
+                };
+                const array = n === 2
+                    ? args.map(arg => rx_utils_1.eagerCombineAll(arg.map(wrap)))
+                    : args.map(wrap);
+                const ret = rx_utils_1.eagerCombineAll(array);
+                return ret;
+            }, { completeWithInner: true }), operators_1.tap(clear));
+            const teardown = () => {
                 var _a;
                 unload === null || unload === void 0 ? void 0 : unload({ id });
                 const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
@@ -857,12 +856,18 @@ class Store {
                 clear.call(rxjs_1.Subscription.EMPTY);
                 this.map.delete(id);
                 destroyed = true;
-            }), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-            const islocal = $local ? $local[0] : false;
-            if (!islocal)
-                result = wrapped;
-            this.map.set(id, [result, {}]);
-            subscription = wrapped.subscribe();
+            };
+            if (($local === null || $local === void 0 ? void 0 : $local.closed) !== false) {
+                wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+                this.map.set(id, [wrapped, {}]);
+                subscription = wrapped.subscribe(() => { });
+            }
+            else {
+                $local.add(asubj.subscribe(() => { }));
+                $local.add(teardown);
+                this.map.set(id, [wrapped, {}]);
+                subscription = wrapped.subscribe(() => { });
+            }
             const local = (_d = this.locals.get(id)) === null || _d === void 0 ? void 0 : _d[1];
             if (!local || local.out) {
                 this.pushed.set(obs, id);
@@ -871,10 +876,10 @@ class Store {
         }
         else {
             if (old[1] === 'down')
-                result = this.map.get(id)[0];
-            subscription = result.subscribe();
+                wrapped = this.map.get(id)[0];
+            subscription = wrapped.subscribe(() => { });
         }
-        return { ref: { id }, wrapped: result, subscription };
+        return { ref: { id }, wrapped, subscription };
     }
     /**
      * serialize any destructable object regardless wether its in the store
@@ -970,15 +975,17 @@ class Store {
         return obs;
     }
     /* #endregion */
-    local(fId, param, arg, opt = {}) {
+    call(fId, param, arg, opt = {}) {
         if (this.functions === null)
             throw new Error('Cannot call local functions from remote store');
         const f = this.functions[fId];
-        const obs = f(param, this.getValue(arg)[0]);
+        const subs = new rxjs_1.Subscription();
+        const obs = f(param, this.getValue(arg)[0], subs);
         if (opt.graph)
             return new rxjs_1.Observable(subscriber => {
                 obs.then(obs => {
                     const { subscription } = this.push(obs);
+                    subs.unsubscribe();
                     const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
                     subscriber.add(serialized.subscribe(subscriber));
                     subscriber.add(subscription);
@@ -987,6 +994,7 @@ class Store {
         return new rxjs_1.Observable(subscriber => {
             obs.then(obs => {
                 const { subscription, ref } = this.push(obs);
+                subs.unsubscribe();
                 subscriber.next(ref);
                 subscriber.add(subscription);
             });
@@ -1014,7 +1022,7 @@ class Store {
                         error: e => op.error(refArg, e),
                         complete: () => op.complete(refArg),
                     }), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
-                const paramSubs = serializeObs.subscribe();
+                const paramSubs = serializeObs.subscribe(() => { });
                 this.callReturnRef.set(subscriber, refTask[0]);
                 callSubscription.add(() => {
                     if (paramSubs.closed)
