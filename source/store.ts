@@ -291,7 +291,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const handler = byKey<RHConstraint<RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
     const compare = handler.compare?.(ctx);
     const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(
-      this.handlers, key, c, entry, compare, handler.destroy?.(ctx)(entry.data), () => this.map.delete(id));
+      this.handlers, key, c, entry, compare, () => this.map.delete(id));
     this.map.set(id, [obs, {}]);
     return obs;
   }
@@ -474,12 +474,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           'destroyed', { get() { return destroyed } }
         );
         this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe();
+        subscription = wrapped.subscribe(()=>{});
       } else {
-        $local.add(asubj.subscribe());
+        $local.add(asubj.subscribe(()=>{}));
         $local.add(teardown);
         this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe();
+        subscription = wrapped.subscribe(()=>{});
       }
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
@@ -488,7 +488,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       }
     } else {
       if (old[1] === 'down') wrapped = this.map.get(id)![0];
-      subscription = wrapped.subscribe();
+      subscription = wrapped.subscribe(()=>{});
     }
     return { ref: { id } as GlobalRef<V>, wrapped, subscription };
   }
@@ -685,7 +685,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           error: e => op.error(refArg, e),
           complete: () => op.complete(refArg),
         }), shareReplay({ refCount: true, bufferSize: 1 })));
-        const paramSubs = serializeObs.subscribe();
+        const paramSubs = serializeObs.subscribe(()=>{});
         this.callReturnRef.set(subscriber, refTask[0]);
         callSubscription.add(() => {
           if (paramSubs.closed) return;

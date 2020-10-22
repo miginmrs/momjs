@@ -75,7 +75,7 @@ describe('Stores Global Communication', () => {
     const b = newJson<xn>({ x: 10 });
     const c = newJson<xn>({ x: 20 });
     const arg = newArray<[xn, xn]>([a, b]);
-    const subs = arg.subscribe();
+    const subs = arg.subscribe(()=>{});
     let firstCallResult: xn[][] = [];
 
     store1.remote(
