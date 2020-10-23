@@ -156,7 +156,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   protected map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
   readonly locals: BiMap<RH, ECtx, { in?: boolean, out?: boolean }>;
   constructor(
-    readonly handlers: RH, private extra: ECtx, private promiseCtr: PromiseCtr,
+    readonly getHandler: <R>(k: KeysOfType<RHConstraint<RH, ECtx>, R>) => R, private extra: ECtx, private promiseCtr: PromiseCtr,
     private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
     readonly name?: string, readonly prefix = '',
     locals: LocalObs<RH, ECtx>[] = [],
@@ -247,7 +247,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       cache: ObsCache<indices, dcim, keys, X, N, RH, ECtx>,
       i: i,
   ): NonUndefined<ObsCache<indices, dcim, keys, X, N, RH, ECtx>[i]> {
-    const handler = byKey<RHConstraint<RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
+    const handler = this.getHandler<CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(key);
     if (cache[i] !== undefined) return cache[i] as NonUndefined<typeof cache[i]>;
     const model: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = models[i], { id: usedId } = model;
     if (model.data === undefined) throw new Error('Trying to access a destructed object');
@@ -288,10 +288,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       id: string,
       c: AppX<'C', dcim[i][1], keys[i], X[i]>,
   ) {
-    const handler = byKey<RHConstraint<RH, ECtx>, CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(this.handlers, key);
+    const getHandler = this.getHandler, handler = getHandler<CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(key);
     const compare = handler.compare?.(ctx);
-    const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(
-      this.handlers, key, c, entry, compare, () => this.map.delete(id));
+    const obs = new Destructable<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(getHandler, key, c, entry, compare, () => this.map.delete(id));
     this.map.set(id, [obs, {}]);
     return obs;
   }
@@ -307,14 +306,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     N extends Record<indices, 1 | 2>,
     >(v: ObsWithOrigin<{ [P in indices]: dcim[P][1]['V'][1]; }[indices], RH, ECtx>,
       ...args: [xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>] | [derefHandlers<indices, dcim, keys, N, RH, ECtx>, 0]) => {
-    const origin = v.origin;
+    const origin = v.origin, getHandler = this.getHandler;
     const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(
       depMap(args[0], (x: xDerefHandler<indices, dcim, keys, X, N, RH, ECtx, indices> | derefHandler<indices, dcim, keys, N, RH, ECtx, indices>) => x instanceof Array ? x[0] : x)));
     if (args.length === 1) {
-      if (args[0].length && !args[0].some(([key, c]) => origin.handler === byKey(this.handlers, key) && origin.c === c)) throw err();
+      if (args[0].length && !args[0].some(([key, c]) => origin.handler === getHandler(key) && origin.c === c)) throw err();
     } else {
-      const handlers: EHConstraint<RH, ECtx> = this.handlers;
-      if (args[0].length && !args[0].some(key => origin.handler === byKey(handlers, key))) throw err();
+      if (args[0].length && !args[0].some(key => origin.handler === getHandler(key))) throw err();
     }
     return v as derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
   };
@@ -473,12 +471,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           'destroyed', { get() { return destroyed } }
         );
         this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe(()=>{});
+        subscription = wrapped.subscribe(() => { });
       } else {
-        $local.add(asubj.subscribe(()=>{}));
+        $local.add(asubj.subscribe(() => { }));
         $local.add(teardown);
         this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe(()=>{});
+        subscription = wrapped.subscribe(() => { });
       }
       const local = this.locals.get(id)?.[1];
       if (!local || local.out) {
@@ -487,7 +485,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       }
     } else {
       if (old[1] === 'down') wrapped = this.map.get(id)![0];
-      subscription = wrapped.subscribe(()=>{});
+      subscription = wrapped.subscribe(() => { });
     }
     return { ref: { id } as GlobalRef<V>, wrapped, subscription };
   }
@@ -614,8 +612,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const obs = f(param, this.getValue(arg)[0], subs);
     if (opt.graph) return new Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>(subscriber => {
       obs.then(obs => {
-        const { subscription } = this.push(obs);
-        subs.unsubscribe();
+        const { subscription } = this.push(obs, { unload: subs.unsubscribe.bind(subs) });
         const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
         subscriber.add(serialized.subscribe(subscriber));
         subscriber.add(subscription);
@@ -623,8 +620,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     });
     return new Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>(subscriber => {
       obs.then(obs => {
-        const { subscription, ref } = this.push(obs);
-        subs.unsubscribe();
+        const { subscription, ref } = this.push(obs, { unload: subs.unsubscribe.bind(subs) });
         subscriber.next(ref);
         subscriber.add(subscription);
       })
@@ -684,7 +680,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           error: e => op.error(refArg, e),
           complete: () => op.complete(refArg),
         }), shareReplay({ refCount: true, bufferSize: 1 })));
-        const paramSubs = serializeObs.subscribe(()=>{});
+        const paramSubs = serializeObs.subscribe(() => { });
         this.callReturnRef.set(subscriber, refTask[0]);
         callSubscription.add(() => {
           if (paramSubs.closed) return;

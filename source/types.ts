@@ -1,5 +1,5 @@
 import type { Destructable, EntryObs } from './destructable';
-import type { TeardownLogic, Observable, Subscription } from 'rxjs';
+import type { TeardownLogic, Observable, Subscription, Unsubscribable } from 'rxjs';
 import type { KeysOfType, App, TypeFuncs, Fun, AppX, DepConstaint } from 'dependent-type';
 
 
@@ -103,6 +103,7 @@ export type ref<EH extends EHConstraint<EH, ECtx>, ECtx> = {
 };
 
 export type TVCDADepConstaint<dom, cim extends TVCDA_CIM> = DepConstaint<TVCDA, dom, cim>;
+export type TeardownAction = Unsubscribable | (() => void);
 
 export type DestructableCtr<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
   <X extends dom>(args: AppX<'A', cim, k, X>, data: AppX<'D', cim, k, X>, c: AppX<'C', cim, k, X>, old: null | AppX<'V', cim, k, X>, destructable: Destructable<dom, cim, k, X, n, EH, ECtx>): AppX<'V', cim, k, X>

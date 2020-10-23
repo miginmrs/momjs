@@ -11,6 +11,7 @@ import { take } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
 import { App, DepConstaint, Fun, map as dep_map, TypeFuncs } from 'dependent-type';
 import _ from 'lodash';
+import { keys } from '../utils/guards';
 
 const { depMap } = dep_map;
 
@@ -100,7 +101,7 @@ const testScheduler = new TestScheduler((actual, expected) => {
 
 
 describe('Store', () => {
-  const store = new Store(RequestHandlers, { someData: 1 }, Promise)
+  const store = new Store<RH, {}, never, {}, {}>(keys<RH>(RequestHandlers), { someData: 1 }, Promise)
   describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
@@ -183,9 +184,9 @@ describe('Store', () => {
   let arrWrp: ObsWithOrigin<[[json, json, json], json], RH, {}>;
   let originSubs: Subscription;
   describe('push method', () => {
-    const handlers = RequestHandlers;
-    const newArray = wrapArray<RH, {}>(handlers);
-    const newJson = wrapJson<RH, {}>(handlers);
+    const getHandler = keys(RequestHandlers);
+    const newArray = wrapArray<RH, {}>(getHandler);
+    const newJson = wrapJson<RH, {}>(getHandler);
 
     let subs: Subscription;
     it('should chain insertion', async () => {
@@ -253,8 +254,8 @@ describe('Store', () => {
   });
   describe('Double dimension destructable', () => {
     it('should go to the correct depth', async () => {
-      const handlers = RequestHandlers;
-      jsonObs = new Destructable(handlers, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n: 1 });
+      const getHandler = keys(RequestHandlers);
+      jsonObs = new Destructable(getHandler, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n: 1 });
       const { ref: rf, subscription } = await store.push(jsonObs);
       debugger;
       const [ref] = store.unserialize<0, [[any[], ArrayCim2]], [ArrayTypeKeys2], [[[json]]], [2]>([{

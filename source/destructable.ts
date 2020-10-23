@@ -1,8 +1,8 @@
-import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription, TeardownLogic, Unsubscribable } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { eagerCombineAll } from '../utils/rx-utils';
 import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
-import { TVCDA_CIM, TVCDADepConstaint, EHConstraint, CtxEH, RequestHandlerCompare, ObsWithOrigin, ArrKeys } from './types';
+import { TVCDA_CIM, TVCDADepConstaint, EHConstraint, CtxEH, RequestHandlerCompare, ObsWithOrigin, ArrKeys, TeardownAction } from './types';
 import type { AppX, KeysOfType } from 'dependent-type';
 import { byKey } from '../utils/guards';
 import '../utils/rx-utils'
@@ -43,26 +43,24 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
   source: Observable<Parameters<$V>[0]>;
   readonly origin = this;
   readonly parent = this;
-  get handler(): CtxEH<dom, cim, k, n, EH, ECtx> {
-    return byKey<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>>(this.handlers, this.key);
-  }
+  readonly handler: CtxEH<dom, cim, k, n, EH, ECtx>;
   add(teardown: TeardownLogic) {
     return this.destroy.add(teardown);
   }
   constructor(
-    readonly handlers: EH,
+    readonly getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R,
     readonly key: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string,
     readonly c: AppX<'C', cim, k, X>,
     init: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>,
     compare = destructableCmp<dom, cim, k, n, EH, ECtx>(),
-    ...teardownList: TeardownLogic[]
+    ...teardownList: TeardownAction[]
   ) {
     super();
     type C = AppX<'C', cim, k, X>;
     type D = AppX<'D', cim, k, X>;
     type A = AppX<'A', cim, k, X>;
     type V = Parameters<$V>[0];
-    const handler = this.handler;
+    const handler = this.handler = getHandler(key);
     let current: D = init.data;
     this.subject = new BehaviorSubject(init);
     const destroy = this.destroy = new Subscription(() => handler.destroy?.(current));

@@ -10,6 +10,7 @@ import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
 import { collect, msg, xn } from './common';
 import { alternMap } from 'altern-map';
+import { keys } from '../utils/guards';
 
 namespace RequestHandlers {
   export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
@@ -21,9 +22,9 @@ type RH = typeof RequestHandlers;
 describe('Stores Global Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[], remainingKeys2: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
-    const handlers = RequestHandlers;
-    const newArray = wrapArray<RH, {}>(handlers);
-    const newJson = wrapJson<RH, {}>(handlers);
+    const getHandler = keys(RequestHandlers);
+    const newArray = wrapArray<RH, {}>(getHandler);
+    const newJson = wrapJson<RH, {}>(getHandler);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
@@ -35,7 +36,7 @@ describe('Stores Global Communication', () => {
 
 
     // STORE2
-    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, {
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, {
       [fMul]: (_, arg) => {
         const subs = new Subscription();
         const obs = newArray<xn[]>([], subs);
@@ -52,7 +53,7 @@ describe('Stores Global Communication', () => {
         return Promise.resolve(obs);
       }
     }, 'store2');
-    const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(handlers, {}, Promise, null, 'store1', '$');
+    const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
     (global as any).store1 = store1;
     (global as any).store2 = store2;
     const msg1to2 = new Subject<DataGram<msg1to2 | msg2to1>>();

@@ -1,12 +1,12 @@
 /// <reference path="../typings/deep-is.d.ts" />
 
-import { CtxH, Ref, EHConstraint, DestructableCtr, ref, CtxEH, JsonObject, Json, TVCDA_CIM, ObsWithOrigin, ArrKeys } from './types';
+import { CtxH, Ref, EHConstraint, DestructableCtr, ref, CtxEH, JsonObject, Json, TVCDA_CIM, ObsWithOrigin, ArrKeys, TeardownAction } from './types';
 import { DeepDestructable, Destructable, EntryObs, TwoDestructable } from './destructable';
 import { map as dep_map, AppX, DepConstaint, TypeFuncs, KeysOfType, App } from 'dependent-type';
 import type { BadApp, Fun } from 'dependent-type';
 import { toCond } from '../utils/guards';
 import { deref } from '.';
-import { identity, TeardownLogic } from 'rxjs';
+import { identity, TeardownLogic, Unsubscribable } from 'rxjs';
 import equal from 'deep-is';
 
 const { depMap } = dep_map;
@@ -51,6 +51,7 @@ declare module 'dependent-type' {
     [F_Ref]: Ref<C[X & Exclude<keyof C, ArrKeys>] & C[keyof C & number]>,
   }
 }
+export type TVCDA_FC = { T: typeof F_C, V: typeof F_C, C: typeof F_C, D: typeof F_C, A: typeof F_C };
 
 
 export type ArrayCim = { T: [never, Ref<unknown>[]], V: [never, unknown[]], C: [null, null], D: [null, null], A: [never, unknown[]] };
@@ -85,10 +86,10 @@ export type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, E
 export type ArrayWithOrigin<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = ObsWithOrigin<A, EH, ECtx> & {
   origin: ArrayDestructable<A, EH, ECtx>
 };
-export const wrapArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(handlers: EH) => <A extends unknown[]>(
-  args: DeepDestructable<AppX<'A', ArrayCim, ArrayTypeKeys, A> & A, ArrayN, EH, ECtx>, ...teardownList: TeardownLogic[]
+export const wrapArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <A extends unknown[]>(
+  args: DeepDestructable<AppX<'A', ArrayCim, ArrayTypeKeys, A> & A, ArrayN, EH, ECtx>, ...teardownList: TeardownAction[]
 ): ArrayDestructable<A, EH, ECtx> => new Destructable(
-  handlers, 'Array', null, { data: null, args, n: ArrayN }, undefined, ...teardownList
+  getHandler, 'Array', null, { data: null, args, n: ArrayN }, undefined, ...teardownList
 );
 
 export const toArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(
@@ -164,13 +165,27 @@ export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): JsonHand
   ) => old ? deepUpdate(old, data) : data,
 });
 export type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
-export const wrapJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(handlers: EH) => <X extends JsonObject>(
-  data: X, ...teardownList: TeardownLogic[]
+export const wrapJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends JsonObject>(
+  data: X, ...teardownList: TeardownAction[]
 ): JsonDestructable<X, EH, ECtx> => new Destructable(
-  handlers, 'Json', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
+  getHandler, 'Json', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
 );
 
 export const toJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(
   deref: deref<EH, ECtx>
 ) => (p: Ref<JsonObject>) => deref<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [JsonObject], [1]>(p, 'Json');
+
+
+export class LocalReference { private _: never; constructor(readonly refered: any) { } }
+
+export type LocalCim = { T: [{}, {}], V: [LocalReference, LocalReference], C: [null, null], D: [null, null], A: [[], []] };
+
+export type LocalReferenceHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<never, LocalCim, TVCDA_FC, 1, EH, ECtx>;
+const LocalReferenceCtr = () => new LocalReference({});
+export type LocalHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<never, LocalCim, TVCDA_FC, 1, EH, ECtx>;
+export const LocalHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): LocalHandler<EH, ECtx> => ({
+  decode: () => () => ({ args: [], data: null, c: null, n: 1 }),
+  encode: () => () => ({}),
+  ctr: LocalReferenceCtr,
+});
 
