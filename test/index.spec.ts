@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_Destructable, F_ID, F_C } from '../source/handlers';
+import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_Serial, F_ID, F_C } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
 import {
-  Destructable, ObsWithOrigin, CtxH, Ref, EHConstraint, DeepDestructable, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable, JsonObject, ArrKeys, TwoDestructable
+  Origin, TSerialObs, CtxH, Ref, EHConstraint, DeepSerial, createJson, ArrayHandler, createArray, JsonOrigin, ArrayOrigin, JsonObject, ArrKeys, SerialArray
 } from '../source';
 import { Subscription, ObservedValueOf, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
@@ -17,12 +17,12 @@ const { depMap } = dep_map;
 type ToRef1<C> = Ref<C[keyof C & number]>[] & { [P in Exclude<keyof C, keyof any[]>]: Ref<C[P] & C[keyof C & number]> }
 type ToRef2<C> = Ref<C[keyof C & number][keyof C[keyof C & number] & number]>[][] & {
   [P in Exclude<keyof C, keyof any[]>]: ToRef1<C[P]>; };
-declare const F_Destructable2: unique symbol;
+declare const F_Serial2: unique symbol;
 declare const F_ArrArgs2: unique symbol;
 declare const F_Ref2: unique symbol;
 declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
-    [F_Destructable2]: DeepDestructable<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number] & unknown[], 1, C[1 & keyof C], C[2 & keyof C]>,
+    [F_Serial2]: DeepSerial<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number] & unknown[], 1, C[1 & keyof C], C[2 & keyof C]>,
     [F_ArrArgs2]: ToRef2<X>,
     [F_Ref2]: Ref<C[keyof C & number][keyof C[keyof C & number] & number]>[] & ToRef1<C[X & keyof C]>,
   }
@@ -42,31 +42,31 @@ const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<unknown[
     type dom = Exclude<keyof C, keyof any[]>;
     type cim = [
       [C, unknown],
-      [[C, EH, ECtx], DeepDestructable<C[number] & unknown[], 1, EH, ECtx>],
+      [[C, EH, ECtx], DeepSerial<C[number] & unknown[], 1, EH, ECtx>],
     ];
-    type k = [typeof F_Ref2, typeof F_Destructable2];
-    const mapper = <X extends dom>(refs: AppX<0, cim, k, X>): TwoDestructable<C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[], EH, ECtx> => {
+    type k = [typeof F_Ref2, typeof F_Serial2];
+    const mapper = <X extends dom>(refs: AppX<0, cim, k, X>): SerialArray<C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[], EH, ECtx> => {
       type CX = C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[];
       type dom2 = Exclude<keyof CX, keyof any[]>;
-      type cim2 = [[CX, unknown], [[CX, EH, ECtx], ObsWithOrigin<CX[number], EH, ECtx>]];
-      type k2 = [F_Ref, F_Destructable];
-      type out = ObsWithOrigin<CX[number], EH, ECtx>[] & {
-        [k in dom2]: ObsWithOrigin<CX[k] & CX[number], EH, ECtx>;
+      type cim2 = [[CX, unknown], [[CX, EH, ECtx], TSerialObs<CX[number], EH, ECtx>]];
+      type k2 = [F_Ref, F_Serial];
+      type out = TSerialObs<CX[number], EH, ECtx>[] & {
+        [k in dom2]: TSerialObs<CX[k] & CX[number], EH, ECtx>;
       };
       return depMap<dom2, cim2, k2>(refs, ref => deref(ref)) as out;
     };
-    const args: DeepDestructable<C[number] & unknown[], 1, EH, ECtx>[] & {
-      [k in dom]: DeepDestructable<C[k] & unknown[], 1, EH, ECtx>;
+    const args: DeepSerial<C[number] & unknown[], 1, EH, ECtx>[] & {
+      [k in dom]: DeepSerial<C[k] & unknown[], 1, EH, ECtx>;
     } = depMap<dom, cim, k>(data, mapper);
     return { args, data: null, n: 2 };
   },
-  encode: ({ ref }) => <C extends unknown[][]>({ args }: { args: DeepDestructable<AppX<'A', ArrayCim2, ArrayTypeKeys2, C>, 2, EH, ECtx> }): ToRef2<C> => {
+  encode: ({ ref }) => <C extends unknown[][]>({ args }: { args: DeepSerial<AppX<'A', ArrayCim2, ArrayTypeKeys2, C>, 2, EH, ECtx> }): ToRef2<C> => {
     type dom = Exclude<keyof C, keyof any[]>;
     type cim = [
       [[C, EH, ECtx], unknown],
       [C, Ref<C[number][number]>[]]
     ];
-    type k = [typeof F_Destructable2, typeof F_Ref2];
+    type k = [typeof F_Serial2, typeof F_Ref2];
     const mapper = <X extends dom>(arg: AppX<0, cim, k, X>
     ): AppX<1, cim, k, X> => {
       type dom2 = Exclude<keyof C[X], keyof any[]>;
@@ -74,7 +74,7 @@ const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<unknown[
         dom2, [
           [[C[X], EH, ECtx], unknown],
           [C[X], Ref<C[X][keyof C[X] & number]>]
-        ], [typeof F_Destructable, typeof F_Ref]>(arg, ref);
+        ], [typeof F_Serial, typeof F_Ref]>(arg, ref);
       return item;
     }
     return depMap<dom, cim, k>(args, mapper);
@@ -100,7 +100,7 @@ const testScheduler = new TestScheduler((actual, expected) => {
 
 
 describe('Store', () => {
-  const store = new Store<RH, {}, never, {}, {}>(keys<RH>(RequestHandlers), { someData: 1 }, Promise)
+  const store = new Store<RH, {}, never, {}, {}, never, {}, {}>(keys<RH>(RequestHandlers), { someData: 1 }, Promise)
   describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
@@ -176,16 +176,16 @@ describe('Store', () => {
     });
   });
   type json = { msg: string };
-  let jsonObs: JsonDestructable<json, RH, {}>;
-  let arr1Obs: ArrayDestructable<[json, json, json], RH, {}>;
-  let arr2Obs: ArrayDestructable<[[json, json, json], json], RH, {}>;
-  let jsonWrp: ObsWithOrigin<json, RH, {}>;
-  let arrWrp: ObsWithOrigin<[[json, json, json], json], RH, {}>;
+  let jsonObs: JsonOrigin<json, RH, {}>;
+  let arr1Obs: ArrayOrigin<[json, json, json], RH, {}>;
+  let arr2Obs: ArrayOrigin<[[json, json, json], json], RH, {}>;
+  let jsonWrp: TSerialObs<json, RH, {}>;
+  let arrWrp: TSerialObs<[[json, json, json], json], RH, {}>;
   let originSubs: Subscription;
   describe('push method', () => {
     const getHandler = keys(RequestHandlers);
-    const newArray = wrapArray<RH, {}>(getHandler);
-    const newJson = wrapJson<RH, {}>(getHandler);
+    const newArray = createArray<RH, {}>(getHandler);
+    const newJson = createJson<RH, {}>(getHandler);
 
     let subs: Subscription;
     it('should chain insertion', async () => {
@@ -242,7 +242,7 @@ describe('Store', () => {
       originSubs.unsubscribe();
       expect([jsonObs.destroyed, arr1Obs.destroyed, arr2Obs.destroyed]).deep.eq([true, true, true]);
       [arrWrp] = store.getValue(ref);
-      jsonWrp = arrWrp.origin.subject.value.args[1] as ObsWithOrigin<json, RH, {}>;
+      jsonWrp = arrWrp.origin.subject.value.args[1] as TSerialObs<json, RH, {}>;
       expect([jsonWrp.destroyed, jsonWrp.destroyed]).deep.eq([false, false]);
     });
     it('should chain destruction', () => {
@@ -251,10 +251,10 @@ describe('Store', () => {
       //jsonObs = store.getValue()
     });
   });
-  describe('Double dimension destructable', () => {
+  describe('Double dimension serial observale', () => {
     it('should go to the correct depth', async () => {
       const getHandler = keys(RequestHandlers);
-      jsonObs = new Destructable(getHandler, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n: 1 });
+      jsonObs = new Origin(getHandler, 'Json', null, { args: [] as [], data: { msg: 'hi' }, n: 1 });
       const { ref: rf, subscription } = await store.push(jsonObs);
       debugger;
       const [ref] = store.unserialize<0, [[any[], ArrayCim2]], [ArrayTypeKeys2], [[[json]]], [2]>([{

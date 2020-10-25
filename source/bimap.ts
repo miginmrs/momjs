@@ -1,11 +1,11 @@
 import { Observable, Subject } from 'rxjs';
-import { ObsWithOrigin, EHConstraint, TypedDestructable } from './types/destructable'
+import { TSerialObs, EHConstraint, TOrigin } from './types/serial'
 
 
 export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
-  private byId = new Map<k, [ObsWithOrigin<any, EH, ECtx>, D]>();
-  private byObs = new Map<TypedDestructable<unknown, EH, ECtx>, k>();
-  private oldId = new WeakMap<TypedDestructable<unknown, EH, ECtx>, k>();
+  private byId = new Map<k, [TSerialObs<any, EH, ECtx>, D]>();
+  private byObs = new Map<TOrigin<unknown, EH, ECtx>, k>();
+  private oldId = new WeakMap<TOrigin<unknown, EH, ECtx>, k>();
   private _empty = new Subject<void>();
   readonly empty = new Observable<void>(subscriber => {
     if (!this.byId.size) subscriber.next();
@@ -20,17 +20,17 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     if (this.watch && !this.byId.size) this._empty.next();
     return res;
   }
-  set(id: k, value: [ObsWithOrigin<unknown, EH, ECtx>, D]) {
+  set(id: k, value: [TSerialObs<unknown, EH, ECtx>, D]) {
     if (this.byObs.has(value[0].origin)) throw new Error('Object already in store');
     if (this.byId.has(id)) throw new Error('Id already used');
     this.byObs.set(value[0].origin, id);
     this.oldId.set(value[0].origin, id);
     this.byId.set(id, value);
   };
-  reuseId(obs: ObsWithOrigin<unknown, EH, ECtx>, id: k) {
+  reuseId(obs: TSerialObs<unknown, EH, ECtx>, id: k) {
     this.oldId.set(obs.origin, id);
   };
-  finddir(obs: ObsWithOrigin<unknown, EH, ECtx>): [k, 'up' | 'down' | 'exact'] | undefined {
+  finddir(obs: TSerialObs<unknown, EH, ECtx>): [k, 'up' | 'down' | 'exact'] | undefined {
     const origin = obs.origin, id = this.byObs.get(origin);
     if (id === undefined) return undefined;
     const found = this.byId.get(id)![0];
@@ -50,10 +50,10 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
       upfound = upfound.parent;
     }
   }
-  find(obs: ObsWithOrigin<unknown, EH, ECtx>, any = false) {
+  find(obs: TSerialObs<unknown, EH, ECtx>, any = false) {
     return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
   };
-  usedId(obs: ObsWithOrigin<unknown, EH, ECtx>) {
+  usedId(obs: TSerialObs<unknown, EH, ECtx>) {
     return this.oldId.get(obs.origin);
   };
   get size() { return this.byId.size }

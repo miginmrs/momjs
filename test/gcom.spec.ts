@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
 import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { wrapJson, wrapArray, JsonObject, PromiseCtr, CtxH } from '../source';
+import { createJson, createArray, JsonObject, PromiseCtr, CtxH } from '../source';
 import { Subject, Subscription } from 'rxjs';
 import { take, toArray, map } from 'rxjs/operators';
 import { createProxy, DataGram, msg1to2, msg2to1 } from '../source/proxy'
@@ -23,8 +23,8 @@ describe('Stores Global Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[], remainingKeys2: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const getHandler = keys(RequestHandlers);
-    const newArray = wrapArray<RH, {}>(getHandler);
-    const newJson = wrapJson<RH, {}>(getHandler);
+    const newArray = createArray<RH, {}>(getHandler);
+    const newJson = createJson<RH, {}>(getHandler);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
@@ -36,7 +36,7 @@ describe('Stores Global Communication', () => {
 
 
     // STORE2
-    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, {
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>(getHandler, {}, Promise, {
       [fMul]: (_, arg) => {
         const subs = new Subscription();
         const obs = newArray<xn[]>([], subs);
@@ -53,7 +53,7 @@ describe('Stores Global Communication', () => {
         return Promise.resolve(obs);
       }
     }, 'store2');
-    const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
+    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
     (global as any).store1 = store1;
     (global as any).store2 = store2;
     const msg1to2 = new Subject<DataGram<msg1to2 | msg2to1>>();

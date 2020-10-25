@@ -1,5 +1,5 @@
 import { KeysOfType, AppX } from 'dependent-type';
-import { CtxEH, EHConstraint } from '../destructable';
+import { CtxEH, EHConstraint } from '../serial';
 import {ModelData, TVCDADepConstaint, TVCDA_CIM} from '../basic';
 
 export type EModelDefinition<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {

@@ -13,7 +13,7 @@ export type msg2to1 = 'response_put' | 'response_id' | 'response_call' | 'call_e
 export const msg1to2keys: Record<msg1to2, 0> = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
 export const msg2to1keys: Record<msg2to1, 0> = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
 export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>, e extends string = never>(
-  store: Store<RH, ECtx, fIds, fdcp, fkx>,
+  store: Store<RH, ECtx, fIds, fdcp, fkx, never, {}, {}>,
   from: Observable<DataGram<msg1to2 | e>>,
   to: { next: (x: DataGram<msg2to1>) => void },
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
@@ -117,8 +117,8 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds 
 
 
 export const createProxy = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
-  store1: Store<RH, ECtx, fIds, fdcp, fkx>,
-  store2: Store<RH, ECtx, fIds, fdcp, fkx>,
+  store1: Store<RH, ECtx, never, {}, {}, fIds, fdcp, fkx>,
+  store2: Store<RH, ECtx, fIds, fdcp, fkx, never, {}, {}>,
   msg1to2: Subject<DataGram<msg1to2 | msg2to1>>,
   msg2to1: Subject<DataGram<msg1to2 | msg2to1>>,
 ) => {

@@ -1,7 +1,7 @@
 import { AppX } from 'dependent-type';
 import { Subscription } from 'rxjs';
-import { Destructable } from '../../destructable';
-import { EHConstraint, ObsWithOrigin } from '../destructable';
+import { Origin } from '../../origin';
+import { EHConstraint, TSerialObs } from '../serial';
 import { Json, TVCDADepConstaint, TVCDA_CIM } from '../basic';
 
 export type FIDS = number | string;
@@ -16,10 +16,10 @@ export type Functions<
   fdcp extends FdcpConstraint<fIds>,
   fkx extends FkxConstraint<fIds, fdcp>,
   > = {
-    [fId in fIds]: (param: fdcp[fId][2], arg: ObsWithOrigin<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
-      origin: Destructable<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>
-    }, subs: Subscription) => PromiseLike<ObsWithOrigin<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>, EH, ECtx> & {
-      origin: Destructable<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>
+    [fId in fIds]: (param: fdcp[fId][2], arg: TSerialObs<AppX<'V', fdcp[fId][0][1], fkx[fId][0], fkx[fId][1]>, EH, ECtx> & {
+      origin: Origin<fdcp[fId][0][0], fdcp[fId][0][1], fkx[fId][0], fkx[fId][1], fdcp[fId][0][2], EH, ECtx>
+    }, subs: Subscription) => PromiseLike<TSerialObs<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>, EH, ECtx> & {
+      origin: Origin<fdcp[fId][1][0], fdcp[fId][1][1], fkx[fId][2], fkx[fId][3], fdcp[fId][1][2], EH, ECtx>
     }>
   };
 

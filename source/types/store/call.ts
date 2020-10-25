@@ -1,7 +1,7 @@
 import type { AppX } from 'dependent-type';
 import type { Subscription, Observable } from 'rxjs';
 import type { GlobalRef } from '../basic';
-import type { ObsWithOrigin } from '../destructable';
+import type { TSerialObs } from '../serial';
 import type { FdcpConstraint, FIDS, FkxConstraint } from './functions';
 import type { EModelsDefinition } from './definition';
 import type { ModelsDefinition, RHConstraint } from './handler';
@@ -27,5 +27,5 @@ export type CallHandler<
         comp_call: () => PromiseLike<void>;
       }) => Subscription,
     },
-    serialized: WeakMap<ObsWithOrigin<any, RH, ECtx>, Observable<GlobalRef<any>>>
+    serialized: WeakMap<TSerialObs<any, RH, ECtx>, Observable<GlobalRef<any>>>
   };

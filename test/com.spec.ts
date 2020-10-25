@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
 import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { wrapJson, wrapArray, JsonObject, PromiseCtr, CtxH } from '../source';
+import { createJson, createArray, JsonObject, PromiseCtr, CtxH } from '../source';
 import { Subscription, Subject } from 'rxjs';
 import { take, toArray, map, finalize } from 'rxjs/operators';
 import { startListener, DataGram, createCallHandler, msg1to2, msg2to1 } from '../source/proxy'
@@ -23,8 +23,8 @@ describe('Stores Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const getHandler = keys(RequestHandlers);
-    const newArray = wrapArray<RH, {}>(getHandler);
-    const newJson = wrapJson<RH, {}>(getHandler);
+    const newArray = createArray<RH, {}>(getHandler);
+    const newJson = createJson<RH, {}>(getHandler);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
@@ -48,7 +48,7 @@ describe('Stores Communication', () => {
     }));
 
     // STORE2
-    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, {
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>(getHandler, {}, Promise, {
       [fMul]: (_, arg) => {
         const subs = new Subscription();
         const obs = newArray<xn[]>([], subs);
@@ -67,7 +67,7 @@ describe('Stores Communication', () => {
     }, 'store2');
     startListener(store2, store1_to_store2, store2_to_store1);
 
-    const store1 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
+    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
     const a = newJson<xn>({ x: 5 });
     const b = newJson<xn>({ x: 10 });
     const c = newJson<xn>({ x: 20 });

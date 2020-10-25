@@ -1,12 +1,12 @@
 /// <reference path="../typings/deep-is.d.ts" />
 
-import type { DeepDestructable, EHConstraint, ObsWithOrigin, deref } from './types/destructable';
+import type { DeepSerial, EHConstraint, TSerialObs, deref, SerialObs } from './types/serial';
 import type { Ref, JsonObject, Json, TeardownAction, ArrKeys } from './types/basic';
 import type { CtxH } from './types/store';
 import type { AppX, KeysOfType } from 'dependent-type';
 
 import { map as dep_map } from 'dependent-type';
-import { Destructable } from './destructable';
+import { Origin } from './origin';
 import equal from 'deep-is';
 
 const { depMap } = dep_map;
@@ -24,8 +24,8 @@ export declare const F_MapArr: unique symbol;
 export type F_MapArr = typeof F_MapArr;
 export declare const F_ArrArgs: unique symbol;
 export type F_ArrArgs = typeof F_ArrArgs;
-export declare const F_Destructable: unique symbol;
-export type F_Destructable = typeof F_Destructable;
+export declare const F_Serial: unique symbol;
+export type F_Serial = typeof F_Serial;
 export declare const F_Ref: unique symbol;
 export type F_Ref = typeof F_Ref;
 
@@ -36,7 +36,7 @@ declare module 'dependent-type' {
     [F_C]: C,
     [F_ID]: X,
     [F_ArrArgs]: ToRef<X & unknown[]>,
-    [F_Destructable]: ObsWithOrigin<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number], C[1 & keyof C], C[2 & keyof C]>,
+    [F_Serial]: TSerialObs<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number], C[1 & keyof C], C[2 & keyof C]>,
     [F_Ref]: Ref<C[X & Exclude<keyof C, ArrKeys>] & C[keyof C & number]>,
   }
 }
@@ -53,15 +53,15 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
   decode: ({ deref }) => <C extends unknown[]>(_id: string, data: AppX<'T', ArrayCim, ArrayTypeKeys, C>) => {
     type dom = Exclude<keyof C, keyof any[]>;
     return {
-      args: depMap<dom, [[C, unknown], [[C, EH, ECtx], ObsWithOrigin<C[dom], EH, ECtx>]], [F_Ref, F_Destructable]>(
+      args: depMap<dom, [[C, unknown], [[C, EH, ECtx], TSerialObs<C[dom], EH, ECtx>]], [F_Ref, F_Serial]>(
         data, ref => deref(ref)), data: null, n: ArrayN
     }
   },
-  encode: ({ ref }) => <C extends unknown[]>({ args }: { args: DeepDestructable<C, ArrayN, EH, ECtx> }): AppX<'T', ArrayCim, ArrayTypeKeys, C> => {
+  encode: ({ ref }) => <C extends unknown[]>({ args }: { args: DeepSerial<C, ArrayN, EH, ECtx> }): AppX<'T', ArrayCim, ArrayTypeKeys, C> => {
     type dom = Exclude<keyof C, keyof any[]>;
     type cim = [[[C, EH, ECtx], unknown], [C, Ref<C[dom]>],];
-    const encoded: Ref<C[dom]>[] & { [X in dom]: Ref<C[X]> } = depMap<dom, cim, [typeof F_Destructable, typeof F_Ref]>(
-      args, <X extends dom>(x: AppX<0, cim, [typeof F_Destructable], X>): AppX<0, [cim[1]], [typeof F_Ref], X> => ref<C[X & Exclude<keyof C, ArrKeys>] & C[number]>(x)
+    const encoded: Ref<C[dom]>[] & { [X in dom]: Ref<C[X]> } = depMap<dom, cim, [typeof F_Serial, typeof F_Ref]>(
+      args, <X extends dom>(x: AppX<0, cim, [typeof F_Serial], X>): AppX<0, [cim[1]], [typeof F_Ref], X> => ref<C[X & Exclude<keyof C, ArrKeys>] & C[number]>(x)
     );
     return encoded;
   },
@@ -71,13 +71,12 @@ export const ArrayHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): ArrayHa
   },
 });
 
-export type ArrayDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
-export type ArrayWithOrigin<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = ObsWithOrigin<A, EH, ECtx> & {
-  origin: ArrayDestructable<A, EH, ECtx>
-};
-export const wrapArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <A extends unknown[]>(
-  args: DeepDestructable<AppX<'A', ArrayCim, ArrayTypeKeys, A> & A, ArrayN, EH, ECtx>, ...teardownList: TeardownAction[]
-): ArrayDestructable<A, EH, ECtx> => new Destructable(
+export type ArrayOrigin<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Origin<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
+export type ArraySerial<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = SerialObs<unknown[], ArrayCim, ArrayTypeKeys, A, ArrayN, EH, ECtx>;
+
+export const createArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <A extends unknown[]>(
+  args: DeepSerial<AppX<'A', ArrayCim, ArrayTypeKeys, A> & A, ArrayN, EH, ECtx>, ...teardownList: TeardownAction[]
+): ArrayOrigin<A, EH, ECtx> => new Origin(
   getHandler, 'Array', null, { data: null, args, n: ArrayN }, undefined, ...teardownList
 );
 
@@ -113,12 +112,12 @@ export const JsonHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): JsonHand
     _: [], data: X, _c: null, old: X | null
   ) => old ? deepUpdate(old, data) : data,
 });
-export type JsonDestructable<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
-export const wrapJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends JsonObject>(
+export type JsonOrigin<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = Origin<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
+export type JsonSerial<X extends JsonObject, EH extends EHConstraint<EH, ECtx>, ECtx> = SerialObs<JsonObject, JsonCim, JsonTypeKeys, X, 1, EH, ECtx>;
+
+export const createJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends JsonObject>(
   data: X, ...teardownList: TeardownAction[]
-): JsonDestructable<X, EH, ECtx> => new Destructable(
-  getHandler, 'Json', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
-);
+): JsonOrigin<X, EH, ECtx> => new Origin(getHandler, 'Json', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList);
 
 export const toJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<EH, ECtx> }, ECtx>(
   deref: deref<EH, ECtx>
@@ -136,10 +135,8 @@ export const LocalHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): LocalHa
   ctr: <X extends object>([]: [], data: X): X => data,
 });
 
-export type LocalDestructable<X extends object, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<object, LocalCim, LocalTypeKeys, X, 1, EH, ECtx>;
+export type LocalOrigin<X extends object, EH extends EHConstraint<EH, ECtx>, ECtx> = Origin<object, LocalCim, LocalTypeKeys, X, 1, EH, ECtx>;
 
 export const wrapLocal = <EH extends EHConstraint<EH, ECtx> & { Local: LocalHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends object>(
   data: X, ...teardownList: TeardownAction[]
-): LocalDestructable<X, EH, ECtx> => new Destructable(
-  getHandler, 'Local', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
-);
+): LocalOrigin<X, EH, ECtx> => new Origin(getHandler, 'Local', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList);
