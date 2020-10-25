@@ -1,25 +1,22 @@
 /// <reference path="../typings/deep-is.d.ts" />
 
-import { CtxH, Ref, EHConstraint, DestructableCtr, ref, CtxEH, JsonObject, Json, TVCDA_CIM, ObsWithOrigin, ArrKeys, TeardownAction } from './types';
-import { DeepDestructable, Destructable, EntryObs, TwoDestructable } from './destructable';
-import { map as dep_map, AppX, DepConstaint, TypeFuncs, KeysOfType, App } from 'dependent-type';
-import type { BadApp, Fun } from 'dependent-type';
-import { toCond } from '../utils/guards';
-import { deref } from '.';
-import { identity, TeardownLogic, Unsubscribable } from 'rxjs';
+import type { DeepDestructable, EHConstraint, ObsWithOrigin, deref } from './types/destructable';
+import type { Ref, JsonObject, Json, TeardownAction, ArrKeys } from './types/basic';
+import type { CtxH } from './types/store';
+import type { AppX, KeysOfType } from 'dependent-type';
+
+import { map as dep_map } from 'dependent-type';
+import { Destructable } from './destructable';
 import equal from 'deep-is';
 
 const { depMap } = dep_map;
 
-/** @summary Filters X by C */
-export declare const F_F: unique symbol;
 /** @summary Returns constant C */
 export declare const F_C: unique symbol;
 /** @summary Identity */
 export declare const F_ID: unique symbol;
 
 
-export type F_F = typeof F_F;
 export type F_C = typeof F_C;
 export type F_ID = typeof F_ID;
 
@@ -27,10 +24,6 @@ export declare const F_MapArr: unique symbol;
 export type F_MapArr = typeof F_MapArr;
 export declare const F_ArrArgs: unique symbol;
 export type F_ArrArgs = typeof F_ArrArgs;
-export declare const F_MapArgs: unique symbol;
-export type F_MapArgs = typeof F_MapArgs;
-export declare const F_ToMap: unique symbol;
-export type F_ToMap = typeof F_ToMap;
 export declare const F_Destructable: unique symbol;
 export type F_Destructable = typeof F_Destructable;
 export declare const F_Ref: unique symbol;
@@ -40,13 +33,9 @@ export type ToRef<X extends unknown[]> = Ref<X[number]>[] & { [P in Exclude<keyo
 export type ToRefMap<X extends [object, unknown]> = [Ref<X[0]>, Ref<X[1]>][];
 declare module 'dependent-type' {
   export interface TypeFuncs<C, X> {
-    [F_F]: X extends C ? X : BadApp<Fun<typeof F_F, C>, X>;
     [F_C]: C,
     [F_ID]: X,
     [F_ArrArgs]: ToRef<X & unknown[]>,
-    [F_MapArr]: X extends [object, unknown] ? [X[0], X[1]][] : BadApp<Fun<typeof F_MapArr, C>, X>,
-    [F_ToMap]: X extends [object, unknown] ? Map<X[0], X[1]> : BadApp<Fun<typeof F_ToMap, C>, X>,
-    [F_MapArgs]: X extends [object, unknown] ? ToRefMap<X> : BadApp<Fun<typeof F_ArrArgs, C>, X>,
     [F_Destructable]: ObsWithOrigin<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number], C[1 & keyof C], C[2 & keyof C]>,
     [F_Ref]: Ref<C[X & Exclude<keyof C, ArrKeys>] & C[keyof C & number]>,
   }
@@ -96,46 +85,6 @@ export const toArray = <EH extends EHConstraint<EH, ECtx> & { Array: ArrayHandle
   deref: deref<EH, ECtx>
 ) => <T extends unknown[]>(p: Ref<T>) => deref<0, [[unknown[], ArrayCim]], [ArrayTypeKeys], [T], [ArrayN]>(p, 'Array');
 
-// export type MapCim = { T: [never, [Ref<object>, Ref<unknown>][]], V: [never, Map<object, unknown>], C: [null, null], D: [null, null], A: [never, [object, unknown][]] };
-// export type MapTypeKeys = { T: typeof F_MapArgs, V: typeof F_ToMap, C: typeof F_C, D: typeof F_C, A: typeof F_MapArr };
-// export const MapN = 2;
-// export type MapN = typeof MapN;
-// export const MapCtr: DestructableCtr<[object, unknown], MapCim, MapTypeKeys> = <X extends [object, unknown]>(
-//   args: [X[0], X[1]][], _d: null, _c: null, old: Map<X[0], X[1]> | null
-// ): AppX<"V", MapCim, MapTypeKeys, X> => {
-//   const res = toCond<[object, unknown], X, Map<X[0], X[1]>>(old ?? new Map);
-//   if (old) { old.clear(); };
-//   args.forEach(([k, v]) => res.set(k, v));
-//   return res;
-// }
-
-// export type MapHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<[object, unknown], MapCim, MapTypeKeys, MapN, EH, ECtx>;
-// export const MapHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): MapHandler<EH, ECtx> => ({
-//   decode: ({ deref }) => <X extends [object, unknown]>(_id: string, data: AppX<"T", MapCim, MapTypeKeys, X>): EntryObs<null, AppX<"A", MapCim, MapTypeKeys, X>, 2, EH, ECtx> => ({ 
-//     args: data.map<[TypedDestructable<X[0], EH, ECtx>, TypedDestructable<X[1], EH, ECtx>]>(ref => [deref(ref[0]), deref(ref[1])]) as any as DeepDestructable<[X[0], X[1]][], 2, EH, ECtx>
-//     , data: null, n: MapN,
-//    }),
-//   encode: ({ ref }) => <C extends unknown[]>({ args }: { args: DeepDestructable<C, 1, EH, ECtx> }): AppX<'T', MapCim, MapTypeKeys, C> => toCond<unknown[], C, ToRef<C>>(
-//     depMap<Exclude<keyof C, keyof any[]>, [
-//       [[C, EH, ECtx], TypedDestructable<C[number], EH, ECtx>],
-//       [C, Ref<C[Exclude<keyof C, keyof any[]>]>],
-//     ], [typeof F_Destructable, typeof F_Ref]>(args, ref)),
-//   ctr: MapCtr,
-// });
-
-// export type MapDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<unknown[], MapCim, MapTypeKeys, A, 1, EH, ECtx>;
-// export const wrapMap = <EH extends EHConstraint<EH, ECtx> & { Map: MapHandler<EH, ECtx> }, ECtx>(handlers: EH) => <A extends unknown[]>(
-//   args: DeepDestructable<A, 1, EH, ECtx>, ...teardownList: TeardownLogic[]
-// ): MapDestructable<A, EH, ECtx> => new Destructable(
-//   handlers, 'Map', null, { data: null, args, n: 1 }, undefined, ...teardownList
-// );
-
-// export const toMap = <EH extends EHConstraint<EH, ECtx> & { Map: MapHandler<EH, ECtx> }, ECtx>(
-//   deref: deref<EH, ECtx>
-// ) => <T>(p: Ref<T[]>) => deref<0, [[unknown[], MapCim]], [MapTypeKeys], [T[]], [1]>(p, 'Map');
-
-
-
 export type JsonCim = { T: [never, JsonObject], V: [never, JsonObject], C: [null, null], D: [never, JsonObject], A: [[], []] };
 export type JsonTypeKeys = { T: typeof F_ID, V: typeof F_ID, C: typeof F_C, D: typeof F_ID, A: typeof F_C };
 const deepUpdate = <T extends JsonObject>(target: JsonObject, source: T) => {
@@ -176,16 +125,21 @@ export const toJson = <EH extends EHConstraint<EH, ECtx> & { Json: JsonHandler<E
 ) => (p: Ref<JsonObject>) => deref<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [JsonObject], [1]>(p, 'Json');
 
 
-export class LocalReference { private _: never; constructor(readonly refered: any) { } }
 
-export type LocalCim = { T: [{}, {}], V: [LocalReference, LocalReference], C: [null, null], D: [null, null], A: [[], []] };
+export type LocalCim = { T: [null, null], V: [never, object], C: [null, null], D: [never, object], A: [[], []] };
+export type LocalTypeKeys = { T: typeof F_C, V: typeof F_ID, C: typeof F_C, D: typeof F_ID, A: typeof F_C };
 
-export type LocalReferenceHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<never, LocalCim, TVCDA_FC, 1, EH, ECtx>;
-const LocalReferenceCtr = () => new LocalReference({});
-export type LocalHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<never, LocalCim, TVCDA_FC, 1, EH, ECtx>;
+export type LocalHandler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<object, LocalCim, LocalTypeKeys, 1, EH, ECtx>;
 export const LocalHandler = <EH extends EHConstraint<EH, ECtx>, ECtx>(): LocalHandler<EH, ECtx> => ({
-  decode: () => () => ({ args: [], data: null, c: null, n: 1 }),
-  encode: () => () => ({}),
-  ctr: LocalReferenceCtr,
+  decode: () => () => ({ args: [], data: {} as any, c: null, n: 1 }),
+  encode: () => () => null,
+  ctr: <X extends object>([]: [], data: X): X => data,
 });
 
+export type LocalDestructable<X extends object, EH extends EHConstraint<EH, ECtx>, ECtx> = Destructable<object, LocalCim, LocalTypeKeys, X, 1, EH, ECtx>;
+
+export const wrapLocal = <EH extends EHConstraint<EH, ECtx> & { Local: LocalHandler<EH, ECtx> }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends object>(
+  data: X, ...teardownList: TeardownAction[]
+): LocalDestructable<X, EH, ECtx> => new Destructable(
+  getHandler, 'Local', null, { args: [] as [], data, n: 1 }, undefined, ...teardownList
+);

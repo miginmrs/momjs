@@ -1,21 +1,26 @@
+import type { KeysOfType, TypeFuncs, AppX, App, Fun } from 'dependent-type';
+import type { NonUndefined } from 'utility-types';
+import type { GlobalRef, LocalRef, Ref, TVCDADepConstaint, TVCDA_CIM } from './types/basic';
+import type {
+  deref, xDerefHandlers, derefReturn, DeepDestructable, EntryObs,
+  derefHandlers, ref, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler,
+} from './types/destructable';
+import type { 
+  CallHandler, FdcpConstraint, FkxConstraint, FIDS, Functions,
+  RHConstraint, CtxH, xderef, ModelsDefinition, ModelDefinition,
+  AnyModelDefinition, EModelsDefinition
+} from './types/store';
+
 import { Subscription, Observable, Subject } from 'rxjs';
-import {
-  GlobalRef, LocalRef, Ref, deref, CtxH, TVCDA_CIM, TVCDADepConstaint,
-  ModelsDefinition, xDerefHandlers, ModelDefinition, derefReturn, EModelsDefinition,
-  xderef, derefHandlers, ref, RHConstraint, ObsWithOrigin, EHConstraint, xDerefHandler, derefHandler,
-  AnyModelDefinition, CallHandler, Functions, FdcpConstraint, FkxConstraint, FIDS, TypedDestructable
-} from './types'
-import { Destructable, EntryObs } from './destructable';
-import { KeysOfType, TypeFuncs, AppX, App, Fun } from 'dependent-type';
-import { NonUndefined } from 'utility-types';
-import { byKey } from '../utils/guards';
 import { map as dep_map } from 'dependent-type';
+import { Destructable } from './destructable';
 import { eagerCombineAll, current } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
 import { map, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
-import { DeepDestructable } from '.';
+import { BiMap } from './bimap';
+import { PromiseCtr } from './async';
 
 const { depMap } = dep_map;
 
@@ -48,82 +53,7 @@ declare module 'dependent-type' {
   }
 }
 
-export type PromiseCtr = {
-  new <T>(executor: (resolve: (value?: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): PromiseLike<T>;
-  all<T>(values: readonly (T | PromiseLike<T>)[]): PromiseLike<T[]>,
-  resolve<T>(value: T | PromiseLike<T>): PromiseLike<T>;
-}
 
-
-export const runit = <R, N>(gen: Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr) => {
-  const runThen = (...args: [] | [N]): PromiseLike<R> => {
-    const v = args.length ? gen.next(args[0]) : gen.next();
-    if (v.done) return promiseCtr.resolve(v.value);
-    return promiseCtr.resolve(v.value).then(runThen);
-  }; return runThen();
-}
-
-export function* wait<T>(x: T | PromiseLike<T>): Generator<T | PromiseLike<T>, T, T> {
-  return yield x;
-}
-
-export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R>;
-export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U | void, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg?: U): (...args: T) => PromiseLike<R>;
-export function asAsync<T extends unknown[], R, U = void, N = unknown>(f: (this: U, ...args: T) => Generator<N | PromiseLike<N>, R, N>, promiseCtr: PromiseCtr, thisArg: U): (...args: T) => PromiseLike<R> {
-  return (...args: T) => runit(f.call(thisArg, ...args as T), promiseCtr);
-}
-export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
-  private byId = new Map<k, [ObsWithOrigin<any, EH, ECtx>, D]>();
-  private byObs = new Map<TypedDestructable<unknown, EH, ECtx>, k>();
-  private oldId = new WeakMap<TypedDestructable<unknown, EH, ECtx>, k>();
-  constructor() { }
-  get(id: k) { return this.byId.get(id); }
-  delete(id: k) {
-    const stored = this.byId.get(id);
-    if (stored) this.byObs.delete(stored[0].origin);
-    return this.byId.delete(id);
-  }
-  set(id: k, value: [ObsWithOrigin<unknown, EH, ECtx>, D]) {
-    if (this.byObs.has(value[0].origin)) throw new Error('Object already in store');
-    if (this.byId.has(id)) throw new Error('Id already used');
-    this.byObs.set(value[0].origin, id);
-    this.oldId.set(value[0].origin, id);
-    this.byId.set(id, value);
-  };
-  reuseId(obs: ObsWithOrigin<unknown, EH, ECtx>, id: k) {
-    this.oldId.set(obs.origin, id);
-  };
-  finddir(obs: ObsWithOrigin<unknown, EH, ECtx>): [k, 'up' | 'down' | 'exact'] | undefined {
-    const origin = obs.origin, id = this.byObs.get(origin);
-    if (id === undefined) return undefined;
-    const found = this.byId.get(id)![0];
-    let upfound = found, upobs = obs;
-    if (found === obs) return [id, 'exact'];
-    const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
-    const err = new Error('Another observable with the same origin is in the store');
-    while (true) {
-      const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-      if (obsParents.has(upfound) || foundParents.has(upobs)) {
-        if (upfound === obs) return [id, 'down'];
-        if (upobs === found) return [id, 'up'];
-        throw err;
-      }
-      if (done) throw err;
-      upobs = upobs.parent;
-      upfound = upfound.parent;
-    }
-  }
-  find(obs: ObsWithOrigin<unknown, EH, ECtx>, any = false) {
-    return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
-  };
-  usedId(obs: ObsWithOrigin<unknown, EH, ECtx>) {
-    return this.oldId.get(obs.origin);
-  };
-  get size() { return this.byId.size }
-  keys() { return this.byId.keys() }
-  entries() { return this.byId.entries() }
-  values() { return this.byId.values() }
-}
 
 type Notif<RH extends RHConstraint<RH, ECtx>, ECtx> = [
   'next', EModelsDefinition<0, [[unknown, TVCDA_CIM]], [TVCDADepConstaint<unknown, TVCDA_CIM>], [unknown], [1 | 2], RH, ECtx>
@@ -132,7 +62,7 @@ type Notif<RH extends RHConstraint<RH, ECtx>, ECtx> = [
 const one = BigInt(1);
 
 /** Options of serialization */
-type SerializationOptions = {
+export type SerializationOptions = {
   /** @property {boolean} isNew whether the first entry of the first emission should be indicated new or not */
   isNew: boolean,
   /**
@@ -146,7 +76,15 @@ type SerializationOptions = {
   ignore?: string[],
 }
 
-export type LocalObs<RH extends RHConstraint<RH, ECtx>, ECtx> = [ObsWithOrigin<unknown, RH, ECtx>, { id: string, in?: boolean, out?: boolean }];
+/** Options of push */
+export type PushOptions<V, RH extends RHConstraint<RH, ECtx>, ECtx> = {
+  unload?: (ref: GlobalRef<V>) => void,
+  nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined,
+  local?: Subscription & { [Store.nodeps]?: boolean },
+};
+
+export type LocalOption<RH extends RHConstraint<RH, ECtx>, ECtx> = { in?: boolean, out?: boolean } & PushOptions<unknown, RH, ECtx>;
+export type LocalObs<RH extends RHConstraint<RH, ECtx>, ECtx> = [ObsWithOrigin<unknown, RH, ECtx>, { id: string } & LocalOption<RH, ECtx>];
 
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   fIds extends FIDS,
@@ -154,7 +92,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   fkx extends FkxConstraint<fIds, fdcp>,
   > {
   protected map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
-  readonly locals: BiMap<RH, ECtx, { in?: boolean, out?: boolean }>;
+  readonly locals: BiMap<RH, ECtx, LocalOption<RH, ECtx>>;
+  readonly empty: Observable<void>;
   constructor(
     readonly getHandler: <R>(k: KeysOfType<RHConstraint<RH, ECtx>, R>) => R, private extra: ECtx, private promiseCtr: PromiseCtr,
     private functions: Functions<RH, ECtx, fIds, fdcp, fkx> | null = null,
@@ -163,9 +102,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     readonly base = false,
   ) {
     this.functions = functions;
-    this.map = new BiMap();
+    const map = this.map = new BiMap(true);
+    this.empty = map.empty;
     this.locals = new BiMap();
-    for (const [obs, { id, in: isIn, out: isOut }] of locals) this.locals.set(id, [obs, { in: isIn, out: isOut }]);
+    for (const [obs, { id, ...opt }] of locals) this.locals.set(id, [obs, opt]);
   }
 
   private next = one;
@@ -195,6 +135,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       else {
         // console.log('remove', this.map.find(obs));
         const isStopped = (obs: ObsWithOrigin<unknown, RH, ECtx>): boolean => {
+          const set = new Set([obs]);
+          while (!set.has(obs = obs.parent)) set.add(obs);
+          if (!set.has(obs.origin)) return false;
           const subject = obs.origin.subject;
           if (subject.isStopped) return true;
           return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args))
@@ -209,8 +152,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   subscribeToLocals($local?: Subscription | undefined) {
     const subs = new Subscription();
     const local: Subscription | undefined = $local ?? (this.base ? subs : undefined);
-    for (const [, [obs]] of this.locals.entries()) {
-      subs.add(this.push(obs, { local }).subscription);
+    for (const [, [obs, { local: $local }]] of this.locals.entries()) {
+      subs.add(this.push(obs, { local: $local ?? local }).subscription);
     }
     return subs;
   }
@@ -417,13 +360,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     return { id, obs, subs };
   }
 
+  static readonly nodeps: unique symbol = Symbol();
+
   /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
   push<V>(obs: ObsWithOrigin<V, RH, ECtx>,
-    { unload, nextId, local: $local }: {
-      unload?: (ref: GlobalRef<V>) => void,
-      nextId?: (obs: ObsWithOrigin<unknown, RH, ECtx>, parentId?: string) => string | undefined,
-      local?: Subscription,
-    } = {}
+    { unload, nextId, local: $local }: PushOptions<V, RH, ECtx> = {}
   ): { wrapped: ObsWithOrigin<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
     const old = this.map.finddir(obs);
     const id = this.getNext(old?.[0] ?? this.locals.find(obs, true) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
@@ -454,13 +395,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       );
       const teardown = () => {
         unload?.({ id } as GlobalRef<V>);
+        this.map.delete(id);
+        destroyed = true;
         const local = this.locals.get(id)?.[1];
         if ((!local || local.out) && this.pushed.delete(obs)) {
           this.pushes.next([obs, id, false]);
         }
         clear.call(Subscription.EMPTY);
-        this.map.delete(id);
-        destroyed = true;
       };
       if ($local?.closed !== false) {
         wrapped = defineProperty(
@@ -473,7 +414,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         this.map.set(id, [wrapped, {}]);
         subscription = wrapped.subscribe(() => { });
       } else {
-        $local.add(asubj.subscribe(() => { }));
+        if (!$local[Store.nodeps]) $local.add(asubj.subscribe(() => { }));
         $local.add(teardown);
         this.map.set(id, [wrapped, {}]);
         subscription = wrapped.subscribe(() => { });
@@ -612,7 +553,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     const obs = f(param, this.getValue(arg)[0], subs);
     if (opt.graph) return new Observable<EModelsDefinition<0, [[fdcp[fId][1][0], fdcp[fId][1][1]]], [fkx[fId][2]], [fkx[fId][3]], [fdcp[fId][1][2]], RH, ECtx>>(subscriber => {
       obs.then(obs => {
-        const { subscription } = this.push(obs, { unload: subs.unsubscribe.bind(subs) });
+        const { subscription } = this.push(obs);
+        subscription.add(subs);
         const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
         subscriber.add(serialized.subscribe(subscriber));
         subscriber.add(subscription);
@@ -620,7 +562,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     });
     return new Observable<GlobalRef<AppX<'V', fdcp[fId][1][1], fkx[fId][2], fkx[fId][3]>>>(subscriber => {
       obs.then(obs => {
-        const { subscription, ref } = this.push(obs, { unload: subs.unsubscribe.bind(subs) });
+        const { subscription, ref } = this.push(obs);
+        subscription.add(subs);
         subscriber.next(ref);
         subscriber.add(subscription);
       })
@@ -722,7 +665,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       op.call(fId, param, refArg, opt);
       if (opt.graph) refTask[0].then(refReturn => {
         const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
-        callSubscription.add(() => subs2.unsubscribe());
+        callSubscription.add(subs2);
       })
       subscriber.add(callSubscription);
     });

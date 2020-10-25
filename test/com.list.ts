@@ -16,7 +16,8 @@ export const checkMsgs = (msgs: msg[]) => {
   }));
   const addId = (msg: msg, lastIds: idstr[]) => {
     const [, { id }] = msg[3] as idstr[];
-    if (!usedIds.add(id)) throw new Error('id already used');
+    if (usedIds.has(id)) throw new Error('id already used');
+    usedIds.add(id);
     lastIds.push({ id });
   }
   const gen: MsgGenerator = parallel<path>(msg => {
@@ -32,7 +33,7 @@ export const checkMsgs = (msgs: msg[]) => {
       handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call1' }));
       handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call2' }));
       const tIds = [ids.arg, ids.a, ids.b] = (data as idstr[]).map(({ id }) => id), [idArg, idA, idB] = tIds;
-      if (!tIds.every(id => usedIds.add(id))) {
+      if (tIds.some(id => {const exists = usedIds.has(id); usedIds.add(id); return exists; })) {
         throw new Error('some ids are reused');
       }
       yield ['1->2', first, 'put', [
@@ -53,7 +54,8 @@ export const checkMsgs = (msgs: msg[]) => {
       ]];
       linkTo(put3, 'put3');
       const idC = (data3 as idstr[])[1].id;
-      if (!usedIds.add(idC)) throw new Error('id already used');
+      if (usedIds.has(idC)) throw new Error('id already used');
+      usedIds.add(idC);
       ids.c = idC;
       const [, put4] = yield ['1->2', put3, 'put', [
         { i: 0, type: 'Array', data: [{ '$': 1 }, { id: idB }], c: null, id: idArg, new: false },
@@ -82,7 +84,8 @@ export const checkMsgs = (msgs: msg[]) => {
     call1b: start(function* (): MsgGenerator {
       const first = yield null!;
       const [, ch, , [{ id: retId }]] = first as msg & { 3: idstr[] };
-      if (!usedIds.add(retId)) throw new Error('id already used');
+      if (usedIds.has(retId)) throw new Error('id already used');
+      usedIds.add(retId);
       const lastIds: idstr[] = [];
       addId(first, lastIds);
       addId(yield ['2->1', ch, 'response_call', [
@@ -103,7 +106,8 @@ export const checkMsgs = (msgs: msg[]) => {
       const lastIds: idstr[] = [];
       const first = yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: { graph: true } }];
       const [{ id: retId }] = first[3] as idstr[];
-      if (!usedIds.add(retId)) throw new Error('id already used');
+      if (usedIds.has(retId)) throw new Error('id already used');
+      usedIds.add(retId);
       addId(first, lastIds);
       addId(yield ['2->1', ch, 'response_call', [
         { i: 0, type: 'Array', data: [{ $: 1 }], c: null, id: retId, new: true },

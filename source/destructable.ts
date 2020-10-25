@@ -1,22 +1,11 @@
-import { BehaviorSubject, Observable, Subscription, TeardownLogic, Unsubscribable } from 'rxjs';
+import type { AppX, KeysOfType } from 'dependent-type';
+import type { TVCDA_CIM, TVCDADepConstaint, TeardownAction } from './types/basic';
+import type { EHConstraint, CtxEH, RequestHandlerCompare, ObsWithOrigin, EntryObs, TwoDestructable  } from './types/destructable';
+import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { eagerCombineAll } from '../utils/rx-utils';
 import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
-import { TVCDA_CIM, TVCDADepConstaint, EHConstraint, CtxEH, RequestHandlerCompare, ObsWithOrigin, ArrKeys, TeardownAction } from './types';
-import type { AppX, KeysOfType } from 'dependent-type';
-import { byKey } from '../utils/guards';
-import '../utils/rx-utils'
 
-export type TwoDestructable<A extends unknown[], EH extends EHConstraint<EH, ECtx>, ECtx> = ObsWithOrigin<A[number], EH, ECtx>[] & {
-  [k in Exclude<keyof A, keyof any[]>]: ObsWithOrigin<A[k], EH, ECtx>;
-};
-
-export type DeepDestructable<A extends unknown[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = (n extends 1 ? ObsWithOrigin<A[number], EH, ECtx> : TwoDestructable<A[number] & unknown[], EH, ECtx>)[] & {
-  [k in Exclude<keyof A, keyof any[]>]: n extends 1 ? ObsWithOrigin<A[k], EH, ECtx> : TwoDestructable<A[k] & unknown[], EH, ECtx>;
-};
-export type EntryObs<D, A extends unknown[], n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
-  args: DeepDestructable<A, n, EH, ECtx>, data: D, n: n
-};
 
 export const destructableCmp = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>({
   compareData = <X extends dom>(x: AppX<'D', cim, k, X>, y: AppX<'D', cim, k, X>) => x === y,
@@ -38,14 +27,14 @@ export const destructableCmp = <dom, cim extends TVCDA_CIM, k extends TVCDADepCo
 export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx, $V extends (v: AppX<'V', cim, k, X>) => void = (v: AppX<'V', cim, k, X>) => void>
   extends Observable<Parameters<$V>[0]> implements ObsWithOrigin<Parameters<$V>[0], EH, ECtx> {
   readonly subject: BehaviorSubject<EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>>;
-  private destroy: Subscription;
-  get destroyed() { return this.destroy.closed }
+  private teardown: Subscription;
+  get destroyed() { return this.teardown.closed }
   source: Observable<Parameters<$V>[0]>;
   readonly origin = this;
   readonly parent = this;
   readonly handler: CtxEH<dom, cim, k, n, EH, ECtx>;
   add(teardown: TeardownLogic) {
-    return this.destroy.add(teardown);
+    return this.teardown.add(teardown);
   }
   constructor(
     readonly getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R,
@@ -63,26 +52,23 @@ export class Destructable<dom, cim extends TVCDA_CIM, k extends TVCDADepConstain
     const handler = this.handler = getHandler(key);
     let current: D = init.data;
     this.subject = new BehaviorSubject(init);
-    const destroy = this.destroy = new Subscription(() => handler.destroy?.(current));
-    teardownList.forEach(cb => destroy.add(cb));
-    destroy.add(() => {
-      if (!this.subject.isStopped) this.subject.unsubscribe();
-      else this.subject.closed = true;
-    });
-    this.source = new Observable<V>(subscriber => {
-      const subs = this.subject.pipe(
+    this.teardown = new Subscription();
+    teardownList.forEach(this.teardown.add.bind(this.teardown));
+    this.source = new Observable<V>(subjectSubscriber => {
+      subjectSubscriber.add(this.teardown);
+      subjectSubscriber.add(() => {
+        handler.destroy?.(current);
+        if (!this.subject.isStopped) this.subject.unsubscribe();
+        else this.subject.closed = true;
+      });
+      this.subject.pipe(
         distinctUntilChanged(compare),
-        alternMap(({ args, data }) => {
-          const array = args.map(args => args instanceof Array ? eagerCombineAll(args) : args);
-          return (eagerCombineAll(array) as Observable<A>).pipe(
-            map(args => [args, data, c] as [A, D, C]),
-          )
-        }, { completeWithInner: true, completeWithSource: true }),
+        alternMap(({ args, data }) => (eagerCombineAll(args.map(args => args instanceof Array ? eagerCombineAll(args) : args)) as Observable<A>).pipe(
+          map(args => [args, data, c] as [A, D, C]),
+        ), { completeWithInner: true, completeWithSource: true }),
         tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
         scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)
-      ).subscribe(subscriber);
-      subs.add(this.destroy);
-      return subs;
+      ).subscribe(subjectSubscriber);
     });
     this.operator = shareReplay({ bufferSize: 1, refCount: true })(this).operator;
   }

@@ -3,13 +3,12 @@ import { Store } from '../source/store';
 import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_Destructable, F_ID, F_C } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
 import {
-  Destructable, AppX, ObsWithOrigin, CtxH, Ref, EHConstraint, DeepDestructable, TypedDestructable,
-  DestructableCtr, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable, JsonObject, ArrKeys, EntryObs, TwoDestructable
+  Destructable, ObsWithOrigin, CtxH, Ref, EHConstraint, DeepDestructable, wrapJson, ArrayHandler, wrapArray, JsonDestructable, ArrayDestructable, JsonObject, ArrKeys, TwoDestructable
 } from '../source';
 import { Subscription, ObservedValueOf, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { current } from '../utils/rx-utils';
-import { App, DepConstaint, Fun, map as dep_map, TypeFuncs } from 'dependent-type';
+import { AppX, map as dep_map } from 'dependent-type';
 import _ from 'lodash';
 import { keys } from '../utils/guards';
 
@@ -46,7 +45,7 @@ const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<unknown[
       [[C, EH, ECtx], DeepDestructable<C[number] & unknown[], 1, EH, ECtx>],
     ];
     type k = [typeof F_Ref2, typeof F_Destructable2];
-    const mapper = <X extends dom>(refs: AppX<0, cim, k, X>, i: number): TwoDestructable<C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[], EH, ECtx> => {
+    const mapper = <X extends dom>(refs: AppX<0, cim, k, X>): TwoDestructable<C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[], EH, ECtx> => {
       type CX = C[X & Exclude<keyof C, ArrKeys>] & C[number] & unknown[];
       type dom2 = Exclude<keyof CX, keyof any[]>;
       type cim2 = [[CX, unknown], [[CX, EH, ECtx], ObsWithOrigin<CX[number], EH, ECtx>]];

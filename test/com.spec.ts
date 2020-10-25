@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
 import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { wrapJson, wrapArray, JsonObject, PromiseCtr, Json, CtxH, TypedDestructable, Functions, Destructable } from '../source';
+import { wrapJson, wrapArray, JsonObject, PromiseCtr, CtxH } from '../source';
 import { Subscription, Subject } from 'rxjs';
 import { take, toArray, map, finalize } from 'rxjs/operators';
 import { startListener, DataGram, createCallHandler, msg1to2, msg2to1 } from '../source/proxy'
 import { QuickPromise } from '../utils/quick-promise';
 import _ from 'lodash';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
-import { collect, msg, MsgGenerator, parallel, start, xn } from './common';
+import { collect, msg, xn } from './common';
 import { checkMsgs } from './com.list';
 import { keys } from '../utils/guards';
 

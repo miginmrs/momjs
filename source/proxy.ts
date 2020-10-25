@@ -1,9 +1,10 @@
-import { Store } from "./store";
-import { Observable, Subject, Subscription } from "rxjs";
-import { filter, take } from "rxjs/operators";
-import { GlobalRef, RHConstraint, CallHandler, FdcpConstraint, FkxConstraint, FIDS } from "./types";
-import { QuickPromise } from "../utils/quick-promise";
-import { AppX } from ".";
+import { Store } from './store';
+import { Observable, Subject, Subscription } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import { QuickPromise } from '../utils/quick-promise';
+import type { GlobalRef } from './types/basic';
+import type { CallHandler, RHConstraint, FdcpConstraint, FkxConstraint, FIDS } from './types/store';
+import type { AppX } from 'dependent-type';
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
 
