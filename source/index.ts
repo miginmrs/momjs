@@ -11,6 +11,7 @@ export * from './types/serial';
 
 export * from './types/store';
 
+export * from './bimap';
 
 export * from './types/params';
 

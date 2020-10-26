@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { JsonCim, JsonTypeKeys, ArrayTypeKeys, ArrayCim, JsonHandler, F_Ref, F_Serial, F_ID, F_C } from '../source/handlers';
 import { TestScheduler } from 'rxjs/testing';
 import {
-  Origin, TSerialObs, CtxH, Ref, EHConstraint, DeepSerial, createJson, ArrayHandler, createArray, JsonOrigin, ArrayOrigin, JsonObject, ArrKeys, SerialArray
+  json, json as JsonNs, array, array as ArrayNs, F_Ref, F_Serial, F_ID, F_C,
+  Origin, TSerialObs, CtxH, Ref, EHConstraint, DeepSerial, JsonObject, ArrKeys, SerialArray
 } from '../source';
 import { Subscription, ObservedValueOf, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
@@ -87,8 +87,8 @@ const ArrayHandler2 = <EH extends EHConstraint<EH, ECtx>, ECtx>(): CtxH<unknown[
 
 
 namespace RequestHandlers {
-  export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
-  export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, RH, {}> = JsonHandler<RH, {}>();
+  export const Array: CtxH<any[], array.cim, array.keys, 1, RH, {}> = ArrayNs.Handler<RH, {}>();
+  export const Json: CtxH<JsonObject, json.cim, json.keys, 1, RH, {}> = JsonNs.Handler<RH, {}>();
   export const Array2: CtxH<any[][], ArrayCim2, ArrayTypeKeys2, 2, RH, {}> = ArrayHandler2<RH, {}>();
 }
 type RH = typeof RequestHandlers;
@@ -103,7 +103,7 @@ describe('Store', () => {
   const store = new Store<RH, {}, never, {}, {}, never, {}, {}>(keys<RH>(RequestHandlers), { someData: 1 }, Promise)
   describe('first entry', () => {
     const init = () => {
-      const [x1] = store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
+      const [x1] = store.unserialize<0, [[JsonObject, json.cim]], [json.keys], [{ x: number }], [1]>([{
         type: 'Json', data: { x: 1 }, c: null, i: 0 as const
       }])!;
       const obs = store.getValue(x1)[0];
@@ -125,7 +125,7 @@ describe('Store', () => {
     it('should push new values', () => {
       var n: number[] = [];
       const subs = obs.subscribe(({ x }) => n.push(x));
-      store.unserialize<0, [[JsonObject, JsonCim]], [JsonTypeKeys], [{ x: number }], [1]>([{
+      store.unserialize<0, [[JsonObject, json.cim]], [json.keys], [{ x: number }], [1]>([{
         type: 'Json', data: { x: 2 }, c: null, i: 0, id: '1', new: false
       }]);
       subs.unsubscribe();
@@ -152,7 +152,7 @@ describe('Store', () => {
   });
   describe('second entry', () => {
     const init = () => {
-      const [x2, arr] = store.unserialize<0 | 1, [[JsonObject, JsonCim], [any[], ArrayCim]], [JsonTypeKeys, ArrayTypeKeys], [{ x: number }, [{ x: number }]], [1, 1]>(ref => [{
+      const [x2, arr] = store.unserialize<0 | 1, [[JsonObject, json.cim], [any[], array.cim]], [json.keys, array.keys], [{ x: number }, [{ x: number }]], [1, 1]>(ref => [{
         type: 'Json', data: { x: 2 }, c: null, i: 0, new: true, id: '1'
       }, {
         type: 'Array', data: [ref(0)], c: null, new: true, i: 1,
@@ -176,16 +176,16 @@ describe('Store', () => {
     });
   });
   type json = { msg: string };
-  let jsonObs: JsonOrigin<json, RH, {}>;
-  let arr1Obs: ArrayOrigin<[json, json, json], RH, {}>;
-  let arr2Obs: ArrayOrigin<[[json, json, json], json], RH, {}>;
+  let jsonObs: json.Origin<json, RH, {}>;
+  let arr1Obs: array.Origin<[json, json, json], RH, {}>;
+  let arr2Obs: array.Origin<[[json, json, json], json], RH, {}>;
   let jsonWrp: TSerialObs<json, RH, {}>;
   let arrWrp: TSerialObs<[[json, json, json], json], RH, {}>;
   let originSubs: Subscription;
   describe('push method', () => {
     const getHandler = keys(RequestHandlers);
-    const newArray = createArray<RH, {}>(getHandler);
-    const newJson = createJson<RH, {}>(getHandler);
+    const newArray = array.create<RH, {}>(getHandler);
+    const newJson = json.create<RH, {}>(getHandler);
 
     let subs: Subscription;
     it('should chain insertion', async () => {
@@ -229,7 +229,7 @@ describe('Store', () => {
         i: 2, type: 'Json', c: null, id: '3', data: { msg: 'hi' }, new: false
       }]);
     });
-    const unserialize = () => store.unserialize<0, [[any[], ArrayCim]], [ArrayTypeKeys], [[[json, json, json], json]], [1]>(def!)!;
+    const unserialize = () => store.unserialize<0, [[any[], array.cim]], [array.keys], [[[json, json, json], json]], [1]>(def!)!;
     let ref: ReturnType<typeof unserialize>[0];
     it('should provide correct inputs for unserialize', async () => {
       [ref] = unserialize();

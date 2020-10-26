@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { createJson, createArray, JsonObject, PromiseCtr, CtxH } from '../source';
+import { array, json, JsonObject, PromiseCtr, CtxH } from '../source';
+import * as src from '../source';
 import { Subscription, Subject } from 'rxjs';
 import { take, toArray, map, finalize } from 'rxjs/operators';
 import { startListener, DataGram, createCallHandler, msg1to2, msg2to1 } from '../source/proxy'
@@ -13,8 +13,8 @@ import { checkMsgs } from './com.list';
 import { keys } from '../utils/guards';
 
 namespace RequestHandlers {
-  export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
-  export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, RH, {}> = JsonHandler<RH, {}>();
+  export const Array: CtxH<any[], array.cim, array.keys, 1, RH, {}> = src.array.Handler<RH, {}>();
+  export const Json: CtxH<JsonObject, json.cim, json.keys, 1, RH, {}> = src.json.Handler<RH, {}>();
 }
 type RH = typeof RequestHandlers;
 
@@ -23,14 +23,14 @@ describe('Stores Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const getHandler = keys(RequestHandlers);
-    const newArray = createArray<RH, {}>(getHandler);
-    const newJson = createJson<RH, {}>(getHandler);
+    const newArray = array.create<RH, {}>(getHandler);
+    const newJson = json.create<RH, {}>(getHandler);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
-    type fMuldcp = [[unknown[], ArrayCim, 1], [unknown[], ArrayCim, 1], null];
+    type fMuldcp = [[unknown[], array.cim, 1], [unknown[], array.cim, 1], null];
     type StoreFdcp = { [fMul]: fMuldcp };
-    type fMulkx = [ArrayTypeKeys, [xn, xn], ArrayTypeKeys, xn[]];
+    type fMulkx = [array.keys, [xn, xn], array.keys, xn[]];
     type StoreFkx = { [fMul]: fMulkx };
     const store1_to_store2 = new Subject<DataGram<msg1to2>>();
     const store2_to_store1 = new Subject<DataGram<msg2to1>>();
@@ -72,7 +72,7 @@ describe('Stores Communication', () => {
     const b = newJson<xn>({ x: 10 });
     const c = newJson<xn>({ x: 20 });
     const arg = newArray<[xn, xn]>([a, b]);
-    const subs = arg.subscribe(()=>{});
+    const subs = arg.subscribe(() => { });
     let firstCallResult: xn[][] = [];
 
     store1.remote(

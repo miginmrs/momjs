@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { ArrayCim, ArrayHandler, ArrayTypeKeys, JsonCim, JsonHandler, JsonTypeKeys } from '../source/handlers';
-import { createJson, createArray, JsonObject, PromiseCtr, CtxH } from '../source';
+import { array, array as ArrayNs, json, json as JsonNs, JsonObject, PromiseCtr, CtxH } from '../source';
 import { Subject, Subscription } from 'rxjs';
 import { take, toArray, map } from 'rxjs/operators';
 import { createProxy, DataGram, msg1to2, msg2to1 } from '../source/proxy'
@@ -13,8 +12,8 @@ import { alternMap } from 'altern-map';
 import { keys } from '../utils/guards';
 
 namespace RequestHandlers {
-  export const Array: CtxH<any[], ArrayCim, ArrayTypeKeys, 1, RH, {}> = ArrayHandler<RH, {}>();
-  export const Json: CtxH<JsonObject, JsonCim, JsonTypeKeys, 1, RH, {}> = JsonHandler<RH, {}>();
+  export const Array: CtxH<any[], array.cim, array.keys, 1, RH, {}> = ArrayNs.Handler<RH, {}>();
+  export const Json: CtxH<JsonObject, json.cim, json.keys, 1, RH, {}> = JsonNs.Handler<RH, {}>();
 }
 type RH = typeof RequestHandlers;
 
@@ -23,14 +22,14 @@ describe('Stores Global Communication', () => {
   type Values = { firstCall: xn[][], secondCall: xn[][], allMsgs: msg[], remainingKeys: string[], remainingKeys2: string[] };
   const senario = (done: (values: Values) => void, Promise: PromiseCtr) => {
     const getHandler = keys(RequestHandlers);
-    const newArray = createArray<RH, {}>(getHandler);
-    const newJson = createJson<RH, {}>(getHandler);
+    const newArray = array.create<RH, {}>(getHandler);
+    const newJson = json.create<RH, {}>(getHandler);
 
     // COMMON
     const fMul = 0; type fMul = typeof fMul;
-    type fMuldcp = [[unknown[], ArrayCim, 1], [unknown[], ArrayCim, 1], null];
+    type fMuldcp = [[unknown[], array.cim, 1], [unknown[], array.cim, 1], null];
     type StoreFdcp = { [fMul]: fMuldcp };
-    type fMulkx = [ArrayTypeKeys, [xn, xn], ArrayTypeKeys, xn[]];
+    type fMulkx = [array.keys, [xn, xn], array.keys, xn[]];
     type StoreFkx = { [fMul]: fMulkx };
     const msgs: msg[] = [];
 
