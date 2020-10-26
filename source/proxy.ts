@@ -1,9 +1,10 @@
-import { Store } from "./store";
-import { Observable, Subject, Subscription } from "rxjs";
-import { filter, take } from "rxjs/operators";
-import { GlobalRef, RHConstraint, CallHandler, FdcpConstraint, FkxConstraint, FIDS } from "./types";
-import { QuickPromise } from "../utils/quick-promise";
-import { AppX } from ".";
+import { Store } from './store';
+import { Observable, Subject, Subscription } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import { QuickPromise } from '../utils/quick-promise';
+import type { GlobalRef } from './types/basic';
+import type { CallHandler, RHConstraint, FdcpConstraint, FkxConstraint, FIDS } from './types/store';
+import type { AppX } from 'dependent-type';
 
 export type DataGram<T extends string> = { channel: number, type: T, data: string };
 
@@ -12,7 +13,7 @@ export type msg2to1 = 'response_put' | 'response_id' | 'response_call' | 'call_e
 export const msg1to2keys: Record<msg1to2, 0> = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
 export const msg2to1keys: Record<msg2to1, 0> = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
 export const startListener = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>, e extends string = never>(
-  store: Store<RH, ECtx, fIds, fdcp, fkx>,
+  store: Store<RH, ECtx, fIds, fdcp, fkx, never, {}, {}>,
   from: Observable<DataGram<msg1to2 | e>>,
   to: { next: (x: DataGram<msg2to1>) => void },
 ) => from.subscribe(function (this: Subscription, { channel, type, data }) {
@@ -89,9 +90,9 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds 
           to.next({ channel: ch, type: 'put', data: JSON.stringify(def) })
           return promise;
         },
-        error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-        complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
-        call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+        error: (ref, e) => to.next({ channel: callChannel, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
+        complete: ref => to.next({ channel: callChannel, type: 'complete', data: JSON.stringify(ref.id) }),
+        call: (fId, param, ref, opt) => to.next({ channel: callChannel, type: 'call', data: JSON.stringify({ fId, param, argId: ref.id, opt }) }),
         subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel && x.type in msg2to1keys)).subscribe(
           function (this: Subscription, { data, type }) {
             if (type === 'response_id') {
@@ -116,8 +117,8 @@ export const createCallHandler = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds 
 
 
 export const createProxy = <RH extends RHConstraint<RH, ECtx>, ECtx, fIds extends FIDS, fdcp extends FdcpConstraint<fIds>, fkx extends FkxConstraint<fIds, fdcp>>(
-  store1: Store<RH, ECtx, fIds, fdcp, fkx>,
-  store2: Store<RH, ECtx, fIds, fdcp, fkx>,
+  store1: Store<RH, ECtx, never, {}, {}, fIds, fdcp, fkx>,
+  store2: Store<RH, ECtx, fIds, fdcp, fkx, never, {}, {}>,
   msg1to2: Subject<DataGram<msg1to2 | msg2to1>>,
   msg2to1: Subject<DataGram<msg1to2 | msg2to1>>,
 ) => {

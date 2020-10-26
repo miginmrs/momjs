@@ -1,103 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Store = exports.BiMap = exports.asAsync = exports.wait = exports.runit = void 0;
+exports.Store = void 0;
 const rxjs_1 = require("rxjs");
-const destructable_1 = require("./destructable");
-const guards_1 = require("../utils/guards");
 const dependent_type_1 = require("dependent-type");
+const origin_1 = require("./origin");
 const rx_utils_1 = require("../utils/rx-utils");
 const global_1 = require("../utils/global");
 const operators_1 = require("rxjs/operators");
 const altern_map_1 = require("altern-map");
 const rx_async_1 = require("rx-async");
+const bimap_1 = require("./bimap");
 const { depMap } = dependent_type_1.map;
-exports.runit = (gen, promiseCtr) => {
-    const runThen = (...args) => {
-        const v = args.length ? gen.next(args[0]) : gen.next();
-        if (v.done)
-            return promiseCtr.resolve(v.value);
-        return promiseCtr.resolve(v.value).then(runThen);
-    };
-    return runThen();
-};
-function* wait(x) {
-    return yield x;
-}
-exports.wait = wait;
-function asAsync(f, promiseCtr, thisArg) {
-    return (...args) => exports.runit(f.call(thisArg, ...args), promiseCtr);
-}
-exports.asAsync = asAsync;
-class BiMap {
-    constructor() {
-        this.byId = new Map();
-        this.byObs = new Map();
-        this.oldId = new WeakMap();
-    }
-    get(id) { return this.byId.get(id); }
-    delete(id) {
-        const stored = this.byId.get(id);
-        if (stored)
-            this.byObs.delete(stored[0].origin);
-        return this.byId.delete(id);
-    }
-    set(id, value) {
-        if (this.byObs.has(value[0].origin))
-            throw new Error('Object already in store');
-        if (this.byId.has(id))
-            throw new Error('Id already used');
-        this.byObs.set(value[0].origin, id);
-        this.oldId.set(value[0].origin, id);
-        this.byId.set(id, value);
-    }
-    ;
-    reuseId(obs, id) {
-        this.oldId.set(obs.origin, id);
-    }
-    ;
-    finddir(obs) {
-        const origin = obs.origin, id = this.byObs.get(origin);
-        if (id === undefined)
-            return undefined;
-        const found = this.byId.get(id)[0];
-        let upfound = found, upobs = obs;
-        if (found === obs)
-            return [id, 'exact'];
-        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
-        const err = new Error('Another observable with the same origin is in the store');
-        while (true) {
-            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-            if (obsParents.has(upfound) || foundParents.has(upobs)) {
-                if (upfound === obs)
-                    return [id, 'down'];
-                if (upobs === found)
-                    return [id, 'up'];
-                throw err;
-            }
-            if (done)
-                throw err;
-            upobs = upobs.parent;
-            upfound = upfound.parent;
-        }
-    }
-    find(obs, any = false) {
-        return any ? this.byObs.get(obs.origin) : this.finddir(obs)?.[0];
-    }
-    ;
-    usedId(obs) {
-        return this.oldId.get(obs.origin);
-    }
-    ;
-    get size() { return this.byId.size; }
-    keys() { return this.byId.keys(); }
-    entries() { return this.byId.entries(); }
-    values() { return this.byId.values(); }
-}
-exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
-        this.handlers = handlers;
+    constructor(getHandler, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
+        this.getHandler = getHandler;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.functions = functions;
@@ -130,6 +47,11 @@ class Store {
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
+                        const set = new Set([obs]);
+                        while (!set.has(obs = obs.parent))
+                            set.add(obs);
+                        if (!set.has(obs.origin))
+                            return false;
                         const subject = obs.origin.subject;
                         if (subject.isStopped)
                             return true;
@@ -148,15 +70,14 @@ class Store {
             return { id };
         };
         this.checkTypes = (v, ...args) => {
-            const origin = v.origin;
+            const origin = v.origin, getHandler = this.getHandler;
             const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
             if (args.length === 1) {
-                if (args[0].length && !args[0].some(([key, c]) => origin.handler === guards_1.byKey(this.handlers, key) && origin.c === c))
+                if (args[0].length && !args[0].some(([key, c]) => origin.handler === getHandler(key) && origin.c === c))
                     throw err();
             }
             else {
-                const handlers = this.handlers;
-                if (args[0].length && !args[0].some(key => origin.handler === guards_1.byKey(handlers, key)))
+                if (args[0].length && !args[0].some(key => origin.handler === getHandler(key)))
                     throw err();
             }
             return v;
@@ -173,16 +94,17 @@ class Store {
         };
         this.callReturnRef = new WeakMap();
         this.functions = functions;
-        this.map = new BiMap();
-        this.locals = new BiMap();
-        for (const [obs, { id, in: isIn, out: isOut }] of locals)
-            this.locals.set(id, [obs, { in: isIn, out: isOut }]);
+        const map = this.map = new bimap_1.BiMap(true);
+        this.empty = map.empty;
+        this.locals = new bimap_1.BiMap();
+        for (const [obs, { id, ...opt }] of locals)
+            this.locals.set(id, [obs, opt]);
     }
     subscribeToLocals($local) {
         const subs = new rxjs_1.Subscription();
         const local = $local ?? (this.base ? subs : undefined);
-        for (const [, [obs]] of this.locals.entries()) {
-            subs.add(this.push(obs, { local }).subscription);
+        for (const [, [obs, { local: $local }]] of this.locals.entries()) {
+            subs.add(this.push(obs, { local: $local ?? local }).subscription);
         }
         return subs;
     }
@@ -202,9 +124,9 @@ class Store {
             }
         });
     }
-    /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
+    /** inserts a new serial observable or updates a stored ObsWithOrigin using serialized data */
     _unserialize(key, ctx, models, cache, i) {
-        const handler = guards_1.byKey(this.handlers, key);
+        const handler = this.getHandler(key);
         if (cache[i] !== undefined)
             return cache[i];
         const model = models[i], { id: usedId } = model;
@@ -232,11 +154,11 @@ class Store {
         cache[i] = { obs, id };
         return cache[i];
     }
-    /** inserts a new destructable into the store with a givin id */
+    /** inserts a new serial observable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
-        const handler = guards_1.byKey(this.handlers, key);
+        const getHandler = this.getHandler, handler = getHandler(key);
         const compare = handler.compare?.(ctx);
-        const obs = new destructable_1.Destructable(this.handlers, key, c, entry, compare, () => this.map.delete(id));
+        const obs = new origin_1.Origin(getHandler, key, c, entry, compare, () => this.map.delete(id));
         this.map.set(id, [obs, {}]);
         return obs;
     }
@@ -316,14 +238,13 @@ class Store {
             }, { completeWithInner: true }), operators_1.tap(clear));
             const teardown = () => {
                 unload?.({ id });
+                this.map.delete(id);
+                destroyed = true;
                 const local = this.locals.get(id)?.[1];
-                if (!local || local.out) {
-                    this.pushed.delete(obs);
+                if ((!local || local.out) && this.pushed.delete(obs)) {
                     this.pushes.next([obs, id, false]);
                 }
                 clear.call(rxjs_1.Subscription.EMPTY);
-                this.map.delete(id);
-                destroyed = true;
             };
             if ($local?.closed !== false) {
                 wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
@@ -331,7 +252,8 @@ class Store {
                 subscription = wrapped.subscribe(() => { });
             }
             else {
-                $local.add(asubj.subscribe(() => { }));
+                if (!$local[Store.nodeps])
+                    $local.add(asubj.subscribe(() => { }));
                 $local.add(teardown);
                 this.map.set(id, [wrapped, {}]);
                 subscription = wrapped.subscribe(() => { });
@@ -350,14 +272,14 @@ class Store {
         return { ref: { id }, wrapped, subscription };
     }
     /**
-     * serialize any destructable object regardless wether its in the store
-     * @param {Destructable} obs the observable to serialize
+     * serialize any serial observable regardless wether its in the store
+     * @param {Origin} obs the observable to serialize
      * @param {SerializationOptions} opt options of serialization
      */
     serialize(obs, opt) {
         const { isNew, push = true, ignore = [] } = opt;
         return obs.pipe(operators_1.scan((previous) => {
-            const session = new BiMap;
+            const session = new bimap_1.BiMap;
             const allData = new Map();
             const subs = new rxjs_1.Subscription;
             let next = 1;
@@ -453,7 +375,7 @@ class Store {
             return new rxjs_1.Observable(subscriber => {
                 obs.then(obs => {
                     const { subscription } = this.push(obs);
-                    subs.unsubscribe();
+                    subscription.add(subs);
                     const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
                     subscriber.add(serialized.subscribe(subscriber));
                     subscriber.add(subscription);
@@ -462,7 +384,7 @@ class Store {
         return new rxjs_1.Observable(subscriber => {
             obs.then(obs => {
                 const { subscription, ref } = this.push(obs);
-                subs.unsubscribe();
+                subscription.add(subs);
                 subscriber.next(ref);
                 subscriber.add(subscription);
             });
@@ -532,11 +454,12 @@ class Store {
             if (opt.graph)
                 refTask[0].then(refReturn => {
                     const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
-                    callSubscription.add(() => subs2.unsubscribe());
+                    callSubscription.add(subs2);
                 });
             subscriber.add(callSubscription);
         });
     }
 }
 exports.Store = Store;
+Store.nodeps = Symbol();
 //# sourceMappingURL=store.js.map

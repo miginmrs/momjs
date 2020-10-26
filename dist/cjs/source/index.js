@@ -11,9 +11,6 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
@@ -21,15 +18,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.utils = exports.altern_map = exports.rx_async = void 0;
-__exportStar(require("./store"), exports);
-__exportStar(require("./handlers"), exports);
-__exportStar(require("./destructable"), exports);
-__exportStar(require("./types"), exports);
-__exportStar(require("./proxy"), exports);
-__exportStar(require("dependent-type"), exports);
 exports.rx_async = __importStar(require("rx-async"));
 exports.altern_map = __importStar(require("altern-map"));
 exports.utils = __importStar(require("../utils"));
+__exportStar(require("./types/basic"), exports);
+__exportStar(require("./async"), exports);
+__exportStar(require("./origin"), exports);
+__exportStar(require("./types/serial"), exports);
+__exportStar(require("./types/store"), exports);
+__exportStar(require("./bimap"), exports);
+__exportStar(require("./types/params"), exports);
+__exportStar(require("./store"), exports);
+__exportStar(require("./handlers"), exports);
+__exportStar(require("./proxy"), exports);
 //# sourceMappingURL=index.js.map

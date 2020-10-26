@@ -1,6 +1,6 @@
-import { Subscription } from "rxjs";
-import { filter, take } from "rxjs/operators";
-import { QuickPromise } from "../utils/quick-promise";
+import { Subscription } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import { QuickPromise } from '../utils/quick-promise';
 export const msg1to2keys = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
 export const msg2to1keys = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
 export const startListener = (store, from, to) => from.subscribe(function ({ channel, type, data }) {
@@ -70,9 +70,9 @@ export const createCallHandler = (to, from, channel) => {
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
-                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+                error: (ref, e) => to.next({ channel: callChannel, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
+                complete: ref => to.next({ channel: callChannel, type: 'complete', data: JSON.stringify(ref.id) }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, type: 'call', data: JSON.stringify({ fId, param, argId: ref.id, opt }) }),
                 subscribeToResult: cbs => from.pipe(filter(x => x.channel === callChannel && x.type in msg2to1keys)).subscribe(function ({ data, type }) {
                     if (type === 'response_id') {
                         cbs.resp_id({ id: JSON.parse(data) });

@@ -563,144 +563,345 @@ exports.List = List;
 
 /***/ }),
 
-/***/ "./source/destructable.ts":
-/*!********************************!*\
-  !*** ./source/destructable.ts ***!
-  \********************************/
+/***/ "./source/async.ts":
+/*!*************************!*\
+  !*** ./source/async.ts ***!
+  \*************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Destructable = exports.destructableCmp = void 0;
-const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
-const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
-const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
-const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
-const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
-__webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
-exports.destructableCmp = ({ compareData = (x, y) => x === y, compareObs = (x, y) => x === y } = {}) => (x, y) => x.args.length === y.args.length && x.args.every((v, i) => {
-    const vItem = v, yItem = y.args[i];
-    if (vItem instanceof Array) {
-        if (yItem instanceof Array)
-            return vItem.length === yItem.length && vItem.every(x => x === yItem[i]);
-        return false;
-    }
-    if (yItem instanceof Array)
-        return false;
-    return compareObs(vItem, yItem);
-}) && compareData(x.data, y.data);
-class Destructable extends rxjs_1.Observable {
-    constructor(handlers, key, c, init, compare = exports.destructableCmp(), ...teardownList) {
-        var _a;
-        super();
-        this.handlers = handlers;
-        this.key = key;
-        this.c = c;
-        this.origin = this;
-        this.parent = this;
-        const handler = this.handler;
-        this.subject = new rxjs_1.BehaviorSubject(init);
-        const destroy = this.destroy = new rxjs_1.Subscription();
-        destroy.add((_a = handler.destroy) === null || _a === void 0 ? void 0 : _a.call(handler, init.data));
-        teardownList.forEach(cb => destroy.add(cb));
-        destroy.add(() => {
-            if (!this.subject.isStopped)
-                this.subject.unsubscribe();
-            else
-                this.subject.closed = true;
-        });
-        this.source = new rxjs_1.Observable(subscriber => {
-            const subs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => {
-                const array = args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args);
-                return rx_utils_1.eagerCombineAll(array).pipe(operators_1.map(args => [args, data, c]));
-            }, { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, data, c, old, this), null)).subscribe(subscriber);
-            subs.add(this.destroy);
-            return subs;
-        });
-        this.operator = operators_1.shareReplay({ bufferSize: 1, refCount: true })(this).operator;
-    }
-    get destroyed() { return this.destroy.closed; }
-    get handler() {
-        return guards_1.byKey(this.handlers, this.key);
-    }
-    add(teardown) {
-        return this.destroy.add(teardown);
-    }
+exports.asAsync = exports.wait = exports.runit = void 0;
+exports.runit = (gen, promiseCtr) => {
+    const runThen = (...args) => {
+        const v = args.length ? gen.next(args[0]) : gen.next();
+        if (v.done)
+            return promiseCtr.resolve(v.value);
+        return promiseCtr.resolve(v.value).then(runThen);
+    };
+    return runThen();
+};
+function* wait(x) {
+    return yield x;
 }
-exports.Destructable = Destructable;
+exports.wait = wait;
+function asAsync(f, promiseCtr, thisArg) {
+    return (...args) => exports.runit(f.call(thisArg, ...args), promiseCtr);
+}
+exports.asAsync = asAsync;
 
 
 /***/ }),
 
-/***/ "./source/handlers.ts":
-/*!****************************!*\
-  !*** ./source/handlers.ts ***!
-  \****************************/
+/***/ "./source/bimap.ts":
+/*!*************************!*\
+  !*** ./source/bimap.ts ***!
+  \*************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
-/// <reference path="../typings/deep-is.d.ts" />
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BiMap = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+class BiMap {
+    constructor(watch = false) {
+        this.watch = watch;
+        this.byId = new Map();
+        this.byObs = new Map();
+        this.oldId = new WeakMap();
+        this._empty = new rxjs_1.Subject();
+        this.empty = new rxjs_1.Observable(subscriber => {
+            if (!this.byId.size)
+                subscriber.next();
+            this._empty.subscribe(subscriber);
+        });
+    }
+    get(id) { return this.byId.get(id); }
+    delete(id) {
+        const stored = this.byId.get(id);
+        if (stored)
+            this.byObs.delete(stored[0].origin);
+        const res = this.byId.delete(id);
+        if (this.watch && !this.byId.size)
+            this._empty.next();
+        return res;
+    }
+    set(id, value) {
+        if (this.byObs.has(value[0].origin))
+            throw new Error('Object already in store');
+        if (this.byId.has(id))
+            throw new Error('Id already used');
+        this.byObs.set(value[0].origin, id);
+        this.oldId.set(value[0].origin, id);
+        this.byId.set(id, value);
+    }
+    ;
+    reuseId(obs, id) {
+        this.oldId.set(obs.origin, id);
+    }
+    ;
+    finddir(obs) {
+        const origin = obs.origin, id = this.byObs.get(origin);
+        if (id === undefined)
+            return undefined;
+        const found = this.byId.get(id)[0];
+        let upfound = found, upobs = obs;
+        if (found === obs)
+            return [id, 'exact'];
+        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+        const err = new Error('Another observable with the same origin is in the store');
+        while (true) {
+            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
+            if (obsParents.has(upfound) || foundParents.has(upobs)) {
+                if (upfound === obs)
+                    return [id, 'down'];
+                if (upobs === found)
+                    return [id, 'up'];
+                throw err;
+            }
+            if (done)
+                throw err;
+            upobs = upobs.parent;
+            upfound = upfound.parent;
+        }
+    }
+    find(obs, any = false) {
+        var _a;
+        return any ? this.byObs.get(obs.origin) : (_a = this.finddir(obs)) === null || _a === void 0 ? void 0 : _a[0];
+    }
+    ;
+    usedId(obs) {
+        return this.oldId.get(obs.origin);
+    }
+    ;
+    get size() { return this.byId.size; }
+    keys() { return this.byId.keys(); }
+    entries() { return this.byId.entries(); }
+    values() { return this.byId.values(); }
+}
+exports.BiMap = BiMap;
+
+
+/***/ }),
+
+/***/ "./source/handlers/array.ts":
+/*!**********************************!*\
+  !*** ./source/handlers/array.ts ***!
+  \**********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.array = void 0;
+const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
+const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
+const { depMap } = dependent_type_1.map;
+var array;
+(function (array) {
+    array.n = 1;
+    array.Handler = () => ({
+        decode: ({ deref }) => (_id, data) => {
+            return {
+                args: depMap(data, ref => deref(ref)),
+                data: null, n: array.n
+            };
+        },
+        encode: ({ ref }) => ({ args }) => {
+            const encoded = depMap(args, (x) => ref(x));
+            return encoded;
+        },
+        ctr: (x, _d, _c, old) => {
+            if (old) {
+                old.splice(0);
+                x = Object.assign(old, x);
+            }
+            return x;
+        },
+    });
+    array.create = (getHandler) => (args, ...teardownList) => new origin.Origin(getHandler, 'Array', null, { data: null, args, n: array.n }, undefined, ...teardownList);
+    array.cast = (deref) => (p) => deref(p, 'Array');
+})(array = exports.array || (exports.array = {}));
+
+
+/***/ }),
+
+/***/ "./source/handlers/common.ts":
+/*!***********************************!*\
+  !*** ./source/handlers/common.ts ***!
+  \***********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/handlers/index.ts":
+/*!**********************************!*\
+  !*** ./source/handlers/index.ts ***!
+  \**********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(__webpack_require__(/*! ./common */ "./source/handlers/common.ts"), exports);
+__exportStar(__webpack_require__(/*! ./array */ "./source/handlers/array.ts"), exports);
+__exportStar(__webpack_require__(/*! ./json */ "./source/handlers/json.ts"), exports);
+__exportStar(__webpack_require__(/*! ./local */ "./source/handlers/local.ts"), exports);
+
+
+/***/ }),
+
+/***/ "./source/handlers/json.ts":
+/*!*********************************!*\
+  !*** ./source/handlers/json.ts ***!
+  \*********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+/// <reference path="../../typings/deep-is.d.ts" />
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toJson = exports.wrapJson = exports.JsonHandler = exports.toArray = exports.wrapArray = exports.ArrayHandler = exports.ArrayN = void 0;
-const destructable_1 = __webpack_require__(/*! ./destructable */ "./source/destructable.ts");
-const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
+exports.json = void 0;
+const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
 const deep_is_1 = __importDefault(__webpack_require__(/*! deep-is */ "./node_modules/deep-is/index.js"));
-const { depMap } = dependent_type_1.map;
-exports.ArrayN = 1;
-exports.ArrayHandler = () => ({
-    decode: ({ deref }) => (_id, data) => {
-        return {
-            args: depMap(data, ref => deref(ref)),
-            data: null, n: exports.ArrayN
-        };
-    },
-    encode: ({ ref }) => ({ args }) => {
-        const encoded = depMap(args, (x) => ref(x));
-        return encoded;
-    },
-    ctr: (x, _d, _c, old) => {
-        if (old) {
-            old.splice(0);
-            x = Object.assign(old, x);
+var json;
+(function (json) {
+    json.n = 1;
+    const deepUpdate = (target, source) => {
+        const keys = (o) => Object.keys(o);
+        const onlyTargetKeys = new Set(keys(target));
+        for (const key of keys(source)) {
+            onlyTargetKeys.delete(key);
+            const targetItem = target[key], sourceItem = source[key];
+            if (targetItem && sourceItem && typeof targetItem === 'object' && typeof sourceItem === 'object' && Array.isArray(targetItem) === Array.isArray(sourceItem)) {
+                deepUpdate(targetItem, sourceItem);
+            }
+            else
+                target[key] = sourceItem;
         }
-        return x;
-    },
+        for (const key of onlyTargetKeys)
+            delete target[key];
+        return target;
+    };
+    const clone = (o) => {
+        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clone(v)])) : o;
+    };
+    json.Handler = () => ({
+        decode: () => (_id, data) => ({ args: [], data, n: json.n }),
+        encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
+        ctr: (_, data, _c, old) => old ? deepUpdate(old, data) : data,
+    });
+    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', null, { args: [], data, n: json.n }, undefined, ...teardownList);
+    json.cast = (deref) => (p) => deref(p, 'Json');
+})(json = exports.json || (exports.json = {}));
+
+
+/***/ }),
+
+/***/ "./source/handlers/local.ts":
+/*!**********************************!*\
+  !*** ./source/handlers/local.ts ***!
+  \**********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
 });
-exports.wrapArray = (handlers) => (args, ...teardownList) => new destructable_1.Destructable(handlers, 'Array', null, { data: null, args, n: exports.ArrayN }, undefined, ...teardownList);
-exports.toArray = (deref) => (p) => deref(p, 'Array');
-const deepUpdate = (target, source) => {
-    const keys = (o) => Object.keys(o);
-    const onlyTargetKeys = new Set(keys(target));
-    for (const key of keys(source)) {
-        onlyTargetKeys.delete(key);
-        const targetItem = target[key], sourceItem = source[key];
-        if (targetItem && sourceItem && typeof targetItem === 'object' && typeof sourceItem === 'object' && Array.isArray(targetItem) === Array.isArray(sourceItem)) {
-            deepUpdate(targetItem, sourceItem);
-        }
-        else
-            target[key] = sourceItem;
-    }
-    for (const key of onlyTargetKeys)
-        delete target[key];
-    return target;
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
-const clone = (o) => {
-    return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clone(v)])) : o;
-};
-exports.JsonHandler = () => ({
-    decode: () => (_id, data) => ({ args: [], data, n: 1 }),
-    encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
-    ctr: (_, data, _c, old) => old ? deepUpdate(old, data) : data,
-});
-exports.wrapJson = (handlers) => (data, ...teardownList) => new destructable_1.Destructable(handlers, 'Json', null, { args: [], data, n: 1 }, undefined, ...teardownList);
-exports.toJson = (deref) => (p) => deref(p, 'Json');
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.local = void 0;
+const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
+var local;
+(function (local) {
+    local.Handler = () => ({
+        decode: () => () => ({ args: [], data: {}, c: null, n: 1 }),
+        encode: () => () => null,
+        ctr: ([], data) => data,
+    });
+    local.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Local', null, { args: [], data, n: 1 }, undefined, ...teardownList);
+})(local = exports.local || (exports.local = {}));
 
 
 /***/ }),
@@ -726,9 +927,6 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
@@ -736,17 +934,87 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.utils = exports.altern_map = exports.rx_async = void 0;
-__exportStar(__webpack_require__(/*! ./store */ "./source/store.ts"), exports);
-__exportStar(__webpack_require__(/*! ./handlers */ "./source/handlers.ts"), exports);
-__exportStar(__webpack_require__(/*! ./destructable */ "./source/destructable.ts"), exports);
-__exportStar(__webpack_require__(/*! ./types */ "./source/types.ts"), exports);
-__exportStar(__webpack_require__(/*! ./proxy */ "./source/proxy.ts"), exports);
-__exportStar(__webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts"), exports);
 exports.rx_async = __importStar(__webpack_require__(/*! rx-async */ "./node_modules/rx-async/source/index.ts"));
 exports.altern_map = __importStar(__webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts"));
 exports.utils = __importStar(__webpack_require__(/*! ../utils */ "./utils/index.ts"));
+__exportStar(__webpack_require__(/*! ./types/basic */ "./source/types/basic.ts"), exports);
+__exportStar(__webpack_require__(/*! ./async */ "./source/async.ts"), exports);
+__exportStar(__webpack_require__(/*! ./origin */ "./source/origin.ts"), exports);
+__exportStar(__webpack_require__(/*! ./types/serial */ "./source/types/serial.ts"), exports);
+__exportStar(__webpack_require__(/*! ./types/store */ "./source/types/store/index.ts"), exports);
+__exportStar(__webpack_require__(/*! ./bimap */ "./source/bimap.ts"), exports);
+__exportStar(__webpack_require__(/*! ./types/params */ "./source/types/params.ts"), exports);
+__exportStar(__webpack_require__(/*! ./store */ "./source/store.ts"), exports);
+__exportStar(__webpack_require__(/*! ./handlers */ "./source/handlers/index.ts"), exports);
+__exportStar(__webpack_require__(/*! ./proxy */ "./source/proxy.ts"), exports);
+
+
+/***/ }),
+
+/***/ "./source/origin.ts":
+/*!**************************!*\
+  !*** ./source/origin.ts ***!
+  \**************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Origin = exports.compareEntries = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
+const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
+const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
+exports.compareEntries = ({ compareData = (x, y) => x === y, compareObs = (x, y) => x === y } = {}) => (x, y) => x.args.length === y.args.length && x.args.every((v, i) => {
+    const vItem = v, yItem = y.args[i];
+    if (vItem instanceof Array) {
+        if (yItem instanceof Array)
+            return vItem.length === yItem.length && vItem.every(x => x === yItem[i]);
+        return false;
+    }
+    if (yItem instanceof Array)
+        return false;
+    return compareObs(vItem, yItem);
+}) && compareData(x.data, y.data);
+class Origin extends rxjs_1.Observable {
+    constructor(getHandler, key, c, init, compare = exports.compareEntries(), ...teardownList) {
+        super();
+        this.getHandler = getHandler;
+        this.key = key;
+        this.c = c;
+        this.origin = this;
+        this.parent = this;
+        const handler = this.handler = getHandler(key);
+        let current = init.data;
+        this.subject = new rxjs_1.BehaviorSubject(init);
+        this.teardown = new rxjs_1.Subscription();
+        teardownList.forEach(this.teardown.add.bind(this.teardown));
+        this.source = new rxjs_1.Observable(subjectSubscriber => {
+            subjectSubscriber.add(this.teardown);
+            subjectSubscriber.add(() => {
+                var _a;
+                (_a = handler.destroy) === null || _a === void 0 ? void 0 : _a.call(handler, current);
+                if (!this.subject.isStopped)
+                    this.subject.unsubscribe();
+                else
+                    this.subject.closed = true;
+            });
+            this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => rx_utils_1.eagerCombineAll(args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args)).pipe(operators_1.map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)).subscribe(subjectSubscriber);
+        });
+        this.operator = operators_1.shareReplay({ bufferSize: 1, refCount: true })(this).operator;
+    }
+    get destroyed() { return this.teardown.closed; }
+    add(teardown) {
+        return this.teardown.add(teardown);
+    }
+}
+exports.Origin = Origin;
 
 
 /***/ }),
@@ -835,9 +1103,9 @@ exports.createCallHandler = (to, from, channel) => {
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                error: (ref, e) => to.next({ channel: callChannel, data: JSON.stringify({ id: ref.id, msg: `${e}` }), type: 'error' }),
-                complete: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'complete' }),
-                call: (fId, param, ref, opt) => to.next({ channel: callChannel, data: JSON.stringify({ fId, param, argId: ref.id, opt }), type: 'call' }),
+                error: (ref, e) => to.next({ channel: callChannel, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
+                complete: ref => to.next({ channel: callChannel, type: 'complete', data: JSON.stringify(ref.id) }),
+                call: (fId, param, ref, opt) => to.next({ channel: callChannel, type: 'call', data: JSON.stringify({ fId, param, argId: ref.id, opt }) }),
                 subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel && x.type in exports.msg2to1keys)).subscribe(function ({ data, type }) {
                     if (type === 'response_id') {
                         cbs.resp_id({ id: JSON.parse(data) });
@@ -879,105 +1147,21 @@ exports.createProxy = (store1, store2, msg1to2, msg2to1) => {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Store = exports.BiMap = exports.asAsync = exports.wait = exports.runit = void 0;
+exports.Store = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
-const destructable_1 = __webpack_require__(/*! ./destructable */ "./source/destructable.ts");
-const guards_1 = __webpack_require__(/*! ../utils/guards */ "./utils/guards.ts");
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
+const origin_1 = __webpack_require__(/*! ./origin */ "./source/origin.ts");
 const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
 const global_1 = __webpack_require__(/*! ../utils/global */ "./utils/global.ts");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
 const rx_async_1 = __webpack_require__(/*! rx-async */ "./node_modules/rx-async/source/index.ts");
+const bimap_1 = __webpack_require__(/*! ./bimap */ "./source/bimap.ts");
 const { depMap } = dependent_type_1.map;
-exports.runit = (gen, promiseCtr) => {
-    const runThen = (...args) => {
-        const v = args.length ? gen.next(args[0]) : gen.next();
-        if (v.done)
-            return promiseCtr.resolve(v.value);
-        return promiseCtr.resolve(v.value).then(runThen);
-    };
-    return runThen();
-};
-function* wait(x) {
-    return yield x;
-}
-exports.wait = wait;
-function asAsync(f, promiseCtr, thisArg) {
-    return (...args) => exports.runit(f.call(thisArg, ...args), promiseCtr);
-}
-exports.asAsync = asAsync;
-class BiMap {
-    constructor() {
-        this.byId = new Map();
-        this.byObs = new Map();
-        this.oldId = new WeakMap();
-    }
-    get(id) { return this.byId.get(id); }
-    delete(id) {
-        const stored = this.byId.get(id);
-        if (stored)
-            this.byObs.delete(stored[0].origin);
-        return this.byId.delete(id);
-    }
-    set(id, value) {
-        if (this.byObs.has(value[0].origin))
-            throw new Error('Object already in store');
-        if (this.byId.has(id))
-            throw new Error('Id already used');
-        this.byObs.set(value[0].origin, id);
-        this.oldId.set(value[0].origin, id);
-        this.byId.set(id, value);
-    }
-    ;
-    reuseId(obs, id) {
-        this.oldId.set(obs.origin, id);
-    }
-    ;
-    finddir(obs) {
-        const origin = obs.origin, id = this.byObs.get(origin);
-        if (id === undefined)
-            return undefined;
-        const found = this.byId.get(id)[0];
-        let upfound = found, upobs = obs;
-        if (found === obs)
-            return [id, 'exact'];
-        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
-        const err = new Error('Another observable with the same origin is in the store');
-        while (true) {
-            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-            if (obsParents.has(upfound) || foundParents.has(upobs)) {
-                if (upfound === obs)
-                    return [id, 'down'];
-                if (upobs === found)
-                    return [id, 'up'];
-                throw err;
-            }
-            if (done)
-                throw err;
-            upobs = upobs.parent;
-            upfound = upfound.parent;
-        }
-    }
-    find(obs, any = false) {
-        var _a;
-        return any ? this.byObs.get(obs.origin) : (_a = this.finddir(obs)) === null || _a === void 0 ? void 0 : _a[0];
-    }
-    ;
-    usedId(obs) {
-        return this.oldId.get(obs.origin);
-    }
-    ;
-    get size() { return this.byId.size; }
-    keys() { return this.byId.keys(); }
-    entries() { return this.byId.entries(); }
-    values() { return this.byId.values(); }
-}
-exports.BiMap = BiMap;
 const one = BigInt(1);
 class Store {
-    constructor(handlers, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
-        this.handlers = handlers;
+    constructor(getHandler, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
+        this.getHandler = getHandler;
         this.extra = extra;
         this.promiseCtr = promiseCtr;
         this.functions = functions;
@@ -1012,6 +1196,11 @@ class Store {
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
+                        const set = new Set([obs]);
+                        while (!set.has(obs = obs.parent))
+                            set.add(obs);
+                        if (!set.has(obs.origin))
+                            return false;
                         const subject = obs.origin.subject;
                         if (subject.isStopped)
                             return true;
@@ -1030,15 +1219,14 @@ class Store {
             return { id };
         };
         this.checkTypes = (v, ...args) => {
-            const origin = v.origin;
+            const origin = v.origin, getHandler = this.getHandler;
             const err = () => new Error('Type Mismatch : ' + origin.key + ' not in ' + JSON.stringify(depMap(args[0], (x) => x instanceof Array ? x[0] : x)));
             if (args.length === 1) {
-                if (args[0].length && !args[0].some(([key, c]) => origin.handler === guards_1.byKey(this.handlers, key) && origin.c === c))
+                if (args[0].length && !args[0].some(([key, c]) => origin.handler === getHandler(key) && origin.c === c))
                     throw err();
             }
             else {
-                const handlers = this.handlers;
-                if (args[0].length && !args[0].some(key => origin.handler === guards_1.byKey(handlers, key)))
+                if (args[0].length && !args[0].some(key => origin.handler === getHandler(key)))
                     throw err();
             }
             return v;
@@ -1055,16 +1243,17 @@ class Store {
         };
         this.callReturnRef = new WeakMap();
         this.functions = functions;
-        this.map = new BiMap();
-        this.locals = new BiMap();
-        for (const [obs, { id, in: isIn, out: isOut }] of locals)
-            this.locals.set(id, [obs, { in: isIn, out: isOut }]);
+        const map = this.map = new bimap_1.BiMap(true);
+        this.empty = map.empty;
+        this.locals = new bimap_1.BiMap();
+        for (const [obs, { id, ...opt }] of locals)
+            this.locals.set(id, [obs, opt]);
     }
     subscribeToLocals($local) {
         const subs = new rxjs_1.Subscription();
         const local = $local !== null && $local !== void 0 ? $local : (this.base ? subs : undefined);
-        for (const [, [obs]] of this.locals.entries()) {
-            subs.add(this.push(obs, { local }).subscription);
+        for (const [, [obs, { local: $local }]] of this.locals.entries()) {
+            subs.add(this.push(obs, { local: $local !== null && $local !== void 0 ? $local : local }).subscription);
         }
         return subs;
     }
@@ -1084,10 +1273,10 @@ class Store {
             }
         });
     }
-    /** inserts a new destructable or updates a stored ObsWithOrigin using serialized data */
+    /** inserts a new serial observable or updates a stored ObsWithOrigin using serialized data */
     _unserialize(key, ctx, models, cache, i) {
         var _a, _b, _c;
-        const handler = guards_1.byKey(this.handlers, key);
+        const handler = this.getHandler(key);
         if (cache[i] !== undefined)
             return cache[i];
         const model = models[i], { id: usedId } = model;
@@ -1115,12 +1304,12 @@ class Store {
         cache[i] = { obs, id };
         return cache[i];
     }
-    /** inserts a new destructable into the store with a givin id */
+    /** inserts a new serial observable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
         var _a;
-        const handler = guards_1.byKey(this.handlers, key);
+        const getHandler = this.getHandler, handler = getHandler(key);
         const compare = (_a = handler.compare) === null || _a === void 0 ? void 0 : _a.call(handler, ctx);
-        const obs = new destructable_1.Destructable(this.handlers, key, c, entry, compare, () => this.map.delete(id));
+        const obs = new origin_1.Origin(getHandler, key, c, entry, compare, () => this.map.delete(id));
         this.map.set(id, [obs, {}]);
         return obs;
     }
@@ -1202,14 +1391,13 @@ class Store {
             const teardown = () => {
                 var _a;
                 unload === null || unload === void 0 ? void 0 : unload({ id });
+                this.map.delete(id);
+                destroyed = true;
                 const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
-                if (!local || local.out) {
-                    this.pushed.delete(obs);
+                if ((!local || local.out) && this.pushed.delete(obs)) {
                     this.pushes.next([obs, id, false]);
                 }
                 clear.call(rxjs_1.Subscription.EMPTY);
-                this.map.delete(id);
-                destroyed = true;
             };
             if (($local === null || $local === void 0 ? void 0 : $local.closed) !== false) {
                 wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
@@ -1217,7 +1405,8 @@ class Store {
                 subscription = wrapped.subscribe(() => { });
             }
             else {
-                $local.add(asubj.subscribe(() => { }));
+                if (!$local[Store.nodeps])
+                    $local.add(asubj.subscribe(() => { }));
                 $local.add(teardown);
                 this.map.set(id, [wrapped, {}]);
                 subscription = wrapped.subscribe(() => { });
@@ -1236,14 +1425,14 @@ class Store {
         return { ref: { id }, wrapped, subscription };
     }
     /**
-     * serialize any destructable object regardless wether its in the store
-     * @param {Destructable} obs the observable to serialize
+     * serialize any serial observable regardless wether its in the store
+     * @param {Origin} obs the observable to serialize
      * @param {SerializationOptions} opt options of serialization
      */
     serialize(obs, opt) {
         const { isNew, push = true, ignore = [] } = opt;
         return obs.pipe(operators_1.scan((previous) => {
-            const session = new BiMap;
+            const session = new bimap_1.BiMap;
             const allData = new Map();
             const subs = new rxjs_1.Subscription;
             let next = 1;
@@ -1339,7 +1528,7 @@ class Store {
             return new rxjs_1.Observable(subscriber => {
                 obs.then(obs => {
                     const { subscription } = this.push(obs);
-                    subs.unsubscribe();
+                    subscription.add(subs);
                     const serialized = this.serialize(obs.origin, { isNew: true, ignore: opt.ignore });
                     subscriber.add(serialized.subscribe(subscriber));
                     subscriber.add(subscription);
@@ -1348,7 +1537,7 @@ class Store {
         return new rxjs_1.Observable(subscriber => {
             obs.then(obs => {
                 const { subscription, ref } = this.push(obs);
-                subs.unsubscribe();
+                subscription.add(subs);
                 subscriber.next(ref);
                 subscriber.add(subscription);
             });
@@ -1419,27 +1608,140 @@ class Store {
             if (opt.graph)
                 refTask[0].then(refReturn => {
                     const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
-                    callSubscription.add(() => subs2.unsubscribe());
+                    callSubscription.add(subs2);
                 });
             subscriber.add(callSubscription);
         });
     }
 }
 exports.Store = Store;
+Store.nodeps = Symbol();
 
 
 /***/ }),
 
-/***/ "./source/types.ts":
-/*!*************************!*\
-  !*** ./source/types.ts ***!
-  \*************************/
+/***/ "./source/types/basic.ts":
+/*!*******************************!*\
+  !*** ./source/types/basic.ts ***!
+  \*******************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/params.ts":
+/*!********************************!*\
+  !*** ./source/types/params.ts ***!
+  \********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/serial.ts":
+/*!********************************!*\
+  !*** ./source/types/serial.ts ***!
+  \********************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/store/call.ts":
+/*!************************************!*\
+  !*** ./source/types/store/call.ts ***!
+  \************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/store/definition.ts":
+/*!******************************************!*\
+  !*** ./source/types/store/definition.ts ***!
+  \******************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/store/functions.ts":
+/*!*****************************************!*\
+  !*** ./source/types/store/functions.ts ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/store/handler.ts":
+/*!***************************************!*\
+  !*** ./source/types/store/handler.ts ***!
+  \***************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+/***/ }),
+
+/***/ "./source/types/store/index.ts":
+/*!*************************************!*\
+  !*** ./source/types/store/index.ts ***!
+  \*************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(__webpack_require__(/*! ./functions */ "./source/types/store/functions.ts"), exports);
+__exportStar(__webpack_require__(/*! ./definition */ "./source/types/store/definition.ts"), exports);
+__exportStar(__webpack_require__(/*! ./handler */ "./source/types/store/handler.ts"), exports);
+__exportStar(__webpack_require__(/*! ./call */ "./source/types/store/call.ts"), exports);
 
 
 /***/ }),
@@ -1473,10 +1775,11 @@ exports.defineProperty = defineProperty;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toSuperKey = exports.subKey = exports.byKey = exports.asCond = exports.toCond = void 0;
+exports.toSuperKey = exports.subKey = exports.keys = exports.byKey = exports.asCond = exports.toCond = void 0;
 exports.toCond = (x) => x;
 exports.asCond = (x) => x;
 exports.byKey = (o, k) => o[k];
+exports.keys = (p) => (k, o = p) => o[k];
 exports.subKey = (k) => k;
 exports.toSuperKey = (o) => o;
 
