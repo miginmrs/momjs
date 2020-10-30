@@ -1,0 +1,6 @@
+import { TVCDA_CIM } from '../types/basic';
+import { EHConstraint, SerialCtrs, SerialCtr, RequestHandleEncode, RequestHandleEncodes } from '../types/serial';
+import { RequestHandleDecode, RequestHandleDecodes } from '../types/store';
+export declare const getCtr: <dom extends string | number | symbol, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>(ctrs: SerialCtrs<dom, cim, k, n, EH, ECtx>, i: dom) => SerialCtr<dom, cim, k, n, EH, ECtx>;
+export declare const getEncode: <dom extends string | number | symbol, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>(ctrs: RequestHandleEncodes<dom, cim, k, n, EH, ECtx>, i: dom) => RequestHandleEncode<dom, cim, k, n, EH, ECtx>;
+export declare const getDecode: <dom extends string | number | symbol, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>(ctrs: RequestHandleDecodes<dom, cim, k, n, EH, ECtx>, i: dom) => RequestHandleDecode<dom, cim, k, n, EH, ECtx>;

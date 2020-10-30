@@ -1,10 +1,13 @@
-import { App, Fun } from 'dependent-type';
-import { Subscription } from 'rxjs';
-import { GlobalRef, TVCDADepConstaint, TVCDA_CIM } from './basic';
-import { EModelsDefinition } from './store/definition';
-import { RHConstraint } from './store/handler';
+import { App, AppX, Fun, KeysOfType } from 'dependent-type';
+import { Observable, Subscriber, Subscription } from 'rxjs';
+import { GlobalRef, LocalRef, TVCDADepConstaint, TVCDA_CIM } from './basic';
+import { AnyModelDefinition, EModelsDefinition } from './store/definition';
+import { ModelsDefinition, RHConstraint } from './store/handler';
 import { Origin } from '../origin';
-import { EHConstraint } from './serial';
+import { EHConstraint, SerialObs, TSerialObs } from './serial';
+import { nodeps } from '../constants';
+import { CallHandler, DCN, FdcpConstraint, FIDS, FkxConstraint, Functions, KX } from './store';
+import { PromiseCtr } from '../async';
 export declare type ObsCache<indices extends number, dcim extends Record<indices, [unknown, TVCDA_CIM]>, keys extends {
     [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]>;
 }, X extends {
@@ -52,6 +55,61 @@ export declare type SerializationOptions = {
 };
 export declare type Notif<RH extends RHConstraint<RH, ECtx>, ECtx> = [
     'next',
-    EModelsDefinition<0, [[unknown, TVCDA_CIM]], [TVCDADepConstaint<unknown, TVCDA_CIM>], [unknown], [1 | 2], RH, ECtx>
+    [AnyModelDefinition<RH, ECtx, 0>]
 ] | ['error', GlobalRef<unknown>, unknown] | ['complete', GlobalRef<unknown>] | ['unsubscribe', GlobalRef<unknown>];
+/** Options of push */
+export declare type PushOptions<V, RH extends RHConstraint<RH, ECtx>, ECtx> = {
+    unload?: (ref: GlobalRef<V>) => void;
+    nextId?: (obs: TSerialObs<unknown, RH, ECtx>, parentId?: string) => string | undefined;
+    local?: Subscription & {
+        [nodeps]?: boolean;
+    };
+};
+export declare type LocalOption<RH extends RHConstraint<RH, ECtx>, ECtx> = {
+    in?: boolean;
+    out?: boolean;
+} & PushOptions<unknown, RH, ECtx>;
+export declare type LocalObs<RH extends RHConstraint<RH, ECtx>, ECtx> = [TSerialObs<unknown, RH, ECtx>, {
+    id: string;
+} & LocalOption<RH, ECtx>];
+export interface IStore<RH extends RHConstraint<RH, ECtx>, ECtx, lfIds extends FIDS, lfdcp extends FdcpConstraint<lfIds>, lfkx extends FkxConstraint<lfIds, lfdcp>> {
+    /** inserts or updates multiple entries from serialized data with stored subscription to new ones */
+    unserialize<indices extends number, dcim extends Record<indices, [unknown, TVCDA_CIM]>, keys extends {
+        [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]>;
+    }, X extends {
+        [P in indices]: unknown;
+    }, N extends Record<indices, 1 | 2>>(getModels: ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx> | ((ref: <i extends indices>(i: i) => LocalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>) => ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx>)): {
+        [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>>;
+    } & GlobalRef<unknown>[];
+    getValue<V>({ id }: GlobalRef<V>): [
+        TSerialObs<V, RH, ECtx>,
+        {
+            subscription?: Subscription | undefined;
+            externalId?: PromiseLike<string> | undefined;
+        }
+    ];
+    call<fId extends lfIds>(fId: fId, param: lfdcp[fId][2], arg: GlobalRef<AppX<'V', lfdcp[fId][0][1], lfkx[fId][0], lfkx[fId][1]>>, opt?: {
+        ignore?: string[];
+        graph: true;
+    }): Observable<EModelsDefinition<0, [[lfdcp[fId][1][0], lfdcp[fId][1][1]]], [lfkx[fId][2]], [lfkx[fId][3]], [lfdcp[fId][1][2]], RH, ECtx>>;
+    call<fId extends lfIds>(fId: fId, param: lfdcp[fId][2], arg: GlobalRef<AppX<'V', lfdcp[fId][0][1], lfkx[fId][0], lfkx[fId][1]>>, opt: {
+        ignore?: string[];
+        graph?: false;
+    }): Observable<GlobalRef<AppX<'V', lfdcp[fId][1][1], lfkx[fId][2], lfkx[fId][3]>>>;
+    shutdown(callback: (cb: () => void) => void): void;
+}
+export declare type StoreParams<RH extends RHConstraint<RH, ECtx>, ECtx, lfIds extends FIDS, lfdcp extends FdcpConstraint<lfIds>, lfkx extends FkxConstraint<lfIds, lfdcp>, rfIds extends FIDS, rfdcp extends FdcpConstraint<rfIds>, rfkx extends FkxConstraint<rfIds, rfdcp>> = {
+    getHandler: <R>(k: KeysOfType<RHConstraint<RH, ECtx>, R>) => R;
+    callHandler: CallHandler<DCN, KX, RH, ECtx, rfIds, rfdcp, rfkx>;
+    extra: ECtx;
+    functions: Functions<RH, ECtx, lfIds, lfdcp, lfkx>;
+    promiseCtr?: PromiseCtr;
+    name?: string;
+    prefix?: string;
+    locals?: LocalObs<RH, ECtx>[];
+    base?: boolean;
+    observe?: <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: SerialObs<dom, cim, k, X, n, RH, ECtx>) => (v: AppX<'V', cim, k, X>) => void;
+    notifier?: () => Observable<unknown>;
+};
+export declare type Notifier = Subscriber<Notifier>;
 export {};

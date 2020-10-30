@@ -12,6 +12,8 @@ export declare const F_Serial: unique symbol;
 export declare type F_Serial = typeof F_Serial;
 export declare const F_Ref: unique symbol;
 export declare type F_Ref = typeof F_Ref;
+export declare const F_Json: unique symbol;
+export declare type F_Json = typeof F_Json;
 export declare type TVCDA_FC = {
     T: F_C;
     V: F_C;
@@ -27,6 +29,7 @@ declare module 'dependent-type' {
     interface TypeFuncs<C, X> {
         [F_C]: C;
         [F_ID]: X;
+        [F_Json]: [X] extends [C] ? null | 'str' : 'str';
         [F_ArrArgs]: ToRef<X & unknown[]>;
         [F_Serial]: TSerialObs<C[0 & keyof C][X & Exclude<keyof C[0 & keyof C], ArrKeys>] & C[0 & keyof C][keyof C[0 & keyof C] & number], C[1 & keyof C], C[2 & keyof C]>;
         [F_Ref]: Ref<C[X & Exclude<keyof C, ArrKeys>] & C[keyof C & number]>;

@@ -1,107 +1,24 @@
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
-		module.exports = factory(require("altern-map"), require("dependent-type"), require("rx-async"), require("rxjs"), require("rxjs/internal/observable/combineLatest"), require("rxjs/operators"));
+		module.exports = factory(require("altern-map"), require("dependent-type"), require("rx-async"), require("rxjs/internal/observable/combineLatest"), require("rxjs/operators"), require("rxjs"));
 	else if(typeof define === 'function' && define.amd)
-		define(["altern-map", "dependent-type", "rx-async", "rxjs", "rxjs/internal/observable/combineLatest", "rxjs/operators"], factory);
+		define(["altern-map", "dependent-type", "rx-async", "rxjs/internal/observable/combineLatest", "rxjs/operators", "rxjs"], factory);
 	else if(typeof exports === 'object')
-		exports["rxrmi"] = factory(require("altern-map"), require("dependent-type"), require("rx-async"), require("rxjs"), require("rxjs/internal/observable/combineLatest"), require("rxjs/operators"));
+		exports["rxrmi"] = factory(require("altern-map"), require("dependent-type"), require("rx-async"), require("rxjs/internal/observable/combineLatest"), require("rxjs/operators"), require("rxjs"));
 	else
-		root["rxrmi"] = factory(root["altern-map"], root["dependent-type"], root["rx-async"], root["rxjs"], root["rxjs"]["internal"]["observable"]["combineLatest"], root["rxjs"]["operators"]);
-})(self, function(__WEBPACK_EXTERNAL_MODULE_altern_map__, __WEBPACK_EXTERNAL_MODULE_dependent_type__, __WEBPACK_EXTERNAL_MODULE_rx_async__, __WEBPACK_EXTERNAL_MODULE_rxjs__, __WEBPACK_EXTERNAL_MODULE_rxjs_internal_observable_combineLatest__, __WEBPACK_EXTERNAL_MODULE_rxjs_operators__) {
-return /******/ (function(modules) { // webpackBootstrap
-/******/ 	// The module cache
-/******/ 	var installedModules = {};
-/******/
-/******/ 	// The require function
-/******/ 	function __webpack_require__(moduleId) {
-/******/
-/******/ 		// Check if module is in cache
-/******/ 		if(installedModules[moduleId]) {
-/******/ 			return installedModules[moduleId].exports;
-/******/ 		}
-/******/ 		// Create a new module (and put it into the cache)
-/******/ 		var module = installedModules[moduleId] = {
-/******/ 			i: moduleId,
-/******/ 			l: false,
-/******/ 			exports: {}
-/******/ 		};
-/******/
-/******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
-/******/
-/******/ 		// Flag the module as loaded
-/******/ 		module.l = true;
-/******/
-/******/ 		// Return the exports of the module
-/******/ 		return module.exports;
-/******/ 	}
-/******/
-/******/
-/******/ 	// expose the modules object (__webpack_modules__)
-/******/ 	__webpack_require__.m = modules;
-/******/
-/******/ 	// expose the module cache
-/******/ 	__webpack_require__.c = installedModules;
-/******/
-/******/ 	// define getter function for harmony exports
-/******/ 	__webpack_require__.d = function(exports, name, getter) {
-/******/ 		if(!__webpack_require__.o(exports, name)) {
-/******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
-/******/ 		}
-/******/ 	};
-/******/
-/******/ 	// define __esModule on exports
-/******/ 	__webpack_require__.r = function(exports) {
-/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 		}
-/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 	};
-/******/
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__webpack_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = __webpack_require__(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
-/******/ 		var ns = Object.create(null);
-/******/ 		__webpack_require__.r(ns);
-/******/ 		Object.defineProperty(ns, 'default', { enumerable: true, value: value });
-/******/ 		if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
-/******/ 		return ns;
-/******/ 	};
-/******/
-/******/ 	// getDefaultExport function for compatibility with non-harmony modules
-/******/ 	__webpack_require__.n = function(module) {
-/******/ 		var getter = module && module.__esModule ?
-/******/ 			function getDefault() { return module['default']; } :
-/******/ 			function getModuleExports() { return module; };
-/******/ 		__webpack_require__.d(getter, 'a', getter);
-/******/ 		return getter;
-/******/ 	};
-/******/
-/******/ 	// Object.prototype.hasOwnProperty.call
-/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
-/******/
-/******/ 	// __webpack_public_path__
-/******/ 	__webpack_require__.p = "";
-/******/
-/******/
-/******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = "./source/index.ts");
-/******/ })
-/************************************************************************/
-/******/ ({
+		root["rxrmi"] = factory(root["altern-map"], root["dependent-type"], root["rx-async"], root["rxjs"]["internal"]["observable"]["combineLatest"], root["rxjs"]["operators"], root["rxjs"]);
+})(self, function(__WEBPACK_EXTERNAL_MODULE_altern_map__, __WEBPACK_EXTERNAL_MODULE_dependent_type__, __WEBPACK_EXTERNAL_MODULE_rx_async__, __WEBPACK_EXTERNAL_MODULE_rxjs_internal_observable_combineLatest__, __WEBPACK_EXTERNAL_MODULE_rxjs_operators__, __WEBPACK_EXTERNAL_MODULE_rxjs__) {
+return /******/ (() => { // webpackBootstrap
+/******/ 	var __webpack_modules__ = ({
 
 /***/ "./node_modules/deep-is/index.js":
 /*!***************************************!*\
   !*** ./node_modules/deep-is/index.js ***!
   \***************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: module */
+/*! CommonJS bailout: module.exports is used directly at 11:16-30 */
+/***/ ((module) => {
 
 var pSlice = Array.prototype.slice;
 var Object_keys = typeof Object.keys === 'function'
@@ -213,12 +130,19 @@ function objEquiv(a, b) {
 /*!*************************!*\
   !*** ./source/async.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export asAsync [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export runit [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export wait [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/*! CommonJS bailout: exports.runit(...) prevents optimization as exports is passed as call context at 18:24-37 */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.asAsync = exports.wait = exports.runit = void 0;
 exports.runit = (gen, promiseCtr) => {
     const runThen = (...args) => {
@@ -245,12 +169,16 @@ exports.asAsync = asAsync;
 /*!*************************!*\
   !*** ./source/bimap.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export BiMap [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BiMap = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 class BiMap {
@@ -294,23 +222,22 @@ class BiMap {
         const origin = obs.origin, id = this.byObs.get(origin);
         if (id === undefined)
             return undefined;
-        const found = this.byId.get(id)[0];
+        const entry = this.byId.get(id), found = entry[0];
         let upfound = found, upobs = obs;
         if (found === obs)
             return [id, 'exact'];
         const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
-        const err = new Error('Another observable with the same origin is in the store');
         while (true) {
             const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
             if (obsParents.has(upfound) || foundParents.has(upobs)) {
                 if (upfound === obs)
                     return [id, 'down'];
-                if (upobs === found)
-                    return [id, 'up'];
-                throw err;
+                if (upobs !== found)
+                    entry[0] = upobs;
+                return [id, 'up'];
             }
             if (done)
-                throw err;
+                throw new Error('Another observable with the same origin is in the store');
             upobs = upobs.parent;
             upfound = upfound.parent;
         }
@@ -334,12 +261,38 @@ exports.BiMap = BiMap;
 
 /***/ }),
 
+/***/ "./source/constants.ts":
+/*!*****************************!*\
+  !*** ./source/constants.ts ***!
+  \*****************************/
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export nodeps [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export transient [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.transient = exports.nodeps = void 0;
+exports.nodeps = Symbol();
+exports.transient = Symbol();
+
+
+/***/ }),
+
 /***/ "./source/handlers/array.ts":
 /*!**********************************!*\
   !*** ./source/handlers/array.ts ***!
   \**********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:26-30 */
+/*! CommonJS bailout: this is used directly at 14:20-24 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -362,7 +315,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.array = void 0;
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "dependent-type");
 const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
@@ -400,12 +353,15 @@ var array;
 /*!***********************************!*\
   !*** ./source/handlers/common.ts ***!
   \***********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -414,8 +370,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!**********************************!*\
   !*** ./source/handlers/index.ts ***!
   \**********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:20-24 */
+/*! CommonJS bailout: exports is used directly at 13:34-41 */
+/*! CommonJS bailout: exports is used directly at 14:33-40 */
+/*! CommonJS bailout: exports is used directly at 15:32-39 */
+/*! CommonJS bailout: exports is used directly at 16:33-40 */
+/*! CommonJS bailout: exports is used directly at 17:33-40 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -429,11 +393,12 @@ var __createBinding = (this && this.__createBinding) || (Object.create ? (functi
 var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 __exportStar(__webpack_require__(/*! ./common */ "./source/handlers/common.ts"), exports);
 __exportStar(__webpack_require__(/*! ./array */ "./source/handlers/array.ts"), exports);
 __exportStar(__webpack_require__(/*! ./json */ "./source/handlers/json.ts"), exports);
 __exportStar(__webpack_require__(/*! ./local */ "./source/handlers/local.ts"), exports);
+__exportStar(__webpack_require__(/*! ./utils */ "./source/handlers/utils.ts"), exports);
 
 
 /***/ }),
@@ -442,8 +407,13 @@ __exportStar(__webpack_require__(/*! ./local */ "./source/handlers/local.ts"), e
 /*!*********************************!*\
   !*** ./source/handlers/json.ts ***!
   \*********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 3:23-27 */
+/*! CommonJS bailout: this is used directly at 10:26-30 */
+/*! CommonJS bailout: this is used directly at 15:20-24 */
+/*! CommonJS bailout: this is used directly at 22:23-27 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -470,10 +440,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.json = void 0;
 const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
 const deep_is_1 = __importDefault(__webpack_require__(/*! deep-is */ "./node_modules/deep-is/index.js"));
+const guards_1 = __webpack_require__(/*! ../../utils/guards */ "./utils/guards.ts");
 var json;
 (function (json) {
     json.n = 1;
@@ -494,14 +465,14 @@ var json;
         return target;
     };
     const clone = (o) => {
-        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clone(v)])) : o;
+        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? v : clone(v)])) : o;
     };
     json.Handler = () => ({
         decode: () => (_id, data) => ({ args: [], data, n: json.n }),
-        encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
-        ctr: (_, data, _c, old) => old ? deepUpdate(old, data) : data,
+        encode: () => ({ data, old, c }) => c === null ? old && deep_is_1.default(data, old) ? undefined : clone(data) : data,
+        ctr: (_, data, c, old) => c === null && old !== null ? deepUpdate(old, data) : data,
     });
-    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', null, { args: [], data, n: json.n }, undefined, ...teardownList);
+    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', guards_1.toCond(null), { args: [], data, n: json.n }, undefined, ...teardownList);
     json.cast = (deref) => (p) => deref(p, 'Json');
 })(json = exports.json || (exports.json = {}));
 
@@ -512,8 +483,12 @@ var json;
 /*!**********************************!*\
   !*** ./source/handlers/local.ts ***!
   \**********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:26-30 */
+/*! CommonJS bailout: this is used directly at 14:20-24 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -536,18 +511,43 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.local = void 0;
 const origin = __importStar(__webpack_require__(/*! ../origin */ "./source/origin.ts"));
 var local;
 (function (local) {
+    local.n = 1;
     local.Handler = () => ({
-        decode: () => () => ({ args: [], data: {}, c: null, n: 1 }),
+        decode: () => () => ({ args: [], data: {}, c: null, n: local.n }),
         encode: () => () => null,
         ctr: ([], data) => data,
     });
-    local.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Local', null, { args: [], data, n: 1 }, undefined, ...teardownList);
+    local.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Local', null, { args: [], data, n: local.n }, undefined, ...teardownList);
 })(local = exports.local || (exports.local = {}));
+
+
+/***/ }),
+
+/***/ "./source/handlers/utils.ts":
+/*!**********************************!*\
+  !*** ./source/handlers/utils.ts ***!
+  \**********************************/
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export getCtr [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export getDecode [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export getEncode [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getDecode = exports.getEncode = exports.getCtr = void 0;
+exports.getCtr = (ctrs, i) => ctrs[i];
+exports.getEncode = (ctrs, i) => ctrs[i];
+exports.getDecode = (ctrs, i) => ctrs[i];
 
 
 /***/ }),
@@ -556,8 +556,24 @@ var local;
 /*!*************************!*\
   !*** ./source/index.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:26-30 */
+/*! CommonJS bailout: this is used directly at 14:20-24 */
+/*! CommonJS bailout: this is used directly at 21:20-24 */
+/*! CommonJS bailout: exports is used directly at 29:37-44 */
+/*! CommonJS bailout: exports is used directly at 30:39-46 */
+/*! CommonJS bailout: exports is used directly at 31:33-40 */
+/*! CommonJS bailout: exports is used directly at 32:34-41 */
+/*! CommonJS bailout: exports is used directly at 33:40-47 */
+/*! CommonJS bailout: exports is used directly at 34:39-46 */
+/*! CommonJS bailout: exports is used directly at 35:33-40 */
+/*! CommonJS bailout: exports is used directly at 36:40-47 */
+/*! CommonJS bailout: exports is used directly at 37:33-40 */
+/*! CommonJS bailout: exports is used directly at 38:36-43 */
+/*! CommonJS bailout: exports is used directly at 39:33-40 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -583,11 +599,12 @@ var __importStar = (this && this.__importStar) || function (mod) {
 var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.utils = exports.altern_map = exports.rx_async = void 0;
 exports.rx_async = __importStar(__webpack_require__(/*! rx-async */ "rx-async"));
 exports.altern_map = __importStar(__webpack_require__(/*! altern-map */ "altern-map"));
 exports.utils = __importStar(__webpack_require__(/*! ../utils */ "./utils/index.ts"));
+__exportStar(__webpack_require__(/*! ./constants */ "./source/constants.ts"), exports);
 __exportStar(__webpack_require__(/*! ./types/basic */ "./source/types/basic.ts"), exports);
 __exportStar(__webpack_require__(/*! ./async */ "./source/async.ts"), exports);
 __exportStar(__webpack_require__(/*! ./origin */ "./source/origin.ts"), exports);
@@ -606,12 +623,18 @@ __exportStar(__webpack_require__(/*! ./proxy */ "./source/proxy.ts"), exports);
 /*!**************************!*\
   !*** ./source/origin.ts ***!
   \**************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export Origin [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export compareEntries [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: exports.compareEntries(...) prevents optimization as exports is passed as call context at 20:54-76 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Origin = exports.compareEntries = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const altern_map_1 = __webpack_require__(/*! altern-map */ "altern-map");
@@ -629,7 +652,7 @@ exports.compareEntries = ({ compareData = (x, y) => x === y, compareObs = (x, y)
     return compareObs(vItem, yItem);
 }) && compareData(x.data, y.data);
 class Origin extends rxjs_1.Observable {
-    constructor(getHandler, key, c, init, compare = exports.compareEntries(), ...teardownList) {
+    constructor(getHandler, key, c, init, { compare = exports.compareEntries(), observer } = {}, ...teardownList) {
         super();
         this.getHandler = getHandler;
         this.key = key;
@@ -651,13 +674,24 @@ class Origin extends rxjs_1.Observable {
                 else
                     this.subject.closed = true;
             });
-            this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => rx_utils_1.eagerCombineAll(args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args)).pipe(operators_1.map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)).subscribe(subjectSubscriber);
+            const obs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => rx_utils_1.eagerCombineAll(args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args)).pipe(operators_1.map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null));
+            (observer ? operators_1.tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
         });
         this.operator = operators_1.shareReplay({ bufferSize: 1, refCount: true })(this).operator;
     }
     get destroyed() { return this.teardown.closed; }
     add(teardown) {
         return this.teardown.add(teardown);
+    }
+    /**
+     * get the current value of a serial observable
+     * @param obs the serial observable to get current value
+     * @param subscription a subscription that holds the observable from destruction
+     */
+    static current(obs, subscription) {
+        let value, _ = subscription;
+        obs.subscribe(v => value = v).unsubscribe();
+        return value;
     }
 }
 exports.Origin = Origin;
@@ -669,62 +703,73 @@ exports.Origin = Origin;
 /*!*************************!*\
   !*** ./source/proxy.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export createCallHandler [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export createProxy [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export msg1to2keys [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export msg2to1keys [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export startListener [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: exports.createCallHandler(...) prevents optimization as exports is passed as call context at 112:24-49 */
+/*! CommonJS bailout: exports.startListener(...) prevents optimization as exports is passed as call context at 113:21-42 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createProxy = exports.createCallHandler = exports.startListener = exports.msg2to1keys = exports.msg1to2keys = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const quick_promise_1 = __webpack_require__(/*! ../utils/quick-promise */ "./utils/quick-promise.ts");
-exports.msg1to2keys = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0 };
-exports.msg2to1keys = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0 };
-exports.startListener = (store, from, to) => from.subscribe(function ({ channel, type, data }) {
+exports.msg1to2keys = { call: 0, complete: 0, error: 0, end_call: 0, put: 0, unsubscribe: 0, shutdown: 0, };
+exports.msg2to1keys = { call_complete: 0, call_error: 0, response_call: 0, response_id: 0, response_put: 0, shutdown_ack: 0, };
+exports.startListener = (from, to) => (store) => from.subscribe(function ({ channel, type, data }) {
     var _a;
     switch (type) {
         case 'put': {
             const refs = store.unserialize(JSON.parse(data));
             return to.next({ channel, type: 'response_put', data: JSON.stringify(refs) });
         }
-        case 'unsubscribe':
+        case 'shutdown': {
+            return store.shutdown(unlink => {
+                to.next({ channel, type: 'shutdown_ack', data: '' });
+                unlink();
+            });
+        }
+        case 'unsubscribe': {
             const ref = { id: JSON.parse(data) };
             return (_a = store.getValue(ref)[1].subscription) === null || _a === void 0 ? void 0 : _a.unsubscribe();
+        }
         case 'error': {
             const { id, msg } = JSON.parse(data);
             const ref = { id };
             const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
-            return obs.subject.error(msg);
+            return obs.origin.subject.error(msg);
         }
         case 'complete': {
             const ref = { id: JSON.parse(data) };
             const obs = store.getValue(ref)[0];
             if (!obs)
                 return;
-            return obs.subject.complete();
+            return obs.origin.subject.complete();
         }
         case 'call': {
             const json = JSON.parse(data);
             json.ref = { id: json.argId };
             const { fId, ref, opt, param } = json;
-            const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => {
-                subs.unsubscribe();
-            });
+            const endCallSubs = from.pipe(operators_1.filter(x => x.channel === channel && x.type === 'end_call')).subscribe(() => subs.unsubscribe());
             const observer = {
                 error: (err) => to.next({ channel, type: 'call_error', data: JSON.stringify(err) }),
                 complete: () => to.next({ channel, type: 'call_complete', data: '' }),
             };
             const subs = opt.graph ? store.call(fId, param, ref, { ...opt, graph: true }).subscribe({
-                ...observer, next: def => {
-                    to.next({ channel, type: 'response_call', data: JSON.stringify(def) });
-                }
+                ...observer, next: def => to.next({ channel, type: 'response_call', data: JSON.stringify(def) })
             }) : store.call(fId, param, ref, { ...opt, graph: false }).subscribe({
-                ...observer, next: ref => {
-                    to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) });
-                }
+                ...observer, next: ref => to.next({ channel, type: 'response_id', data: JSON.stringify(ref.id) })
             });
             subs.add(endCallSubs);
             this.add(subs);
@@ -736,11 +781,10 @@ exports.startListener = (store, from, to) => from.subscribe(function ({ channel,
 exports.createCallHandler = (to, from, channel) => {
     return {
         serialized: new WeakMap(),
-        handlers: () => {
-            const callChannel = channel[0]++;
+        watch: () => {
+            const common = channel[0]++;
             return {
-                end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
-                unsubscribe: ref => to.next({ channel: callChannel, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
+                unsubscribe: ref => to.next({ channel: common, data: JSON.stringify(ref.id), type: 'unsubscribe' }),
                 put: (def) => {
                     const ch = channel[0]++;
                     const promise = from.pipe(operators_1.filter(m => m.channel === ch && m.type === 'response_put'), operators_1.take(1)).toPromise(quick_promise_1.QuickPromise).then(response => {
@@ -749,9 +793,19 @@ exports.createCallHandler = (to, from, channel) => {
                     to.next({ channel: ch, type: 'put', data: JSON.stringify(def) });
                     return promise;
                 },
-                error: (ref, e) => to.next({ channel: callChannel, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
-                complete: ref => to.next({ channel: callChannel, type: 'complete', data: JSON.stringify(ref.id) }),
+                error: (ref, e) => to.next({ channel: common, type: 'error', data: JSON.stringify({ id: ref.id, msg: `${e}` }) }),
+                complete: ref => to.next({ channel: common, type: 'complete', data: JSON.stringify(ref.id) }),
+                shutdown: (operator, notifier) => {
+                    from.pipe(operators_1.filter(x => x.channel === common && x.type === 'shutdown_ack'), operators_1.take(1), operator, operators_1.mapTo(notifier)).subscribe(notifier);
+                    to.next({ type: 'shutdown', data: '', channel: common });
+                },
+            };
+        },
+        call: () => {
+            const callChannel = channel[0]++;
+            return {
                 call: (fId, param, ref, opt) => to.next({ channel: callChannel, type: 'call', data: JSON.stringify({ fId, param, argId: ref.id, opt }) }),
+                end_call: () => to.next({ channel: callChannel, type: 'end_call', data: '' }),
                 subscribeToResult: cbs => from.pipe(operators_1.filter(x => x.channel === callChannel && x.type in exports.msg2to1keys)).subscribe(function ({ data, type }) {
                     if (type === 'response_id') {
                         cbs.resp_id({ id: JSON.parse(data) });
@@ -775,7 +829,7 @@ exports.createProxy = (store1, store2, msg1to2, msg2to1) => {
     const subscription = new rxjs_1.Subscription();
     const channel = [0];
     const callHandler = exports.createCallHandler(msg1to2, msg2to1, channel);
-    subscription.add(exports.startListener(store2, msg1to2, msg2to1));
+    subscription.add(exports.startListener(msg1to2, msg2to1)(store2));
     subscription.add(store1.watch(callHandler));
     return { channel, callHandler, subscription };
 };
@@ -787,12 +841,16 @@ exports.createProxy = (store1, store2, msg1to2, msg2to1) => {
 /*!*************************!*\
   !*** ./source/store.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export Store [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Store = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "dependent-type");
@@ -803,42 +861,24 @@ const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const altern_map_1 = __webpack_require__(/*! altern-map */ "altern-map");
 const rx_async_1 = __webpack_require__(/*! rx-async */ "rx-async");
 const bimap_1 = __webpack_require__(/*! ./bimap */ "./source/bimap.ts");
+const constants_1 = __webpack_require__(/*! ./constants */ "./source/constants.ts");
 const { depMap } = dependent_type_1.map;
 const one = BigInt(1);
 class Store {
-    constructor(getHandler, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
-        this.getHandler = getHandler;
-        this.extra = extra;
-        this.promiseCtr = promiseCtr;
-        this.functions = functions;
-        this.name = name;
-        this.prefix = prefix;
-        this.base = base;
+    constructor({ getHandler, callHandler, extra, functions, promiseCtr = Promise, name, prefix = '', locals = [], base = false, observe, notifier }) {
+        this.storeSubs = new rxjs_1.Subscription;
+        this.linkSubs = new rxjs_1.Subscription;
         this.next = one;
         this.pushed = new Map();
-        this.pushes = new rxjs_1.Subject();
+        this._pushes = new rxjs_1.Subject();
+        this.pushes = this._pushes.asObservable();
         this.changes = new rxjs_1.Observable(subscriber => {
             const map = new Map();
-            const ctx = this.emptyContext;
-            const watch = (obs, id) => {
-                const origin = obs.origin, encoder = origin.handler.encode(ctx);
-                return origin.subject.pipe(operators_1.scan((prev, v) => {
-                    const c = origin.c;
-                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
-                    return { old: encoder(params), params };
-                }, {}), operators_1.filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
-                    subscriber.next(['next', [{
-                                c: origin.c, i: 0, data, id,
-                                new: !('old' in (params !== null && params !== void 0 ? params : {})),
-                                type: origin.key
-                            }]]);
-                }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
-            };
             for (const [obs, id] of this.pushed)
-                map.set(obs, watch(obs, id));
+                map.set(obs, this.linkTo(obs, id, subscriber));
             subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
                 if (add)
-                    map.set(obs, watch(obs, id));
+                    map.set(obs, this.linkTo(obs, id, subscriber));
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
@@ -860,6 +900,9 @@ class Store {
                 ;
             }));
         });
+        this.addToObjects = (obs) => {
+            return (v) => v !== null && typeof v === 'object' && this.objects.set(v, obs);
+        };
         this.ref = (obs) => {
             const id = this.map.find(obs);
             return { id };
@@ -884,16 +927,54 @@ class Store {
         };
         this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers);
         this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers, 0);
-        this.emptyContext = {
-            deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
-        };
         this.callReturnRef = new WeakMap();
+        this.getHandler = getHandler;
+        this.callHandler = callHandler;
         this.functions = functions;
         const map = this.map = new bimap_1.BiMap(true);
         this.empty = map.empty;
+        this.extra = extra;
+        this.name = name;
+        this.base = base;
+        this.observe = observe;
+        this.prefix = prefix;
+        this.notifier = notifier !== null && notifier !== void 0 ? notifier : (() => map.empty.pipe(operators_1.take(1)));
+        this.promiseCtr = promiseCtr;
         this.locals = new bimap_1.BiMap();
+        this._emptyctx = { deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra };
         for (const [obs, { id, ...opt }] of locals)
             this.locals.set(id, [obs, opt]);
+        this.objects = new WeakMap;
+    }
+    setup({ local, listener }) {
+        this.linkSubs.add(this.watch(this.callHandler));
+        this.storeSubs.add(this.subscribeToLocals(local));
+        this.linkSubs.add(listener(this));
+    }
+    add(subs) { return this.storeSubs.add(subs); }
+    shutdown(callback) {
+        this.storeSubs.unsubscribe();
+        const subs = this.linkSubs;
+        subs.add(this.notifier().subscribe(() => callback(subs.unsubscribe.bind(subs))));
+    }
+    remoteShutdown(notifier) {
+        this.storeSubs.unsubscribe();
+        const subs = this.linkSubs;
+        this.callHandler.watch().shutdown(operators_1.switchMapTo(this.notifier()), notifier(subs.unsubscribe.bind(subs)));
+    }
+    linkTo(obs, id, subscriber) {
+        const origin = obs.origin, encoder = origin.handler.encode(this._emptyctx);
+        return origin.subject.pipe(operators_1.scan((prev, v) => {
+            const c = origin.c;
+            const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
+            return { old: encoder(params), params };
+        }, {}), operators_1.filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
+            subscriber.next(['next', [{
+                        c: origin.c, i: 0, data, id,
+                        new: !('old' in (params !== null && params !== void 0 ? params : {})),
+                        type: origin.key
+                    }]]);
+        }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
     }
     subscribeToLocals($local) {
         const subs = new rxjs_1.Subscription();
@@ -909,7 +990,7 @@ class Store {
         return id;
     }
     watch(callHandler) {
-        const op = callHandler.handlers();
+        const op = callHandler.watch();
         return this.changes.subscribe(event => {
             switch (event[0]) {
                 case 'next': return op.put(event[1]);
@@ -954,8 +1035,10 @@ class Store {
     _insert(key, entry, ctx, id, c) {
         var _a;
         const getHandler = this.getHandler, handler = getHandler(key);
-        const compare = (_a = handler.compare) === null || _a === void 0 ? void 0 : _a.call(handler, ctx);
-        const obs = new origin_1.Origin(getHandler, key, c, entry, compare, () => this.map.delete(id));
+        const compare = (_a = handler.compare) === null || _a === void 0 ? void 0 : _a.call(handler, ctx), observe = this.observe;
+        const obs = new origin_1.Origin(getHandler, key, c, entry, {
+            compare, observer: observe && !handler[constants_1.transient] ? obs => ({ next: observe(obs) }) : undefined
+        }, () => this.map.delete(id));
         this.map.set(id, [obs, {}]);
         return obs;
     }
@@ -1001,14 +1084,7 @@ class Store {
             throw e;
         }
     }
-    /** it does nothing useful, there is no use case for this function and no reason for it to stay here */
-    append(key, entry, c) {
-        const id = this.getNext();
-        const obs = this._insert(key, entry, this.emptyContext, id, c);
-        const subs = this.map.get(id)[1].subscription = obs.subscribe(() => { });
-        return { id, obs, subs };
-    }
-    /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
+    /** adds an TSerialObs to store and subscribe to it without storing subscription  */
     push(obs, { unload, nextId, local: $local } = {}) {
         var _a, _b, _c, _d;
         const old = this.map.finddir(obs);
@@ -1041,26 +1117,25 @@ class Store {
                 destroyed = true;
                 const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
                 if ((!local || local.out) && this.pushed.delete(obs)) {
-                    this.pushes.next([obs, id, false]);
+                    this._pushes.next([obs, id, false]);
                 }
                 clear.call(rxjs_1.Subscription.EMPTY);
             };
             if (($local === null || $local === void 0 ? void 0 : $local.closed) !== false) {
                 wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-                this.map.set(id, [wrapped, {}]);
-                subscription = wrapped.subscribe(() => { });
             }
             else {
-                if (!$local[Store.nodeps])
+                if (!$local[constants_1.nodeps])
                     $local.add(asubj.subscribe(() => { }));
                 $local.add(teardown);
-                this.map.set(id, [wrapped, {}]);
-                subscription = wrapped.subscribe(() => { });
             }
+            this.map.set(id, [wrapped, {}]);
+            const observe = this.observe;
+            subscription = wrapped.subscribe(observe && !obs.origin.handler[constants_1.transient] ? observe(wrapped) : rxjs_1.noop);
             const local = (_d = this.locals.get(id)) === null || _d === void 0 ? void 0 : _d[1];
-            if (!local || local.out) {
+            if (!subscription.closed && (!local || local.out)) {
                 this.pushed.set(obs, id);
-                this.pushes.next([obs, id, true]);
+                this._pushes.next([obs, id, true]);
             }
         }
         else {
@@ -1077,17 +1152,18 @@ class Store {
      */
     serialize(obs, opt) {
         const { isNew, push = true, ignore = [] } = opt;
-        return obs.pipe(operators_1.scan((previous) => {
+        const that = this;
+        return obs.pipe(operators_1.scan(function (previous) {
             const session = new bimap_1.BiMap;
             const allData = new Map();
             const subs = new rxjs_1.Subscription;
             let next = 1;
-            const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
-            const inMap = (arg) => this.map.find(arg) !== undefined;
+            const getter = (r) => ('id' in r ? that.map.get(r.id) : session.get(r.$))[0];
+            const inMap = (arg) => that.map.find(arg) !== undefined;
             const ref = (iObs) => {
                 const origin = iObs.origin, entry = iObs.origin.subject.value;
-                const value = rx_utils_1.current(iObs);
-                const id = this.map.find(iObs);
+                const value = origin_1.Origin.current(iObs, this);
+                const id = that.map.find(iObs);
                 if (id !== undefined && ignore.indexOf(id) !== -1)
                     return { id };
                 let oldData = undefined, data;
@@ -1115,12 +1191,12 @@ class Store {
                     let usedId = id;
                     if (usedId === undefined) {
                         if (push) {
-                            const { subscription, ref } = this.push(iObs);
+                            const { subscription, ref } = that.push(iObs);
                             subs.add(subscription);
                             usedId = ref.id;
                         }
                         else {
-                            usedId = this.map.usedId(iObs);
+                            usedId = that.map.usedId(iObs);
                         }
                     }
                     const attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
@@ -1134,7 +1210,7 @@ class Store {
                 return { $ };
             };
             const ctx = {
-                deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
+                deref: that.deref(getter), xderef: that.xderef(getter), ref, ...that.extra
             };
             const ret = [session, allData, ref(obs), subs];
             previous === null || previous === void 0 ? void 0 : previous[3].unsubscribe();
@@ -1165,8 +1241,6 @@ class Store {
     }
     /* #endregion */
     call(fId, param, arg, opt = {}) {
-        if (this.functions === null)
-            throw new Error('Cannot call local functions from remote store');
         const f = this.functions[fId];
         const subs = new rxjs_1.Subscription();
         const obs = f(param, this.getValue(arg)[0], subs);
@@ -1190,11 +1264,12 @@ class Store {
         });
     }
     /* #endregion */
-    remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
+    remote(fId, arg, param, opt = {}) {
         return new rxjs_1.Observable(subscriber => {
-            const op = makeOp();
+            const { watch, call, serialized } = this.callHandler;
+            const wop = watch(), cop = call();
             const { subscription: argSubscription, ref: refArg } = this.push(arg, opt.graph ? {
-                unload: (ref) => op.unsubscribe(ref),
+                unload: (ref) => wop.unsubscribe(ref),
             } : {});
             const callSubscription = new rxjs_1.Subscription();
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
@@ -1205,11 +1280,11 @@ class Store {
                     serialized.set(arg, serializeObs = this.serialize(arg, {
                         isNew: true
                     }).pipe(rx_async_1.asyncMap((def) => {
-                        const refsPromise = op.put(def);
+                        const refsPromise = wop.put(def);
                         return refsPromise.then((refs) => ({ ok: true, value: refs[0] }));
                     }), operators_1.tap({
-                        error: e => op.error(refArg, e),
-                        complete: () => op.complete(refArg),
+                        error: e => wop.error(refArg, e),
+                        complete: () => wop.complete(refArg),
                     }), operators_1.shareReplay({ refCount: true, bufferSize: 1 })));
                 const paramSubs = serializeObs.subscribe(() => { });
                 this.callReturnRef.set(subscriber, refTask[0]);
@@ -1224,7 +1299,7 @@ class Store {
                 }
             }
             callSubscription.add(argSubscription);
-            const responseSubs = op.subscribeToResult({
+            const responseSubs = cop.subscribeToResult({
                 resp_id: (ref) => {
                     responseSubs.add(this.getValue(ref)[0].pipe(operators_1.filter((_, index) => index === 0), operators_1.mapTo(ref)).subscribe(subscriber));
                     refTask[1](ref);
@@ -1246,11 +1321,11 @@ class Store {
             });
             callSubscription.add(() => {
                 if (!responseSubs.closed)
-                    op.end_call();
+                    cop.end_call();
             });
             callSubscription.add(responseSubs);
             responseSubs.add(callSubscription);
-            op.call(fId, param, refArg, opt);
+            cop.call(fId, param, refArg, opt);
             if (opt.graph)
                 refTask[0].then(refReturn => {
                     const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
@@ -1261,7 +1336,6 @@ class Store {
     }
 }
 exports.Store = Store;
-Store.nodeps = Symbol();
 
 
 /***/ }),
@@ -1270,12 +1344,15 @@ Store.nodeps = Symbol();
 /*!*******************************!*\
   !*** ./source/types/basic.ts ***!
   \*******************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -1284,12 +1361,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!********************************!*\
   !*** ./source/types/params.ts ***!
   \********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const constants_1 = __webpack_require__(/*! ../constants */ "./source/constants.ts");
 
 
 /***/ }),
@@ -1298,12 +1379,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!********************************!*\
   !*** ./source/types/serial.ts ***!
   \********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const constants_1 = __webpack_require__(/*! ../constants */ "./source/constants.ts");
 
 
 /***/ }),
@@ -1312,12 +1397,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!************************************!*\
   !*** ./source/types/store/call.ts ***!
   \************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -1326,12 +1414,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!******************************************!*\
   !*** ./source/types/store/definition.ts ***!
   \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -1340,12 +1431,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!*****************************************!*\
   !*** ./source/types/store/functions.ts ***!
   \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -1354,12 +1448,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!***************************************!*\
   !*** ./source/types/store/handler.ts ***!
   \***************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 /***/ }),
@@ -1368,8 +1465,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*!*************************************!*\
   !*** ./source/types/store/index.ts ***!
   \*************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:20-24 */
+/*! CommonJS bailout: exports is used directly at 13:37-44 */
+/*! CommonJS bailout: exports is used directly at 14:38-45 */
+/*! CommonJS bailout: exports is used directly at 15:35-42 */
+/*! CommonJS bailout: exports is used directly at 16:32-39 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -1383,7 +1487,7 @@ var __createBinding = (this && this.__createBinding) || (Object.create ? (functi
 var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 __exportStar(__webpack_require__(/*! ./functions */ "./source/types/store/functions.ts"), exports);
 __exportStar(__webpack_require__(/*! ./definition */ "./source/types/store/definition.ts"), exports);
 __exportStar(__webpack_require__(/*! ./handler */ "./source/types/store/handler.ts"), exports);
@@ -1396,12 +1500,16 @@ __exportStar(__webpack_require__(/*! ./call */ "./source/types/store/call.ts"), 
 /*!*************************!*\
   !*** ./utils/global.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export defineProperty [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.defineProperty = void 0;
 function defineProperty(obj, prop, val) {
     return Object.defineProperty(obj, prop, val);
@@ -1415,12 +1523,21 @@ exports.defineProperty = defineProperty;
 /*!*************************!*\
   !*** ./utils/guards.ts ***!
   \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export asCond [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export byKey [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export keys [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export subKey [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export toCond [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export toSuperKey [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSuperKey = exports.subKey = exports.keys = exports.byKey = exports.asCond = exports.toCond = void 0;
 exports.toCond = (x) => x;
 exports.asCond = (x) => x;
@@ -1436,8 +1553,12 @@ exports.toSuperKey = (o) => o;
 /*!************************!*\
   !*** ./utils/index.ts ***!
   \************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! unknown exports (runtime-defined) */
+/*! runtime requirements: top-level-this-exports, __webpack_exports__, __webpack_require__ */
+/*! CommonJS bailout: this is used directly at 2:23-27 */
+/*! CommonJS bailout: this is used directly at 9:26-30 */
+/*! CommonJS bailout: this is used directly at 14:20-24 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
 
@@ -1460,13 +1581,13 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.rx_utils = exports.QuickPromise = exports.guards = exports.defineProperty = void 0;
 var global_1 = __webpack_require__(/*! ./global */ "./utils/global.ts");
-Object.defineProperty(exports, "defineProperty", { enumerable: true, get: function () { return global_1.defineProperty; } });
+Object.defineProperty(exports, "defineProperty", ({ enumerable: true, get: function () { return global_1.defineProperty; } }));
 exports.guards = __importStar(__webpack_require__(/*! ./guards */ "./utils/guards.ts"));
 var quick_promise_1 = __webpack_require__(/*! ./quick-promise */ "./utils/quick-promise.ts");
-Object.defineProperty(exports, "QuickPromise", { enumerable: true, get: function () { return quick_promise_1.QuickPromise; } });
+Object.defineProperty(exports, "QuickPromise", ({ enumerable: true, get: function () { return quick_promise_1.QuickPromise; } }));
 exports.rx_utils = __importStar(__webpack_require__(/*! ./rx-utils */ "./utils/rx-utils.ts"));
 
 
@@ -1476,12 +1597,16 @@ exports.rx_utils = __importStar(__webpack_require__(/*! ./rx-utils */ "./utils/r
 /*!********************************!*\
   !*** ./utils/quick-promise.ts ***!
   \********************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export QuickPromise [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__ */
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.QuickPromise = void 0;
 const identity = (v) => v;
 var PromiseStatus;
@@ -1618,13 +1743,18 @@ exports.QuickPromise = QuickPromise;
 /*!***************************!*\
   !*** ./utils/rx-utils.ts ***!
   \***************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export current [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export eagerCombineAll [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.current = exports.on = exports.eagerCombineAll = void 0;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.current = exports.eagerCombineAll = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const combineLatest_1 = __webpack_require__(/*! rxjs/internal/observable/combineLatest */ "rxjs/internal/observable/combineLatest");
 class CompleteDestination extends rxjs_1.Subscriber {
@@ -1642,23 +1772,6 @@ exports.eagerCombineAll = function (...args) {
     };
     return obs;
 };
-exports.on = ({ complete, error, next, subscribe, teardown }) => (source) => source.lift(function (source) {
-    const subscriber = this;
-    subscribe === null || subscribe === void 0 ? void 0 : subscribe();
-    const subscription = new rxjs_1.Subscription();
-    subscription.add(source.subscribe(v => {
-        next === null || next === void 0 ? void 0 : next(v);
-        subscriber.next(v);
-    }, e => {
-        error === null || error === void 0 ? void 0 : error(e);
-        subscriber.error(e);
-    }, () => {
-        complete === null || complete === void 0 ? void 0 : complete();
-        subscriber.complete();
-    }));
-    subscription.add(teardown);
-    return subscription;
-});
 function current(obs, value) {
     obs.subscribe(v => value = v).unsubscribe();
     return value;
@@ -1672,9 +1785,12 @@ exports.current = current;
 /*!************************************************************************************************************!*\
   !*** external {"root":["altern-map"],"commonjs":"altern-map","commonjs2":"altern-map","amd":"altern-map"} ***!
   \************************************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
 
+"use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_altern_map__;
 
 /***/ }),
@@ -1683,9 +1799,12 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_altern_map__;
 /*!****************************************************************************************************************************!*\
   !*** external {"root":["dependent-type"],"commonjs":"dependent-type","commonjs2":"dependent-type","amd":"dependent-type"} ***!
   \****************************************************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
 
+"use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_dependent_type__;
 
 /***/ }),
@@ -1694,21 +1813,13 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_dependent_type__;
 /*!****************************************************************************************************!*\
   !*** external {"root":["rx-async"],"commonjs":"rx-async","commonjs2":"rx-async","amd":"rx-async"} ***!
   \****************************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
 
+"use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_rx_async__;
-
-/***/ }),
-
-/***/ "rxjs":
-/*!************************************************************************************!*\
-  !*** external {"root":["rxjs"],"commonjs":"rxjs","commonjs2":"rxjs","amd":"rxjs"} ***!
-  \************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs__;
 
 /***/ }),
 
@@ -1716,9 +1827,12 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs__;
 /*!**********************************************************************************************************************************************************************************************************************************!*\
   !*** external {"root":["rxjs","internal","observable","combineLatest"],"commonjs":"rxjs/internal/observable/combineLatest","commonjs2":"rxjs/internal/observable/combineLatest","amd":"rxjs/internal/observable/combineLatest"} ***!
   \**********************************************************************************************************************************************************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
 
+"use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs_internal_observable_combineLatest__;
 
 /***/ }),
@@ -1727,13 +1841,61 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs_internal_observable_combineLates
 /*!******************************************************************************************************************************!*\
   !*** external {"root":["rxjs","operators"],"commonjs":"rxjs/operators","commonjs2":"rxjs/operators","amd":"rxjs/operators"} ***!
   \******************************************************************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
 
+"use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs_operators__;
+
+/***/ }),
+
+/***/ "rxjs":
+/*!************************************************************************************!*\
+  !*** external {"root":["rxjs"],"commonjs":"rxjs","commonjs2":"rxjs","amd":"rxjs"} ***!
+  \************************************************************************************/
+/*! dynamic exports */
+/*! exports [maybe provided (runtime-defined)] [no usage info] */
+/*! runtime requirements: module */
+/***/ ((module) => {
+
+"use strict";
+module.exports = __WEBPACK_EXTERNAL_MODULE_rxjs__;
 
 /***/ })
 
-/******/ });
+/******/ 	});
+/************************************************************************/
+/******/ 	// The module cache
+/******/ 	var __webpack_module_cache__ = {};
+/******/ 	
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/ 		// Check if module is in cache
+/******/ 		if(__webpack_module_cache__[moduleId]) {
+/******/ 			return __webpack_module_cache__[moduleId].exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = __webpack_module_cache__[moduleId] = {
+/******/ 			// no module.id needed
+/******/ 			// no module.loaded needed
+/******/ 			exports: {}
+/******/ 		};
+/******/ 	
+/******/ 		// Execute the module function
+/******/ 		__webpack_modules__[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 	
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/ 	
+/************************************************************************/
+/******/ 	// module exports must be returned from runtime so entry inlining is disabled
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	return __webpack_require__("./source/index.ts");
+/******/ })()
+;
 });
 //# sourceMappingURL=rxrmi.umd.js.map

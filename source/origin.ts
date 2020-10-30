@@ -1,7 +1,7 @@
 import type { AppX, KeysOfType } from 'dependent-type';
 import type { TVCDA_CIM, TVCDADepConstaint, TeardownAction } from './types/basic';
-import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs, SerialArray  } from './types/serial';
-import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
+import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs, SerialArray } from './types/serial';
+import { BehaviorSubject, Observable, PartialObserver, Subscription, TeardownLogic } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { eagerCombineAll } from '../utils/rx-utils';
 import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
@@ -36,12 +36,25 @@ export class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom,
   add(teardown: TeardownLogic) {
     return this.teardown.add(teardown);
   }
+  /**
+   * get the current value of a serial observable
+   * @param obs the serial observable to get current value
+   * @param subscription a subscription that holds the observable from destruction
+   */
+  static current<T, EH extends EHConstraint<EH, ECtx>, ECtx>(obs: TSerialObs<T, EH, ECtx>, subscription: Subscription) {
+    let value!: T, _ = subscription;
+    obs.subscribe(v => value = v).unsubscribe();
+    return value;
+  }
   constructor(
     readonly getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R,
     readonly key: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string,
     readonly c: AppX<'C', cim, k, X>,
     init: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>,
-    compare = compareEntries<dom, cim, k, n, EH, ECtx>(),
+    { compare = compareEntries(), observer }: {
+      compare?: RequestHandlerCompare<dom, cim, k, n, EH, ECtx>,
+      observer?: (obs: Origin<dom, cim, k, X, n, EH, ECtx>) => PartialObserver<Parameters<$V>[0]>
+    } = {},
     ...teardownList: TeardownAction[]
   ) {
     super();
@@ -61,14 +74,15 @@ export class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom,
         if (!this.subject.isStopped) this.subject.unsubscribe();
         else this.subject.closed = true;
       });
-      this.subject.pipe(
+      const obs = this.subject.pipe(
         distinctUntilChanged(compare),
         alternMap(({ args, data }) => (eagerCombineAll(args.map(args => args instanceof Array ? eagerCombineAll(args) : args)) as Observable<A>).pipe(
           map(args => [args, data, c] as [A, D, C]),
         ), { completeWithInner: true, completeWithSource: true }),
         tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }),
-        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)
-      ).subscribe(subjectSubscriber);
+        scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null),
+      );
+      (observer ? tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
     });
     this.operator = shareReplay({ bufferSize: 1, refCount: true })(this).operator;
   }

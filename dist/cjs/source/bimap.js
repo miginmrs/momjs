@@ -43,23 +43,22 @@ class BiMap {
         const origin = obs.origin, id = this.byObs.get(origin);
         if (id === undefined)
             return undefined;
-        const found = this.byId.get(id)[0];
+        const entry = this.byId.get(id), found = entry[0];
         let upfound = found, upobs = obs;
         if (found === obs)
             return [id, 'exact'];
         const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
-        const err = new Error('Another observable with the same origin is in the store');
         while (true) {
             const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
             if (obsParents.has(upfound) || foundParents.has(upobs)) {
                 if (upfound === obs)
                     return [id, 'down'];
-                if (upobs === found)
-                    return [id, 'up'];
-                throw err;
+                if (upobs !== found)
+                    entry[0] = upobs;
+                return [id, 'up'];
             }
             if (done)
-                throw err;
+                throw new Error('Another observable with the same origin is in the store');
             upobs = upobs.parent;
             upfound = upfound.parent;
         }

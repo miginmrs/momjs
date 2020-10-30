@@ -1,4 +1,4 @@
-import type { DeepSerial, EHConstraint, TSerialObs, deref, SerialObs } from '../types/serial';
+import type { DeepSerial, EHConstraint, deref, SerialObs } from '../types/serial';
 import type { Ref, TeardownAction } from '../types/basic';
 import type { CtxH } from '../types/store';
 import type { AppX, KeysOfType } from 'dependent-type';
@@ -31,11 +31,5 @@ export declare namespace array {
     }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <A extends unknown[]>(args: DeepSerial<AppX<"A", cim, keys, A>, 1, EH, ECtx>, ...teardownList: TeardownAction[]) => Origin<A, EH, ECtx>;
     const cast: <EH extends EHConstraint<EH, ECtx> & {
         Array: CtxH<dom, cim, keys, 1, EH, ECtx>;
-    }, ECtx>(deref: deref<EH, ECtx>) => <T extends unknown[]>(p: Ref<T>) => import("rxjs").Observable<AppX<"V", cim, keys, T>> & {
-        parent: TSerialObs<AppX<"V", cim, keys, T>, EH, ECtx>;
-        origin: import("../types/serial").TOrigin<AppX<"V", cim, keys, T>, EH, ECtx>;
-        readonly destroyed: boolean;
-    } & {
-        origin: origin.Origin<unknown[], cim, keys, T, 1, EH, ECtx, (v: AppX<"V", cim, keys, T>) => void>;
-    };
+    }, ECtx>(deref: deref<EH, ECtx>) => <T extends unknown[]>(p: Ref<T>) => SerialObs<unknown[], cim, keys, T, 1, EH, ECtx, (v: AppX<"V", cim, keys, T>) => void>;
 }

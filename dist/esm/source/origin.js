@@ -14,7 +14,7 @@ export const compareEntries = ({ compareData = (x, y) => x === y, compareObs = (
     return compareObs(vItem, yItem);
 }) && compareData(x.data, y.data);
 export class Origin extends Observable {
-    constructor(getHandler, key, c, init, compare = compareEntries(), ...teardownList) {
+    constructor(getHandler, key, c, init, { compare = compareEntries(), observer } = {}, ...teardownList) {
         super();
         this.getHandler = getHandler;
         this.key = key;
@@ -35,13 +35,24 @@ export class Origin extends Observable {
                 else
                     this.subject.closed = true;
             });
-            this.subject.pipe(distinctUntilChanged(compare), alternMap(({ args, data }) => eagerCombineAll(args.map(args => args instanceof Array ? eagerCombineAll(args) : args)).pipe(map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null)).subscribe(subjectSubscriber);
+            const obs = this.subject.pipe(distinctUntilChanged(compare), alternMap(({ args, data }) => eagerCombineAll(args.map(args => args instanceof Array ? eagerCombineAll(args) : args)).pipe(map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null));
+            (observer ? tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
         });
         this.operator = shareReplay({ bufferSize: 1, refCount: true })(this).operator;
     }
     get destroyed() { return this.teardown.closed; }
     add(teardown) {
         return this.teardown.add(teardown);
+    }
+    /**
+     * get the current value of a serial observable
+     * @param obs the serial observable to get current value
+     * @param subscription a subscription that holds the observable from destruction
+     */
+    static current(obs, subscription) {
+        let value, _ = subscription;
+        obs.subscribe(v => value = v).unsubscribe();
+        return value;
     }
 }
 //# sourceMappingURL=origin.js.map

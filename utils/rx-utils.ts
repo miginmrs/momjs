@@ -22,26 +22,6 @@ export const eagerCombineAll: typeof combineLatest = function (this: any, ...arg
   return obs;
 } as any;
 
-export const on = <T>({ complete, error, next, subscribe, teardown }: {
-  complete?: () => void, error?: (e: any) => void, next?: (v: T) => void, subscribe?: () => void, teardown?: TeardownLogic
-}) => (source: Observable<T>) => source.lift<T>(function (this: Subscriber<T>, source: Observable<T>) {
-  const subscriber = this;
-  subscribe?.();
-  const subscription = new Subscription();
-  subscription.add(source.subscribe(v => {
-    next?.(v);
-    subscriber.next(v)
-  }, e => {
-    error?.(e);
-    subscriber.error(e)
-  }, () => {
-    complete?.();
-    subscriber.complete();
-  }));
-  subscription.add(teardown);
-  return subscription;
-});
-
 export function current<T>(obs: Observable<T>, value: T): T;
 export function current<T>(obs: Observable<T | undefined>, value?: T | undefined): T | undefined;
 export function current<T>(obs: Observable<T>, value: T) {

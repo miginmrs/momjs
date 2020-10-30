@@ -1,7 +1,7 @@
 import type { AppX, KeysOfType } from 'dependent-type';
 import type { TVCDA_CIM, TVCDADepConstaint, TeardownAction } from './types/basic';
 import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs } from './types/serial';
-import { BehaviorSubject, Observable, Subscription, TeardownLogic } from 'rxjs';
+import { BehaviorSubject, Observable, PartialObserver, Subscription, TeardownLogic } from 'rxjs';
 export declare const compareEntries: <dom, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>({ compareData, compareObs }?: {
     compareData?: (<X extends dom>(x: AppX<"D", cim, k, X>, y: AppX<"D", cim, k, X>) => boolean) | undefined;
     compareObs?: (<X_1 extends dom, i extends number>(x: TSerialObs<AppX<"A", cim, k, X_1>[i], EH, ECtx>, y: TSerialObs<AppX<"A", cim, k, X_1>[i], EH, ECtx>) => boolean) | undefined;
@@ -18,5 +18,14 @@ export declare class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConsta
     readonly parent: this;
     readonly handler: CtxEH<dom, cim, k, n, EH, ECtx>;
     add(teardown: TeardownLogic): Subscription;
-    constructor(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R, key: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string, c: AppX<'C', cim, k, X>, init: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>, compare?: RequestHandlerCompare<dom, cim, k, n, EH, ECtx>, ...teardownList: TeardownAction[]);
+    /**
+     * get the current value of a serial observable
+     * @param obs the serial observable to get current value
+     * @param subscription a subscription that holds the observable from destruction
+     */
+    static current<T, EH extends EHConstraint<EH, ECtx>, ECtx>(obs: TSerialObs<T, EH, ECtx>, subscription: Subscription): T;
+    constructor(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R, key: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string, c: AppX<'C', cim, k, X>, init: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>, { compare, observer }?: {
+        compare?: RequestHandlerCompare<dom, cim, k, n, EH, ECtx>;
+        observer?: (obs: Origin<dom, cim, k, X, n, EH, ECtx>) => PartialObserver<Parameters<$V>[0]>;
+    }, ...teardownList: TeardownAction[]);
 }

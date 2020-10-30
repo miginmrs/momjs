@@ -20,9 +20,11 @@ export declare namespace local {
         D: typeof F_ID;
         A: typeof F_C;
     };
-    type Handler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<dom, cim, keys, 1, EH, ECtx>;
+    const n = 1;
+    type n = typeof n;
+    type Handler<EH extends EHConstraint<EH, ECtx>, ECtx> = CtxH<dom, cim, keys, n, EH, ECtx>;
     const Handler: <EH extends EHConstraint<EH, ECtx>, ECtx>() => CtxH<object, cim, keys, 1, EH, ECtx>;
-    type Origin<X extends object, EH extends EHConstraint<EH, ECtx>, ECtx> = origin.Origin<object, cim, keys, X, 1, EH, ECtx>;
+    type Origin<X extends dom, EH extends EHConstraint<EH, ECtx>, ECtx> = origin.Origin<dom, cim, keys, X, n, EH, ECtx>;
     const create: <EH extends EHConstraint<EH, ECtx> & {
         Local: CtxH<object, cim, keys, 1, EH, ECtx>;
     }, ECtx>(getHandler: <R>(k: KeysOfType<EHConstraint<EH, ECtx>, R>) => R) => <X extends object>(data: X, ...teardownList: TeardownAction[]) => Origin<X, EH, ECtx>;

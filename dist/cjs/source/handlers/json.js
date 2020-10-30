@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.json = void 0;
 const origin = __importStar(require("../origin"));
 const deep_is_1 = __importDefault(require("deep-is"));
+const guards_1 = require("../../utils/guards");
 var json;
 (function (json) {
     json.n = 1;
@@ -46,14 +47,14 @@ var json;
         return target;
     };
     const clone = (o) => {
-        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clone(v)])) : o;
+        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? v : clone(v)])) : o;
     };
     json.Handler = () => ({
         decode: () => (_id, data) => ({ args: [], data, n: json.n }),
-        encode: () => ({ data, old }) => old && deep_is_1.default(data, old) ? undefined : clone(data),
-        ctr: (_, data, _c, old) => old ? deepUpdate(old, data) : data,
+        encode: () => ({ data, old, c }) => c === null ? old && deep_is_1.default(data, old) ? undefined : clone(data) : data,
+        ctr: (_, data, c, old) => c === null && old !== null ? deepUpdate(old, data) : data,
     });
-    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', null, { args: [], data, n: json.n }, undefined, ...teardownList);
+    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', guards_1.toCond(null), { args: [], data, n: json.n }, undefined, ...teardownList);
     json.cast = (deref) => (p) => deref(p, 'Json');
 })(json = exports.json || (exports.json = {}));
 //# sourceMappingURL=json.js.map

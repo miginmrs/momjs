@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.current = exports.on = exports.eagerCombineAll = void 0;
+exports.current = exports.eagerCombineAll = void 0;
 const rxjs_1 = require("rxjs");
 const combineLatest_1 = require("rxjs/internal/observable/combineLatest");
 class CompleteDestination extends rxjs_1.Subscriber {
@@ -18,23 +18,6 @@ exports.eagerCombineAll = function (...args) {
     };
     return obs;
 };
-exports.on = ({ complete, error, next, subscribe, teardown }) => (source) => source.lift(function (source) {
-    const subscriber = this;
-    subscribe?.();
-    const subscription = new rxjs_1.Subscription();
-    subscription.add(source.subscribe(v => {
-        next?.(v);
-        subscriber.next(v);
-    }, e => {
-        error?.(e);
-        subscriber.error(e);
-    }, () => {
-        complete?.();
-        subscriber.complete();
-    }));
-    subscription.add(teardown);
-    return subscription;
-});
 function current(obs, value) {
     obs.subscribe(v => value = v).unsubscribe();
     return value;

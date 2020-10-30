@@ -1,46 +1,30 @@
-import { Subscription, Observable, Subject } from 'rxjs';
+import { Subscription, Observable, Subject, noop } from 'rxjs';
 import { map as dep_map } from 'dependent-type';
 import { Origin } from './origin';
-import { eagerCombineAll, current } from '../utils/rx-utils';
+import { eagerCombineAll } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
+import { map, shareReplay, finalize, scan, filter, tap, mapTo, take, switchMapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap } from 'rx-async';
 import { BiMap } from './bimap';
+import { nodeps, transient } from './constants';
 const { depMap } = dep_map;
 const one = BigInt(1);
 export class Store {
-    constructor(getHandler, extra, promiseCtr, functions = null, name, prefix = '', locals = [], base = false) {
-        this.getHandler = getHandler;
-        this.extra = extra;
-        this.promiseCtr = promiseCtr;
-        this.functions = functions;
-        this.name = name;
-        this.prefix = prefix;
-        this.base = base;
+    constructor({ getHandler, callHandler, extra, functions, promiseCtr = Promise, name, prefix = '', locals = [], base = false, observe, notifier }) {
+        this.storeSubs = new Subscription;
+        this.linkSubs = new Subscription;
         this.next = one;
         this.pushed = new Map();
-        this.pushes = new Subject();
+        this._pushes = new Subject();
+        this.pushes = this._pushes.asObservable();
         this.changes = new Observable(subscriber => {
             const map = new Map();
-            const ctx = this.emptyContext;
-            const watch = (obs, id) => {
-                const origin = obs.origin, encoder = origin.handler.encode(ctx);
-                return origin.subject.pipe(scan((prev, v) => {
-                    const c = origin.c;
-                    const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
-                    return { old: encoder(params), params };
-                }, {}), filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
-                    subscriber.next(['next', [{
-                                c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
-                            }]]);
-                }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
-            };
             for (const [obs, id] of this.pushed)
-                map.set(obs, watch(obs, id));
+                map.set(obs, this.linkTo(obs, id, subscriber));
             subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
                 if (add)
-                    map.set(obs, watch(obs, id));
+                    map.set(obs, this.linkTo(obs, id, subscriber));
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
@@ -62,6 +46,9 @@ export class Store {
                 ;
             }));
         });
+        this.addToObjects = (obs) => {
+            return (v) => v !== null && typeof v === 'object' && this.objects.set(v, obs);
+        };
         this.ref = (obs) => {
             const id = this.map.find(obs);
             return { id };
@@ -86,16 +73,52 @@ export class Store {
         };
         this.xderef = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers);
         this.deref = (getter) => (ref, ...handlers) => this.checkTypes(getter(ref), handlers, 0);
-        this.emptyContext = {
-            deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
-        };
         this.callReturnRef = new WeakMap();
+        this.getHandler = getHandler;
+        this.callHandler = callHandler;
         this.functions = functions;
         const map = this.map = new BiMap(true);
         this.empty = map.empty;
+        this.extra = extra;
+        this.name = name;
+        this.base = base;
+        this.observe = observe;
+        this.prefix = prefix;
+        this.notifier = notifier ?? (() => map.empty.pipe(take(1)));
+        this.promiseCtr = promiseCtr;
         this.locals = new BiMap();
+        this._emptyctx = { deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra };
         for (const [obs, { id, ...opt }] of locals)
             this.locals.set(id, [obs, opt]);
+        this.objects = new WeakMap;
+    }
+    setup({ local, listener }) {
+        this.linkSubs.add(this.watch(this.callHandler));
+        this.storeSubs.add(this.subscribeToLocals(local));
+        this.linkSubs.add(listener(this));
+    }
+    add(subs) { return this.storeSubs.add(subs); }
+    shutdown(callback) {
+        this.storeSubs.unsubscribe();
+        const subs = this.linkSubs;
+        subs.add(this.notifier().subscribe(() => callback(subs.unsubscribe.bind(subs))));
+    }
+    remoteShutdown(notifier) {
+        this.storeSubs.unsubscribe();
+        const subs = this.linkSubs;
+        this.callHandler.watch().shutdown(switchMapTo(this.notifier()), notifier(subs.unsubscribe.bind(subs)));
+    }
+    linkTo(obs, id, subscriber) {
+        const origin = obs.origin, encoder = origin.handler.encode(this._emptyctx);
+        return origin.subject.pipe(scan((prev, v) => {
+            const c = origin.c;
+            const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
+            return { old: encoder(params), params };
+        }, {}), filter(({ old: v }) => v !== undefined)).subscribe(({ old: data, params }) => {
+            subscriber.next(['next', [{
+                        c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
+                    }]]);
+        }, err => subscriber.next(['error', { id }, err]), () => subscriber.next(['complete', { id }]));
     }
     subscribeToLocals($local) {
         const subs = new Subscription();
@@ -111,7 +134,7 @@ export class Store {
         return id;
     }
     watch(callHandler) {
-        const op = callHandler.handlers();
+        const op = callHandler.watch();
         return this.changes.subscribe(event => {
             switch (event[0]) {
                 case 'next': return op.put(event[1]);
@@ -154,8 +177,10 @@ export class Store {
     /** inserts a new serial observable into the store with a givin id */
     _insert(key, entry, ctx, id, c) {
         const getHandler = this.getHandler, handler = getHandler(key);
-        const compare = handler.compare?.(ctx);
-        const obs = new Origin(getHandler, key, c, entry, compare, () => this.map.delete(id));
+        const compare = handler.compare?.(ctx), observe = this.observe;
+        const obs = new Origin(getHandler, key, c, entry, {
+            compare, observer: observe && !handler[transient] ? obs => ({ next: observe(obs) }) : undefined
+        }, () => this.map.delete(id));
         this.map.set(id, [obs, {}]);
         return obs;
     }
@@ -201,14 +226,7 @@ export class Store {
             throw e;
         }
     }
-    /** it does nothing useful, there is no use case for this function and no reason for it to stay here */
-    append(key, entry, c) {
-        const id = this.getNext();
-        const obs = this._insert(key, entry, this.emptyContext, id, c);
-        const subs = this.map.get(id)[1].subscription = obs.subscribe(() => { });
-        return { id, obs, subs };
-    }
-    /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
+    /** adds an TSerialObs to store and subscribe to it without storing subscription  */
     push(obs, { unload, nextId, local: $local } = {}) {
         const old = this.map.finddir(obs);
         const id = this.getNext(old?.[0] ?? this.locals.find(obs, true) ?? this.map.usedId(obs.origin) ?? nextId?.(obs));
@@ -239,26 +257,25 @@ export class Store {
                 destroyed = true;
                 const local = this.locals.get(id)?.[1];
                 if ((!local || local.out) && this.pushed.delete(obs)) {
-                    this.pushes.next([obs, id, false]);
+                    this._pushes.next([obs, id, false]);
                 }
                 clear.call(Subscription.EMPTY);
             };
             if ($local?.closed !== false) {
                 wrapped = defineProperty(Object.assign(eagerCombineAll([obs, asubj]).pipe(finalize(teardown), map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
-                this.map.set(id, [wrapped, {}]);
-                subscription = wrapped.subscribe(() => { });
             }
             else {
-                if (!$local[Store.nodeps])
+                if (!$local[nodeps])
                     $local.add(asubj.subscribe(() => { }));
                 $local.add(teardown);
-                this.map.set(id, [wrapped, {}]);
-                subscription = wrapped.subscribe(() => { });
             }
+            this.map.set(id, [wrapped, {}]);
+            const observe = this.observe;
+            subscription = wrapped.subscribe(observe && !obs.origin.handler[transient] ? observe(wrapped) : noop);
             const local = this.locals.get(id)?.[1];
-            if (!local || local.out) {
+            if (!subscription.closed && (!local || local.out)) {
                 this.pushed.set(obs, id);
-                this.pushes.next([obs, id, true]);
+                this._pushes.next([obs, id, true]);
             }
         }
         else {
@@ -275,17 +292,18 @@ export class Store {
      */
     serialize(obs, opt) {
         const { isNew, push = true, ignore = [] } = opt;
-        return obs.pipe(scan((previous) => {
+        const that = this;
+        return obs.pipe(scan(function (previous) {
             const session = new BiMap;
             const allData = new Map();
             const subs = new Subscription;
             let next = 1;
-            const getter = (r) => ('id' in r ? this.map.get(r.id) : session.get(r.$))[0];
-            const inMap = (arg) => this.map.find(arg) !== undefined;
+            const getter = (r) => ('id' in r ? that.map.get(r.id) : session.get(r.$))[0];
+            const inMap = (arg) => that.map.find(arg) !== undefined;
             const ref = (iObs) => {
                 const origin = iObs.origin, entry = iObs.origin.subject.value;
-                const value = current(iObs);
-                const id = this.map.find(iObs);
+                const value = Origin.current(iObs, this);
+                const id = that.map.find(iObs);
                 if (id !== undefined && ignore.indexOf(id) !== -1)
                     return { id };
                 let oldData = undefined, data;
@@ -313,12 +331,12 @@ export class Store {
                     let usedId = id;
                     if (usedId === undefined) {
                         if (push) {
-                            const { subscription, ref } = this.push(iObs);
+                            const { subscription, ref } = that.push(iObs);
                             subs.add(subscription);
                             usedId = ref.id;
                         }
                         else {
-                            usedId = this.map.usedId(iObs);
+                            usedId = that.map.usedId(iObs);
                         }
                     }
                     const attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
@@ -332,7 +350,7 @@ export class Store {
                 return { $ };
             };
             const ctx = {
-                deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
+                deref: that.deref(getter), xderef: that.xderef(getter), ref, ...that.extra
             };
             const ret = [session, allData, ref(obs), subs];
             previous?.[3].unsubscribe();
@@ -363,8 +381,6 @@ export class Store {
     }
     /* #endregion */
     call(fId, param, arg, opt = {}) {
-        if (this.functions === null)
-            throw new Error('Cannot call local functions from remote store');
         const f = this.functions[fId];
         const subs = new Subscription();
         const obs = f(param, this.getValue(arg)[0], subs);
@@ -388,11 +404,12 @@ export class Store {
         });
     }
     /* #endregion */
-    remote(fId, arg, param, { handlers: makeOp, serialized }, opt = {}) {
+    remote(fId, arg, param, opt = {}) {
         return new Observable(subscriber => {
-            const op = makeOp();
+            const { watch, call, serialized } = this.callHandler;
+            const wop = watch(), cop = call();
             const { subscription: argSubscription, ref: refArg } = this.push(arg, opt.graph ? {
-                unload: (ref) => op.unsubscribe(ref),
+                unload: (ref) => wop.unsubscribe(ref),
             } : {});
             const callSubscription = new Subscription();
             const makePromise = (res) => [new this.promiseCtr(r => res = r), res];
@@ -403,11 +420,11 @@ export class Store {
                     serialized.set(arg, serializeObs = this.serialize(arg, {
                         isNew: true
                     }).pipe(asyncMap((def) => {
-                        const refsPromise = op.put(def);
+                        const refsPromise = wop.put(def);
                         return refsPromise.then((refs) => ({ ok: true, value: refs[0] }));
                     }), tap({
-                        error: e => op.error(refArg, e),
-                        complete: () => op.complete(refArg),
+                        error: e => wop.error(refArg, e),
+                        complete: () => wop.complete(refArg),
                     }), shareReplay({ refCount: true, bufferSize: 1 })));
                 const paramSubs = serializeObs.subscribe(() => { });
                 this.callReturnRef.set(subscriber, refTask[0]);
@@ -422,7 +439,7 @@ export class Store {
                 }
             }
             callSubscription.add(argSubscription);
-            const responseSubs = op.subscribeToResult({
+            const responseSubs = cop.subscribeToResult({
                 resp_id: (ref) => {
                     responseSubs.add(this.getValue(ref)[0].pipe(filter((_, index) => index === 0), mapTo(ref)).subscribe(subscriber));
                     refTask[1](ref);
@@ -443,11 +460,11 @@ export class Store {
             });
             callSubscription.add(() => {
                 if (!responseSubs.closed)
-                    op.end_call();
+                    cop.end_call();
             });
             callSubscription.add(responseSubs);
             responseSubs.add(callSubscription);
-            op.call(fId, param, refArg, opt);
+            cop.call(fId, param, refArg, opt);
             if (opt.graph)
                 refTask[0].then(refReturn => {
                     const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
@@ -457,5 +474,4 @@ export class Store {
         });
     }
 }
-Store.nodeps = Symbol();
 //# sourceMappingURL=store.js.map

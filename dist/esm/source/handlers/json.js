@@ -1,6 +1,7 @@
 /// <reference path="../../typings/deep-is.d.ts" />
 import * as origin from '../origin';
 import equal from 'deep-is';
+import { toCond } from '../../utils/guards';
 export var json;
 (function (json) {
     json.n = 1;
@@ -21,14 +22,14 @@ export var json;
         return target;
     };
     const clone = (o) => {
-        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clone(v)])) : o;
+        return o === null ? o : o instanceof Array ? o.map(clone) : typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? v : clone(v)])) : o;
     };
     json.Handler = () => ({
         decode: () => (_id, data) => ({ args: [], data, n: json.n }),
-        encode: () => ({ data, old }) => old && equal(data, old) ? undefined : clone(data),
-        ctr: (_, data, _c, old) => old ? deepUpdate(old, data) : data,
+        encode: () => ({ data, old, c }) => c === null ? old && equal(data, old) ? undefined : clone(data) : data,
+        ctr: (_, data, c, old) => c === null && old !== null ? deepUpdate(old, data) : data,
     });
-    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', null, { args: [], data, n: json.n }, undefined, ...teardownList);
+    json.create = (getHandler) => (data, ...teardownList) => new origin.Origin(getHandler, 'Json', toCond(null), { args: [], data, n: json.n }, undefined, ...teardownList);
     json.cast = (deref) => (p) => deref(p, 'Json');
 })(json || (json = {}));
 //# sourceMappingURL=json.js.map
