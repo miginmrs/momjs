@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { Store } from '../source/store';
-import { array, json, JsonObject, PromiseCtr, CtxH } from '../source';
+import { array, json, JsonObject, PromiseCtr, CtxH, TVCDAKeys, DCN, KX } from '../source';
 import * as src from '../source';
 import { Subscription, Subject } from 'rxjs';
 import { take, toArray, map, finalize } from 'rxjs/operators';
@@ -36,7 +36,6 @@ describe('Stores Communication', () => {
     const store2_to_store1 = new Subject<DataGram<msg2to1>>();
     const channel = [0] as [0];
     const msgs: msg[] = [];
-    const callHandler = createCallHandler<RH, {}, fMul, StoreFdcp, StoreFkx>(store1_to_store2, store2_to_store1, channel);
 
     const channelSubs = store1_to_store2.subscribe(v => {
       // console.log('1->2', v.channel, v.type, v.data);
@@ -48,26 +47,33 @@ describe('Stores Communication', () => {
     }));
 
     // STORE2
-    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>(getHandler, {}, Promise, {
-      [fMul]: (_, arg) => {
-        const subs = new Subscription();
-        const obs = newArray<xn[]>([], subs);
-        subs.add(arg.subscribe(
-          v => {
-            arg;
-            const [{ x: a }, { x: b }] = v;
-            const json = newJson<xn>({ x: a * b });
-            obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
-          },
-          e => obs.subject.error(e),
-          () => obs.subject.complete()
-        ));
-        return Promise.resolve(obs);
-      }
-    }, 'store2');
-    startListener(store2, store1_to_store2, store2_to_store1);
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>({
+      getHandler, extra: {}, name: 'store2', promiseCtr: Promise,
+      functions: {
+        [fMul]: (_, arg) => {
+          const subs = new Subscription();
+          const obs = newArray<xn[]>([], subs);
+          subs.add(arg.subscribe(
+            v => {
+              arg;
+              const [{ x: a }, { x: b }] = v;
+              const json = newJson<xn>({ x: a * b });
+              obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
+            },
+            e => obs.subject.error(e),
+            () => obs.subject.complete()
+          ));
+          return Promise.resolve(obs);
+        }
+      },
+      callHandler: null!,
+    });
+    const callHandler = createCallHandler<DCN, KX, RH, {}, fMul, StoreFdcp, StoreFkx>(store1_to_store2, store2_to_store1, channel);
+    startListener(store1_to_store2, store2_to_store1)(store2);
 
-    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
+    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>({
+      getHandler, extra: {}, promiseCtr: Promise, functions: {}, name: 'store1', prefix: '$', callHandler,
+    });
     const a = newJson<xn>({ x: 5 });
     const b = newJson<xn>({ x: 10 });
     const c = newJson<xn>({ x: 20 });
@@ -75,15 +81,11 @@ describe('Stores Communication', () => {
     const subs = arg.subscribe(() => { });
     let firstCallResult: xn[][] = [];
 
-    store1.remote(
-      fMul, arg, null, callHandler, { graph: true }
-    ).pipe(take(2), map(v => v.slice()), toArray()).subscribe(
-      v => firstCallResult = v
-    );
+    store1.remote(fMul, arg, null, { graph: true }).pipe(take(2), map(v => v.slice()), toArray()).subscribe(v => firstCallResult = v);
 
     const receivedValues: xn[][] = [];
     // STORE1
-    const ret = store1.remote(fMul, arg, null, callHandler, { graph: true });
+    const ret = store1.remote(fMul, arg, null, { graph: true });
     ret.pipe(finalize(
       () => channelSubs.unsubscribe()
     )).subscribe(async function (this: SafeSubscriber<xn>, v) {

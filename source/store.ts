@@ -1,44 +1,35 @@
 import type { KeysOfType, TypeFuncs, AppX, App, Fun } from 'dependent-type';
 import type { NonUndefined } from 'utility-types';
-import type { GlobalRef, LocalRef, Ref, TVCDADepConstaint, TVCDA_CIM } from './types/basic';
+import type { defined, GlobalRef, LocalRef, Ref, TVCDADepConstaint, TVCDAKeys, TVCDA_CIM } from './types/basic';
 import type {
   deref, xDerefHandlers, derefReturn, DeepSerial, EntryObs,
-  derefHandlers, ref, TSerialObs, EHConstraint, xDerefHandler, derefHandler,
+  derefHandlers, ref, TSerialObs, xDerefHandler, derefHandler, SerialObs,
 } from './types/serial';
 import type {
   CallHandler, FdcpConstraint, FkxConstraint, FIDS, Functions,
   RHConstraint, CtxH, xderef, ModelsDefinition, ModelDefinition,
-  AnyModelDefinition, EModelsDefinition
+  AnyModelDefinition, EModelsDefinition, DCN, KX, Listener
 } from './types/store';
 import type {
-  Notif, ObsCache, F_Custom_Ref, GlobalRefHelper, F_I_X, CondRefHelper, SerializationOptions
+  Notif, ObsCache, F_Custom_Ref, GlobalRefHelper, F_I_X, CondRefHelper, SerializationOptions, LocalObs, LocalOption, PushOptions, IStore, Notifier, StoreParams
 } from './types/params';
 
-import { Subscription, Observable, Subject } from 'rxjs';
+import { Subscription, Observable, Subject, of, OperatorFunction, identity, Subscriber, TeardownLogic, noop } from 'rxjs';
 import { map as dep_map } from 'dependent-type';
 import { Origin } from './origin';
-import { eagerCombineAll, current } from '../utils/rx-utils';
+import { eagerCombineAll } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, shareReplay, finalize, scan, filter, tap, mapTo } from 'rxjs/operators';
+import { map, shareReplay, finalize, scan, filter, tap, mapTo, take, switchMapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { BiMap } from './bimap';
 import { PromiseCtr } from './async';
+import { nodeps, transient } from './constants';
 
 const { depMap } = dep_map;
 
 const one = BigInt(1);
 
-
-/** Options of push */
-export type PushOptions<V, RH extends RHConstraint<RH, ECtx>, ECtx> = {
-  unload?: (ref: GlobalRef<V>) => void,
-  nextId?: (obs: TSerialObs<unknown, RH, ECtx>, parentId?: string) => string | undefined,
-  local?: Subscription & { [Store.nodeps]?: boolean },
-};
-
-export type LocalOption<RH extends RHConstraint<RH, ECtx>, ECtx> = { in?: boolean, out?: boolean } & PushOptions<unknown, RH, ECtx>;
-export type LocalObs<RH extends RHConstraint<RH, ECtx>, ECtx> = [TSerialObs<unknown, RH, ECtx>, { id: string } & LocalOption<RH, ECtx>];
 
 
 export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
@@ -48,48 +39,96 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   rfIds extends FIDS,
   rfdcp extends FdcpConstraint<rfIds>,
   rfkx extends FkxConstraint<rfIds, rfdcp>,
-  > {
-  protected map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
+  > implements IStore<RH, ECtx, lfIds, lfdcp, lfkx> {
+  protected readonly map: BiMap<RH, ECtx, { subscription?: Subscription, externalId?: PromiseLike<string> }>;
   readonly locals: BiMap<RH, ECtx, LocalOption<RH, ECtx>>;
   readonly empty: Observable<void>;
-  constructor(
-    readonly getHandler: <R>(k: KeysOfType<RHConstraint<RH, ECtx>, R>) => R, private extra: ECtx, private promiseCtr: PromiseCtr,
-    private functions: Functions<RH, ECtx, lfIds, lfdcp, lfkx> | null = null,
-    readonly name?: string, readonly prefix = '',
-    locals: LocalObs<RH, ECtx>[] = [],
-    readonly base = false,
-  ) {
+  private storeSubs = new Subscription;
+  private linkSubs = new Subscription;
+  protected readonly extra: ECtx;
+  protected readonly promiseCtr: PromiseCtr;
+  protected readonly functions: Functions<RH, ECtx, lfIds, lfdcp, lfkx>;
+  readonly name?: string;
+  readonly base: boolean;
+  readonly getHandler: <R>(k: KeysOfType<RHConstraint<RH, ECtx>, R>) => R;
+  readonly prefix: string;
+  readonly observe?: <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
+    obs: SerialObs<dom, cim, k, X, n, RH, ECtx>
+  ) => (v: AppX<'V', cim, k, X>) => void;
+
+  protected readonly _emptyctx: { deref: deref<RH, ECtx>; xderef: xderef<RH, ECtx>; ref: ref<RH, ECtx>; } & ECtx;
+  protected readonly callHandler: CallHandler<DCN, KX, RH, ECtx, rfIds, rfdcp, rfkx>;
+  protected readonly notifier: () => Observable<unknown>;
+  protected readonly objects: WeakMap<object, TSerialObs<any, RH, ECtx>>;
+
+
+  constructor({
+    getHandler, callHandler, extra, functions, promiseCtr = Promise, name, prefix = '', locals = [], base = false, observe, notifier
+  }: StoreParams<RH, ECtx, lfIds, lfdcp, lfkx, rfIds, rfdcp, rfkx>) {
+    this.getHandler = getHandler;
+    this.callHandler = callHandler;
     this.functions = functions;
     const map = this.map = new BiMap(true);
     this.empty = map.empty;
+    this.extra = extra;
+    this.name = name;
+    this.base = base;
+    this.observe = observe;
+    this.prefix = prefix;
+    this.notifier = notifier ?? (() => map.empty.pipe(take(1)));
+    this.promiseCtr = promiseCtr;
     this.locals = new BiMap();
+    this._emptyctx = { deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra }
     for (const [obs, { id, ...opt }] of locals) this.locals.set(id, [obs, opt]);
+    this.objects = new WeakMap;
   }
 
-  private next = one;
-  private pushed = new Map<TSerialObs<unknown, RH, ECtx>, string>();
-  private pushes = new Subject<[TSerialObs<unknown, RH, ECtx>, string, boolean]>();
+  setup({ local, listener }: { local?: Subscription, listener: Listener<RH, ECtx, lfIds, lfdcp, lfkx> }) {
+    this.linkSubs.add(this.watch(this.callHandler));
+    this.storeSubs.add(this.subscribeToLocals(local));
+    this.linkSubs.add(listener(this));
+  }
+
+  add(subs: TeardownLogic) { return this.storeSubs.add(subs); }
+  shutdown(callback: (unlink: () => void) => void) {
+    this.storeSubs.unsubscribe();
+    const subs = this.linkSubs;
+    subs.add(this.notifier().subscribe(() => callback(subs.unsubscribe.bind(subs))));
+  }
+  remoteShutdown(notifier: (unlink: () => void) => Notifier) {
+    this.storeSubs.unsubscribe();
+    const subs = this.linkSubs;
+    this.callHandler.watch().shutdown(switchMapTo(this.notifier()), notifier(subs.unsubscribe.bind(subs)));
+  }
+
+  protected next = one;
+  protected readonly pushed = new Map<TSerialObs<unknown, RH, ECtx>, string>();
+  protected readonly _pushes = new Subject<[TSerialObs<unknown, RH, ECtx>, string, boolean]>();
+  protected readonly pushes = this._pushes.asObservable();
+
+  protected linkTo<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
+    obs: SerialObs<dom, cim, k, X, n, RH, ECtx>, id: string, subscriber: Subscriber<Notif<RH, ECtx>>
+  ): Subscription {
+    const origin = obs.origin, encoder = origin.handler.encode(this._emptyctx);
+    return origin.subject.pipe(scan((prev: { old?: AppX<'T', cim, k, X> }, v) => {
+      const c: AppX<"C", cim, k, X> = origin.c;
+      const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
+      return { old: encoder(params), params }
+    }, {}), filter(({ old: v }) => v !== undefined)).subscribe(
+      ({ old: data, params }) => {
+        subscriber.next(['next', [{
+          c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
+        }]]);
+      },
+      err => subscriber.next(['error', { id } as GlobalRef<unknown>, err]),
+      () => subscriber.next(['complete', { id } as GlobalRef<unknown>])
+    );
+  }
   readonly changes = new Observable<Notif<RH, ECtx>>(subscriber => {
     const map = new Map<TSerialObs<unknown, RH, ECtx>, Subscription>();
-    const ctx = this.emptyContext;
-    const watch = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: TSerialObs<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Origin<dom, cim, k, X, n, RH, ECtx> }, id: string): Subscription => {
-      const origin = obs.origin, encoder = origin.handler.encode(ctx);
-      return origin.subject.pipe(scan((prev: { old?: AppX<'T', cim, k, X> }, v) => {
-        const c: AppX<"C", cim, k, X> = origin.c;
-        const params = { ...v, ...('old' in prev ? { old: prev.old } : {}), c };
-        return { old: encoder(params), params }
-      }, {}), filter(({ old: v }) => v !== undefined)).subscribe(
-        ({ old: data, params }) => {
-          subscriber.next(['next', [{
-            c: origin.c, i: 0, data, id, new: !('old' in (params ?? {})), type: origin.key
-          }]]);
-        },
-        err => subscriber.next(['error', { id } as GlobalRef<unknown>, err]),
-        () => subscriber.next(['complete', { id } as GlobalRef<unknown>]));
-    }
-    for (const [obs, id] of this.pushed) map.set(obs, watch(obs, id));
+    for (const [obs, id] of this.pushed) map.set(obs, this.linkTo(obs, id, subscriber));
     subscriber.add(this.pushes.subscribe(([obs, id, add]) => {
-      if (add) map.set(obs, watch(obs, id));
+      if (add) map.set(obs, this.linkTo(obs, id, subscriber));
       else {
         // console.log('remove', this.map.find(obs));
         const isStopped = (obs: TSerialObs<unknown, RH, ECtx>): boolean => {
@@ -107,7 +146,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     }))
   });
 
-  subscribeToLocals($local?: Subscription | undefined) {
+
+  subscribeToLocals($local?: Subscription) {
     const subs = new Subscription();
     const local: Subscription | undefined = $local ?? (this.base ? subs : undefined);
     for (const [, [obs, { local: $local }]] of this.locals.entries()) {
@@ -116,13 +156,13 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     return subs;
   }
 
-  private getNext(id?: string): string {
+  protected getNext(id?: string): string {
     if (id === undefined) return `${this.prefix}${this.next++}`;
     return id;
   }
 
-  watch(callHandler: CallHandler<RH, ECtx, 0, FdcpConstraint<0>, FkxConstraint<0, FdcpConstraint<0>>>) {
-    const op = callHandler.handlers<0>();
+  watch(callHandler: CallHandler<DCN, KX, RH, ECtx, rfIds, rfdcp, rfkx>) {
+    const op = callHandler.watch();
     return this.changes.subscribe(event => {
       switch (event[0]) {
         case 'next': return op.put(event[1]);
@@ -174,6 +214,9 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     cache[i] = { obs, id };
     return cache[i] as NonUndefined<typeof cache[i]>
   }
+  readonly addToObjects = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(obs: SerialObs<dom, cim, k, X, n, RH, ECtx>) => {
+    return (v: AppX<'V', cim, k, X>) => v !== null && typeof v === 'object' && this.objects.set(v as object, obs);
+  }
   /** inserts a new serial observable into the store with a givin id */
   private _insert<
     indices extends number,
@@ -190,8 +233,10 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       c: AppX<'C', dcim[i][1], keys[i], X[i]>,
   ) {
     const getHandler = this.getHandler, handler = getHandler<CtxH<dcim[i][0], dcim[i][1], keys[i], N[i], RH, ECtx>>(key);
-    const compare = handler.compare?.(ctx);
-    const obs = new Origin<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx>(getHandler, key, c, entry, compare, () => this.map.delete(id));
+    const compare = handler.compare?.(ctx), observe = this.observe;
+    const obs: Origin<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> = new Origin(getHandler, key, c, entry, {
+      compare, observer: observe && !handler[transient] ? obs => ({ next: observe(obs) }) : undefined
+    }, () => this.map.delete(id));
     this.map.set(id, [obs, {}]);
     return obs;
   }
@@ -217,11 +262,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     }
     return v as derefReturn<indices, dcim, keys, X, N, RH, ECtx>;
   };
-  getter = <T extends object, V extends T = T>(r: Ref<T>) => {
+  getter = <T extends defined, V extends T = T>(r: Ref<T>) => {
     if (!('id' in r)) throw new Error('There is no local context');
     return this.getValue(r)[0] as TSerialObs<V, RH, ECtx>;
   }
-  xderef = (getter: <T extends object, V extends T = T>(r: Ref<T>) => TSerialObs<V, RH, ECtx>): xderef<RH, ECtx> => <
+  xderef = (getter: <T extends defined, V extends T = T>(r: Ref<T>) => TSerialObs<V, RH, ECtx>): xderef<RH, ECtx> => <
     indices extends number,
     dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
@@ -231,7 +276,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: xDerefHandlers<indices, dcim, keys, X, N, RH, ECtx>
     ): derefReturn<indices, dcim, keys, X, N, RH, ECtx> => this.checkTypes(getter(ref), handlers);
-  deref = (getter: <T extends object>(r: Ref<T>) => TSerialObs<T, RH, ECtx>): deref<RH, ECtx> => <
+  deref = (getter: <T extends defined>(r: Ref<T>) => TSerialObs<T, RH, ECtx>): deref<RH, ECtx> => <
     indices extends number,
     dcim extends Record<indices, [unknown, TVCDA_CIM]>,
     keys extends { [P in indices]: TVCDADepConstaint<dcim[P][0], dcim[P][1]> },
@@ -241,9 +286,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       ref: Ref<{ [P in indices]: dcim[P][1]['V'][1] }[indices]>,
       ...handlers: derefHandlers<indices, dcim, keys, N, RH, ECtx>
     ) => this.checkTypes<indices, dcim, keys, X, N>(getter(ref), handlers, 0);
-  emptyContext = {
-    deref: this.deref(this.getter), xderef: this.xderef(this.getter), ref: this.ref, ...this.extra
-  };
+
   /** inserts or updates multiple entries from serialized data with stored subscription to new ones */
   unserialize<
     indices extends number,
@@ -257,14 +300,14 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       ) => ModelsDefinition<indices, dcim, keys, X, N, RH, ECtx>),
   ): { [i in indices]: GlobalRef<AppX<'V', dcim[i][1], keys[i], X[i]>> } & GlobalRef<unknown>[] {
     const session = [] as ObsCache<indices, dcim, keys, X, N, RH, ECtx>;
-    const models = getModels instanceof Function ? getModels(<i extends number>(i: i) => ({ $: i } as { $: i, _: any })) : getModels;
+    const models = getModels instanceof Function ? getModels(<i extends number>(i: i) => ({ $: i } as LocalRef<any, i>)) : getModels;
     const _push = <i extends indices>(i: i) => {
       const modelsAsObject: { [i in indices]: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> & { i: i } } = models;
       const m: ModelDefinition<dcim[i][0], dcim[i][1], keys[i], X[i], N[i], RH, ECtx> & { i: i } = modelsAsObject[i];
       const _models = Object.assign(models, { [i]: m });
       return { ...this._unserialize<indices, dcim, keys, X, N, i>(m.type, ctx, _models, session, i), m };
     }
-    const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.getValue(r)[0] : _push(r.$ as indices).obs) as TSerialObs<V, RH, ECtx>;
+    const getter = <T extends defined, V extends T = T>(r: Ref<T>) => ('id' in r ? this.getValue(r)[0] : _push(r.$ as indices).obs) as TSerialObs<V, RH, ECtx>;
     const ref: ref<RH, ECtx> = this.ref;
     const deref: deref<RH, ECtx> = this.deref(getter);
     const xderef: xderef<RH, ECtx> = this.xderef(getter);
@@ -301,26 +344,8 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     }
   }
 
-  /** it does nothing useful, there is no use case for this function and no reason for it to stay here */
-  append<
-    dom, cim extends TVCDA_CIM,
-    k extends TVCDADepConstaint<dom, cim>,
-    X extends dom,
-    n extends 1 | 2,
-    >(
-      key: KeysOfType<RH, CtxH<dom, cim, k, n, RH, ECtx>> & string,
-      entry: EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, RH, ECtx>,
-      c: AppX<'C', cim, k, X>,
-  ) {
-    const id = this.getNext();
-    const obs = this._insert<0, [[dom, cim]], [k], [X], [n], 0>(key, entry, this.emptyContext, id, c)
-    const subs = this.map.get(id)![1].subscription = obs.subscribe(() => { });
-    return { id, obs, subs };
-  }
 
-  static readonly nodeps: unique symbol = Symbol();
-
-  /** adds an ObsWithOrigin to store and subscribe to it without storing subscription  */
+  /** adds an TSerialObs to store and subscribe to it without storing subscription  */
   push<V>(obs: TSerialObs<V, RH, ECtx>,
     { unload, nextId, local: $local }: PushOptions<V, RH, ECtx> = {}
   ): { wrapped: TSerialObs<V, RH, ECtx>, ref: GlobalRef<V>, subscription: Subscription } {
@@ -357,7 +382,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         destroyed = true;
         const local = this.locals.get(id)?.[1];
         if ((!local || local.out) && this.pushed.delete(obs)) {
-          this.pushes.next([obs, id, false]);
+          this._pushes.next([obs, id, false]);
         }
         clear.call(Subscription.EMPTY);
       };
@@ -369,18 +394,17 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           ), { origin: obs.origin, parent: obs }),
           'destroyed', { get() { return destroyed } }
         );
-        this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe(() => { });
       } else {
-        if (!$local[Store.nodeps]) $local.add(asubj.subscribe(() => { }));
+        if (!$local[nodeps]) $local.add(asubj.subscribe(() => { }));
         $local.add(teardown);
-        this.map.set(id, [wrapped, {}]);
-        subscription = wrapped.subscribe(() => { });
       }
+      this.map.set(id, [wrapped, {}]);
+      const observe = this.observe;
+      subscription = wrapped.subscribe(observe && !obs.origin.handler[transient] ? observe(wrapped) : noop);
       const local = this.locals.get(id)?.[1];
-      if (!local || local.out) {
+      if (!subscription.closed && (!local || local.out)) {
         this.pushed.set(obs, id);
-        this.pushes.next([obs, id, true]);
+        this._pushes.next([obs, id, true]);
       }
     } else {
       if (old[1] === 'down') wrapped = this.map.get(id)![0];
@@ -395,7 +419,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
    * @param {SerializationOptions} opt options of serialization
    */
   serialize<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2>(
-    obs: TSerialObs<AppX<'V', cim, k, X>, RH, ECtx> & { origin: Origin<dom, cim, k, X, n, RH, ECtx> },
+    obs: SerialObs<dom, cim, k, X, n, RH, ECtx>,
     opt: SerializationOptions
   ) {
     const { isNew, push = true, ignore = [] } = opt;
@@ -406,17 +430,18 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     type Session = BiMap<RH, ECtx, Attr | null, number>;
     type V = AppX<'V', cim, k, X>;
     type SMRS = [Session, Map<TSerialObs<unknown, RH, ECtx>, { data: unknown }>, Ref<V>, Subscription];
-    return obs.pipe(scan<V, SMRS, null>((previous) => {
+    const that = this;
+    return obs.pipe(scan<V, SMRS, null>(function (this: Subscription, previous) {
       const session: Session = new BiMap;
       const allData: SMRS[1] = new Map();
       const subs = new Subscription;
       let next = 1;
-      const getter = <T extends object, V extends T = T>(r: Ref<T>) => ('id' in r ? this.map.get(r.id) : session.get(r.$))![0] as TSerialObs<V, RH, ECtx>;
-      const inMap = (arg: TSerialObs<unknown, RH, ECtx>) => this.map.find(arg) !== undefined;
+      const getter = <T extends defined, V extends T = T>(r: Ref<T>) => ('id' in r ? that.map.get(r.id) : session.get(r.$))![0] as TSerialObs<V, RH, ECtx>;
+      const inMap = (arg: TSerialObs<unknown, RH, ECtx>) => that.map.find(arg) !== undefined;
       const ref: ref<RH, ECtx> = <V>(iObs: TSerialObs<V, RH, ECtx>): Ref<V> => {
         const origin = iObs.origin, entry = iObs.origin.subject.value;
-        const value = current(iObs);
-        const id = this.map.find(iObs);
+        const value = Origin.current(iObs, this);
+        const id = that.map.find(iObs);
         if (id !== undefined && ignore.indexOf(id) !== -1) return { id } as GlobalRef<V>;
         let oldData: { data: unknown } | undefined = undefined, data: { data: unknown } | undefined;
         if (id !== undefined && previous) {
@@ -443,11 +468,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
           let usedId = id;
           if (usedId === undefined) {
             if (push) {
-              const { subscription, ref } = this.push(iObs);
+              const { subscription, ref } = that.push(iObs);
               subs.add(subscription);
               usedId = ref.id;
             } else {
-              usedId = this.map.usedId(iObs);
+              usedId = that.map.usedId(iObs);
             }
           }
           const attr: Attr = { type: origin.key, value, ...data, c: origin.c, id: usedId };
@@ -459,7 +484,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         return { $ } as LocalRef<V>;
       };
       const ctx = {
-        deref: this.deref(getter), xderef: this.xderef(getter), ref, ...this.extra
+        deref: that.deref(getter), xderef: that.xderef(getter), ref, ...that.extra
       };
       const ret: SMRS = [session, allData, ref(obs), subs];
       previous?.[3].unsubscribe();
@@ -491,12 +516,12 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
   call<fId extends lfIds>(
     fId: fId, param: lfdcp[fId][2],
     arg: GlobalRef<AppX<'V', lfdcp[fId][0][1], lfkx[fId][0], lfkx[fId][1]>>,
-    opt?: { ignore?: string[], graph: true },
+    opt: { ignore?: string[], graph: true },
   ): Observable<EModelsDefinition<0, [[lfdcp[fId][1][0], lfdcp[fId][1][1]]], [lfkx[fId][2]], [lfkx[fId][3]], [lfdcp[fId][1][2]], RH, ECtx>>;
   call<fId extends lfIds>(
     fId: fId, param: lfdcp[fId][2],
     arg: GlobalRef<AppX<'V', lfdcp[fId][0][1], lfkx[fId][0], lfkx[fId][1]>>,
-    opt: { ignore?: string[], graph?: false },
+    opt?: { ignore?: string[], graph?: false },
   ): Observable<GlobalRef<AppX<'V', lfdcp[fId][1][1], lfkx[fId][2], lfkx[fId][3]>>>;
   /* #endregion */
 
@@ -505,7 +530,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     arg: GlobalRef<AppX<'V', lfdcp[fId][0][1], lfkx[fId][0], lfkx[fId][1]>>,
     opt: { ignore?: string[], graph?: boolean } = {},
   ) {
-    if (this.functions === null) throw new Error('Cannot call local functions from remote store');
     const f = this.functions[fId];
     const subs = new Subscription();
     const obs = f(param, this.getValue(arg)[0], subs);
@@ -537,35 +561,29 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       origin: Origin<rfdcp[fId][0][0], rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1], rfdcp[fId][0][2], RH, ECtx>
     },
     param: rfdcp[fId][2],
-    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, rfIds, rfdcp, rfkx>,
     opt: { ignore?: string[], graph: true },
   ): Observable<AppX<'V', rfdcp[fId][1][1], rfkx[fId][2], rfkx[fId][3]>>;
   remote<fId extends rfIds>(
     fId: fId,
-    arg: TSerialObs<AppX<'V', rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1]>, RH, ECtx> & {
-      origin: Origin<rfdcp[fId][0][0], rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1], rfdcp[fId][0][2], RH, ECtx>
-    },
+    arg: SerialObs<rfdcp[fId][0][0], rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1], rfdcp[fId][0][2], RH, ECtx>,
     param: rfdcp[fId][2],
-    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, rfIds, rfdcp, rfkx>,
     opt?: { ignore?: string[], graph?: false },
   ): Observable<GlobalRef<AppX<'V', rfdcp[fId][1][1], rfkx[fId][2], rfkx[fId][3]>>>;
   /* #endregion */
 
   remote<fId extends rfIds>(
     fId: fId,
-    arg: TSerialObs<AppX<'V', rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1]>, RH, ECtx> & {
-      origin: Origin<rfdcp[fId][0][0], rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1], rfdcp[fId][0][2], RH, ECtx>
-    },
+    arg: SerialObs<rfdcp[fId][0][0], rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1], rfdcp[fId][0][2], RH, ECtx>,
     param: rfdcp[fId][2],
-    { handlers: makeOp, serialized }: CallHandler<RH, ECtx, rfIds, rfdcp, rfkx>,
     opt: { ignore?: string[], graph?: boolean } = {},
   ) {
     type V = AppX<'V', rfdcp[fId][0][1], rfkx[fId][0], rfkx[fId][1]>;
     type V2 = AppX<'V', rfdcp[fId][1][1], rfkx[fId][2], rfkx[fId][3]>;
     return new Observable<V2 | GlobalRef<V2>>(subscriber => {
-      const op = makeOp<fId>();
+      const { watch, call, serialized } = this.callHandler;
+      const wop = watch(), cop = call();
       const { subscription: argSubscription, ref: refArg } = this.push(arg, opt.graph ? {
-        unload: (ref) => op.unsubscribe(ref),
+        unload: (ref) => wop.unsubscribe(ref),
       } : {});
       const callSubscription = new Subscription();
       const makePromise = <T>(res?: (x: T) => void) => [new this.promiseCtr<T>(r => res = r), res!] as const;
@@ -575,11 +593,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         if (!serializeObs) serialized.set(arg, serializeObs = this.serialize(arg, {
           isNew: true
         }).pipe(asyncMap((def) => {
-          const refsPromise = op.put(def);
+          const refsPromise = wop.put(def);
           return refsPromise.then((refs): Cancellable<GlobalRef<V>> => ({ ok: true, value: refs[0] }));
         }), tap({
-          error: e => op.error(refArg, e),
-          complete: () => op.complete(refArg),
+          error: e => wop.error(refArg, e),
+          complete: () => wop.complete(refArg),
         }), shareReplay({ refCount: true, bufferSize: 1 })));
         const paramSubs = serializeObs.subscribe(() => { });
         this.callReturnRef.set(subscriber, refTask[0]);
@@ -593,7 +611,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         }
       }
       callSubscription.add(argSubscription);
-      const responseSubs = op.subscribeToResult({
+      const responseSubs = cop.subscribeToResult({
         resp_id: (ref) => {
           responseSubs.add(this.getValue(ref)[0].pipe(
             filter((_, index) => index === 0),
@@ -616,11 +634,11 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         })
       });
       callSubscription.add(() => {
-        if (!responseSubs.closed) op.end_call()
+        if (!responseSubs.closed) cop.end_call()
       });
       callSubscription.add(responseSubs);
       responseSubs.add(callSubscription);
-      op.call(fId, param, refArg, opt);
+      cop.call(fId, param, refArg, opt);
       if (opt.graph) refTask[0].then(refReturn => {
         const subs2 = this.getValue(refReturn)[0].subscribe(subscriber);
         callSubscription.add(subs2);

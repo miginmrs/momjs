@@ -1,8 +1,9 @@
-import type { AppX, KeysOfType } from 'dependent-type';
+import type { AppX, KeysOfType, keytype } from 'dependent-type';
 import type { ModelData, TVCDA_CIM, TVCDADepConstaint, Ref } from '../basic';
-import type { EntryObs, EHConstraint, xDerefHandlers, derefReturn, CtxEH, deref, TSerialObs, RequestHandlerCompare } from '../serial';
+import type { EntryObs, EHConstraint, xDerefHandlers, derefReturn, CtxEH, deref, TSerialObs, RequestHandlerCompare, SerialObs } from '../serial';
 import type { Origin } from '../../origin';
 import type { AnyModelDefinition } from './definition';
+import { transient } from '../../constants';
 
 export type xderef<EH extends EHConstraint<EH, ECtx>, ECtx> = {
   <
@@ -17,10 +18,23 @@ export type xderef<EH extends EHConstraint<EH, ECtx>, ECtx> = {
   ): derefReturn<indices, dcim, keys, X, N, EH, ECtx>,
 }
 
-export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
-  decode: (ctx: { deref: deref<EH, ECtx>, xderef: xderef<EH, ECtx> } & ECtx) => <X extends dom>(id: string, args: AppX<'T', cim, k, X>, old: TSerialObs<AppX<'V', cim, k, X>, EH, ECtx> & {
+export type RequestHandleDecodeX<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
+  (id: string, args: AppX<'T', cim, k, X>, old: SerialObs<dom, cim, k, X, n, EH, ECtx> | null): EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>;
+};
+
+export type RequestHandleDecodes<dom extends keytype, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
+  [X in dom]: RequestHandleDecodeX<dom, cim, k, X, n, EH, ECtx>
+};
+
+export type RequestHandleDecode<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = {
+  <X extends dom>(id: string, args: AppX<'T', cim, k, X>, old: TSerialObs<AppX<'V', cim, k, X>, EH, ECtx> & {
     origin: Origin<dom, cim, k, X, n, EH, ECtx>
-  } | null) => EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>,
+  } | null): EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>;
+};
+
+
+export type CtxH<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx> = CtxEH<dom, cim, k, n, EH, ECtx> & {
+  decode: (ctx: { deref: deref<EH, ECtx>, xderef: xderef<EH, ECtx> } & ECtx) => RequestHandleDecode<dom, cim, k, n, EH, ECtx>,
   compare?: (ctx: ECtx) => RequestHandlerCompare<dom, cim, k, n, EH, ECtx>,
 };
 

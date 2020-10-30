@@ -35,24 +35,28 @@ describe('Stores Global Communication', () => {
 
 
     // STORE2
-    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>(getHandler, {}, Promise, {
-      [fMul]: (_, arg) => {
-        const subs = new Subscription();
-        const obs = newArray<xn[]>([], subs);
-        subs.add(arg.subscribe(
-          v => {
-            arg;
-            const [{ x: a }, { x: b }] = v;
-            const json = newJson<xn>({ x: a * b });
-            obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
-          },
-          e => obs.subject.error(e),
-          () => obs.subject.complete()
-        ));
-        return Promise.resolve(obs);
-      }
-    }, 'store2');
-    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>(getHandler, {}, Promise, null, 'store1', '$');
+    const store2 = new Store<RH, {}, fMul, StoreFdcp, StoreFkx, never, {}, {}>({
+      getHandler, name: 'store2', extra: {}, promiseCtr: Promise, functions: {
+        [fMul]: (_, arg) => {
+          const subs = new Subscription();
+          const obs = newArray<xn[]>([], subs);
+          subs.add(arg.subscribe(
+            v => {
+              arg;
+              const [{ x: a }, { x: b }] = v;
+              const json = newJson<xn>({ x: a * b });
+              obs.subject.next({ args: [...obs.subject.value.args, json], data: null, n: 1 })
+            },
+            e => obs.subject.error(e),
+            () => obs.subject.complete()
+          ));
+          return Promise.resolve(obs);
+        }
+      }, callHandler: null!,
+    });
+    const store1 = new Store<RH, {}, never, {}, {}, fMul, StoreFdcp, StoreFkx>({
+      getHandler, extra: {}, promiseCtr: Promise, functions: {}, name: 'store1', prefix: '$', callHandler: null!
+    });
     (global as any).store1 = store1;
     (global as any).store2 = store2;
     const msg1to2 = new Subject<DataGram<msg1to2 | msg2to1>>();
@@ -75,18 +79,17 @@ describe('Stores Global Communication', () => {
     const b = newJson<xn>({ x: 10 });
     const c = newJson<xn>({ x: 20 });
     const arg = newArray<[xn, xn]>([a, b]);
-    const subs = arg.subscribe(()=>{});
+    const subs = arg.subscribe(() => { });
     let firstCallResult: xn[][] = [];
 
-    store1.remote(
-      fMul, arg, null, callHandler
-    ).pipe(alternMap(ref => store1.getValue(ref)[0]), take(2), map(v => v.slice()), toArray()).subscribe(
+    (store1 as any)['callHandler'] = callHandler;
+    store1.remote(fMul, arg, null).pipe(alternMap(ref => store1.getValue(ref)[0]), take(2), map(v => v.slice()), toArray()).subscribe(
       v => firstCallResult = v
     );
 
     const receivedValues: xn[][] = [];
     // STORE1
-    const ret = store1.remote(fMul, arg, null, callHandler).pipe(alternMap(ref => store1.getValue(ref)[0]));
+    const ret = store1.remote(fMul, arg, null).pipe(alternMap(ref => store1.getValue(ref)[0]));
     ret.subscribe(async function (this: SafeSubscriber<xn>, v) {
       receivedValues.push(v.slice());
       if (v.slice(-1)[0].x !== 50) return;

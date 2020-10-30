@@ -100,7 +100,9 @@ const testScheduler = new TestScheduler((actual, expected) => {
 
 
 describe('Store', () => {
-  const store = new Store<RH, {}, never, {}, {}, never, {}, {}>(keys<RH>(RequestHandlers), { someData: 1 }, Promise)
+  const store = new Store<RH, {}, never, {}, {}, never, {}, {}>({
+    getHandler: keys<RH>(RequestHandlers), extra: { someData: 1 }, promiseCtr: Promise, functions: {}, callHandler: null!
+  });
   describe('first entry', () => {
     const init = () => {
       const [x1] = store.unserialize<0, [[JsonObject, json.cim]], [json.keys], [{ x: number }], [1]>([{

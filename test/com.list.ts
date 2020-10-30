@@ -4,7 +4,7 @@ import { msg, start, MsgGenerator, parallel } from "./common";
 
 export const checkMsgs = (msgs: msg[]) => {
   const init = Symbol();
-  type dir = 'call1' | 'call1b' | 'call2' | 'put1' | 'put2' | 'put3' | 'put4';
+  type dir = 'call1' | 'call1b' | 'call2' | 'put1' | 'put2' | 'put3' | 'put4' | 'complete';
   type init = typeof init; type path = dir | init;
   type Handler = Generator<path | undefined, void, msg>;
   const handlers: Handler[] = [];
@@ -32,8 +32,12 @@ export const checkMsgs = (msgs: msg[]) => {
       const [, first, , data] = yield null!;
       handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call1' }));
       handlers.unshift(start(function* (): Handler { while ((yield)[2] !== 'call'); yield 'call2' }));
+      handlers.unshift(start(function* (): Handler {
+        let msg = yield; while (msg[2] !== 'unsubscribe') msg = yield; 
+        const ch = msg[1]; msg = yield 'complete'; while (msg[1] !== ch) msg = yield; yield 'complete';
+      }));
       const tIds = [ids.arg, ids.a, ids.b] = (data as idstr[]).map(({ id }) => id), [idArg, idA, idB] = tIds;
-      if (tIds.some(id => {const exists = usedIds.has(id); usedIds.add(id); return exists; })) {
+      if (tIds.some(id => { const exists = usedIds.has(id); usedIds.add(id); return exists; })) {
         throw new Error('some ids are reused');
       }
       yield ['1->2', first, 'put', [
@@ -78,6 +82,11 @@ export const checkMsgs = (msgs: msg[]) => {
       if (!argId) throw new Error('argId not set');
       yield ['1->2', ch, 'call', { fId: 0, param: null, argId, opt: { graph: true } }];
       yield ['1->2', ch, 'end_call', ''];
+    }),
+    complete: start(function* (): MsgGenerator {
+      const [, ch] = yield null!;
+      const argId = ids.arg;
+      if (!argId) throw new Error('argId not set');
       yield ['1->2', ch, 'unsubscribe', argId]; // the observable 1 is not destroyed at this point, because its used by the fct call 
       yield ['1->2', ch, 'complete', argId];
     }),

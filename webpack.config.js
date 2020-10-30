@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const webpack = require("webpack");
+const TerserPlugin = require("terser-webpack-plugin");
 
 module.exports = env => {
   let filenamebase = "rxrmi", devtool = { devtool: "source-map" };
@@ -19,10 +19,16 @@ module.exports = env => {
   return {
     ...devtool,
     context: path.join(__dirname, "./"),
+    // optimization: {
+    //   minimize: true,
+    //   minimizer: [
+    //     new TerserPlugin({ parallel: true, }),
+    //   ],
+    // },
     entry: {
       index: "./source/index.ts"
     },
-    externals: function (context, request, callback) {
+    externals: function ({ context, request }, callback) {
       const external = (root = request.split('/')) => callback(null, {
         root,
         commonjs: request,
