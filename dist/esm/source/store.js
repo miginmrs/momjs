@@ -2,12 +2,12 @@ import { Subscription, Observable, Subject, noop } from 'rxjs';
 import { map as dep_map } from 'dependent-type';
 import { Origin } from './origin';
 import { eagerCombineAll } from '../utils/rx-utils';
-import { defineProperty } from '../utils/global';
-import { map, shareReplay, finalize, scan, filter, tap, mapTo, take, switchMapTo } from 'rxjs/operators';
+import { map, shareReplay, scan, filter, tap, mapTo, take, switchMapTo } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap } from 'rx-async';
 import { BiMap } from './bimap';
 import { nodeps, transient } from './constants';
+import { wrap } from './wrap';
 const { depMap } = dep_map;
 const one = BigInt(1);
 export class Store {
@@ -28,11 +28,6 @@ export class Store {
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
-                        const set = new Set([obs]);
-                        while (!set.has(obs = obs.parent))
-                            set.add(obs);
-                        if (!set.has(obs.origin))
-                            return false;
                         const subject = obs.origin.subject;
                         if (subject.isStopped)
                             return true;
@@ -233,7 +228,6 @@ export class Store {
         let wrapped = obs;
         let subscription;
         if (old === undefined) {
-            let destroyed = false;
             const temp = [];
             const clear = function () {
                 temp.forEach(this.add.bind(this));
@@ -254,7 +248,6 @@ export class Store {
             const teardown = () => {
                 unload?.({ id });
                 this.map.delete(id);
-                destroyed = true;
                 const local = this.locals.get(id)?.[1];
                 if ((!local || local.out) && this.pushed.delete(obs)) {
                     this._pushes.next([obs, id, false]);
@@ -262,7 +255,7 @@ export class Store {
                 clear.call(Subscription.EMPTY);
             };
             if ($local?.closed !== false) {
-                wrapped = defineProperty(Object.assign(eagerCombineAll([obs, asubj]).pipe(finalize(teardown), map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+                wrapped = wrap(obs, teardown, () => asubj.subscribe(() => { }));
             }
             else {
                 if (!$local[nodeps])

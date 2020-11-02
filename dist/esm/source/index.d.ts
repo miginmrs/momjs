@@ -7,6 +7,7 @@ export * from './types/basic';
 export * from './async';
 export * from './origin';
 export * from './types/serial';
+export * from './wrap';
 export * from './types/store';
 export * from './bimap';
 export * from './types/params';

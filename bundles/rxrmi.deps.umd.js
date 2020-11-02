@@ -572,6 +572,7 @@ exports.asAsync = asAsync;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BiMap = void 0;
 const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const wrap_1 = __webpack_require__(/*! ./wrap */ "./source/wrap.ts");
 class BiMap {
     constructor(watch = false) {
         this.watch = watch;
@@ -614,23 +615,23 @@ class BiMap {
         if (id === undefined)
             return undefined;
         const entry = this.byId.get(id), found = entry[0];
-        let upfound = found, upobs = obs;
         if (found === obs)
             return [id, 'exact'];
-        const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+        const foundParents = new Set([found]), obsParents = new Set([obs]);
+        let upfound = [found], upobs = [obs];
         while (true) {
-            const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-            if (obsParents.has(upfound) || foundParents.has(upobs)) {
-                if (upfound === obs)
-                    return [id, 'down'];
-                if (upobs !== found)
-                    entry[0] = upobs;
-                return [id, 'up'];
+            upfound = upfound.flatMap(o => o.parent);
+            upobs = upobs.flatMap(o => o.parent);
+            const done = upobs.every(o => obsParents.has(o) || void obsParents.add(o)) && upfound.every(o => foundParents.has(o) || void foundParents.add(o));
+            if (upfound.some(o => obsParents.has(o)) || upobs.some(o => foundParents.has(o))) {
+                if (upobs.indexOf(found) !== -1)
+                    return [id, 'up'];
+                if (upfound.indexOf(obs) === -1)
+                    entry[0] = wrap_1.wrap(found, () => entry[0] = found, obs.subscribe.bind(obs), [found, obs]);
+                return [id, 'down'];
             }
             if (done)
                 throw new Error('Another observable with the same origin is in the store');
-            upobs = upobs.parent;
-            upfound = upfound.parent;
         }
     }
     find(obs, any = false) {
@@ -958,12 +959,13 @@ exports.getDecode = (ctrs, i) => ctrs[i];
 /*! CommonJS bailout: exports is used directly at 31:33-40 */
 /*! CommonJS bailout: exports is used directly at 32:34-41 */
 /*! CommonJS bailout: exports is used directly at 33:40-47 */
-/*! CommonJS bailout: exports is used directly at 34:39-46 */
-/*! CommonJS bailout: exports is used directly at 35:33-40 */
-/*! CommonJS bailout: exports is used directly at 36:40-47 */
-/*! CommonJS bailout: exports is used directly at 37:33-40 */
-/*! CommonJS bailout: exports is used directly at 38:36-43 */
-/*! CommonJS bailout: exports is used directly at 39:33-40 */
+/*! CommonJS bailout: exports is used directly at 34:32-39 */
+/*! CommonJS bailout: exports is used directly at 35:39-46 */
+/*! CommonJS bailout: exports is used directly at 36:33-40 */
+/*! CommonJS bailout: exports is used directly at 37:40-47 */
+/*! CommonJS bailout: exports is used directly at 38:33-40 */
+/*! CommonJS bailout: exports is used directly at 39:36-43 */
+/*! CommonJS bailout: exports is used directly at 40:33-40 */
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
@@ -1000,6 +1002,7 @@ __exportStar(__webpack_require__(/*! ./types/basic */ "./source/types/basic.ts")
 __exportStar(__webpack_require__(/*! ./async */ "./source/async.ts"), exports);
 __exportStar(__webpack_require__(/*! ./origin */ "./source/origin.ts"), exports);
 __exportStar(__webpack_require__(/*! ./types/serial */ "./source/types/serial.ts"), exports);
+__exportStar(__webpack_require__(/*! ./wrap */ "./source/wrap.ts"), exports);
 __exportStar(__webpack_require__(/*! ./types/store */ "./source/types/store/index.ts"), exports);
 __exportStar(__webpack_require__(/*! ./bimap */ "./source/bimap.ts"), exports);
 __exportStar(__webpack_require__(/*! ./types/params */ "./source/types/params.ts"), exports);
@@ -1056,6 +1059,8 @@ class Origin extends rxjs_1.Observable {
         this.teardown = new rxjs_1.Subscription();
         teardownList.forEach(this.teardown.add.bind(this.teardown));
         this.source = new rxjs_1.Observable(subjectSubscriber => {
+            if (this.destroyed)
+                throw new Error('Subscription to a destroyed observable');
             subjectSubscriber.add(this.teardown);
             subjectSubscriber.add(() => {
                 var _a;
@@ -1067,8 +1072,7 @@ class Origin extends rxjs_1.Observable {
             });
             const obs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => rx_utils_1.eagerCombineAll(args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args)).pipe(operators_1.map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null));
             (observer ? operators_1.tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
-        });
-        this.operator = operators_1.shareReplay({ bufferSize: 1, refCount: true })(this).operator;
+        }).pipe(operators_1.multicast(() => this.replay = new rxjs_1.ReplaySubject(1)), operators_1.refCount());
     }
     get destroyed() { return this.teardown.closed; }
     add(teardown) {
@@ -1247,12 +1251,12 @@ const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
 const dependent_type_1 = __webpack_require__(/*! dependent-type */ "./node_modules/dependent-type/source/index.ts");
 const origin_1 = __webpack_require__(/*! ./origin */ "./source/origin.ts");
 const rx_utils_1 = __webpack_require__(/*! ../utils/rx-utils */ "./utils/rx-utils.ts");
-const global_1 = __webpack_require__(/*! ../utils/global */ "./utils/global.ts");
 const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
 const altern_map_1 = __webpack_require__(/*! altern-map */ "./node_modules/altern-map/source/index.ts");
 const rx_async_1 = __webpack_require__(/*! rx-async */ "./node_modules/rx-async/source/index.ts");
 const bimap_1 = __webpack_require__(/*! ./bimap */ "./source/bimap.ts");
 const constants_1 = __webpack_require__(/*! ./constants */ "./source/constants.ts");
+const wrap_1 = __webpack_require__(/*! ./wrap */ "./source/wrap.ts");
 const { depMap } = dependent_type_1.map;
 const one = BigInt(1);
 class Store {
@@ -1273,11 +1277,6 @@ class Store {
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
-                        const set = new Set([obs]);
-                        while (!set.has(obs = obs.parent))
-                            set.add(obs);
-                        if (!set.has(obs.origin))
-                            return false;
                         const subject = obs.origin.subject;
                         if (subject.isStopped)
                             return true;
@@ -1483,7 +1482,6 @@ class Store {
         let wrapped = obs;
         let subscription;
         if (old === undefined) {
-            let destroyed = false;
             const temp = [];
             const clear = function () {
                 temp.forEach(this.add.bind(this));
@@ -1505,7 +1503,6 @@ class Store {
                 var _a;
                 unload === null || unload === void 0 ? void 0 : unload({ id });
                 this.map.delete(id);
-                destroyed = true;
                 const local = (_a = this.locals.get(id)) === null || _a === void 0 ? void 0 : _a[1];
                 if ((!local || local.out) && this.pushed.delete(obs)) {
                     this._pushes.next([obs, id, false]);
@@ -1513,7 +1510,7 @@ class Store {
                 clear.call(rxjs_1.Subscription.EMPTY);
             };
             if (($local === null || $local === void 0 ? void 0 : $local.closed) !== false) {
-                wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+                wrapped = wrap_1.wrap(obs, teardown, () => asubj.subscribe(() => { }));
             }
             else {
                 if (!$local[constants_1.nodeps])
@@ -1883,6 +1880,39 @@ __exportStar(__webpack_require__(/*! ./functions */ "./source/types/store/functi
 __exportStar(__webpack_require__(/*! ./definition */ "./source/types/store/definition.ts"), exports);
 __exportStar(__webpack_require__(/*! ./handler */ "./source/types/store/handler.ts"), exports);
 __exportStar(__webpack_require__(/*! ./call */ "./source/types/store/call.ts"), exports);
+
+
+/***/ }),
+
+/***/ "./source/wrap.ts":
+/*!************************!*\
+  !*** ./source/wrap.ts ***!
+  \************************/
+/*! flagged exports */
+/*! export __esModule [provided] [no usage info] [missing usage info prevents renaming] */
+/*! export wrap [provided] [no usage info] [missing usage info prevents renaming] */
+/*! other exports [not provided] [no usage info] */
+/*! runtime requirements: __webpack_exports__, __webpack_require__ */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.wrap = void 0;
+const rxjs_1 = __webpack_require__(/*! rxjs */ "rxjs");
+const utils_1 = __webpack_require__(/*! ../utils */ "./utils/index.ts");
+const operators_1 = __webpack_require__(/*! rxjs/operators */ "rxjs/operators");
+exports.wrap = (obs, teardown, subscribe, parent = obs, subjectFactory = () => new rxjs_1.ReplaySubject(1)) => {
+    let destroyed = false;
+    return utils_1.defineProperty(Object.assign(new rxjs_1.Observable(subscriber => {
+        if (destroyed)
+            throw new Error('Subscription to a destroyed observable');
+        subscriber.add(teardown);
+        subscriber.add(subscribe());
+        obs.subscribe(subscriber);
+        subscriber.add(() => destroyed = true);
+    }).pipe(operators_1.multicast(subjectFactory), operators_1.refCount()), { origin: obs.origin, parent }), 'destroyed', { get() { return destroyed; } });
+};
 
 
 /***/ }),

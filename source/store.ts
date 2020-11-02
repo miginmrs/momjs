@@ -14,17 +14,18 @@ import type {
   Notif, ObsCache, F_Custom_Ref, GlobalRefHelper, F_I_X, CondRefHelper, SerializationOptions, LocalObs, LocalOption, PushOptions, IStore, Notifier, StoreParams
 } from './types/params';
 
-import { Subscription, Observable, Subject, of, OperatorFunction, identity, Subscriber, TeardownLogic, noop } from 'rxjs';
+import { Subscription, Observable, Subject, of, OperatorFunction, identity, Subscriber, TeardownLogic, noop, ReplaySubject, combineLatest } from 'rxjs';
 import { map as dep_map } from 'dependent-type';
 import { Origin } from './origin';
 import { eagerCombineAll } from '../utils/rx-utils';
 import { defineProperty } from '../utils/global';
-import { map, shareReplay, finalize, scan, filter, tap, mapTo, take, switchMapTo } from 'rxjs/operators';
+import { map, shareReplay, finalize, scan, filter, tap, mapTo, take, switchMapTo, multicast, refCount } from 'rxjs/operators';
 import { alternMap } from 'altern-map';
 import { asyncMap, Cancellable } from 'rx-async';
 import { BiMap } from './bimap';
 import { PromiseCtr } from './async';
 import { nodeps, transient } from './constants';
+import { wrap } from './wrap';
 
 const { depMap } = dep_map;
 
@@ -132,9 +133,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       else {
         // console.log('remove', this.map.find(obs));
         const isStopped = (obs: TSerialObs<unknown, RH, ECtx>): boolean => {
-          const set = new Set([obs]);
-          while (!set.has(obs = obs.parent)) set.add(obs);
-          if (!set.has(obs.origin)) return false;
           const subject = obs.origin.subject;
           if (subject.isStopped) return true;
           return subject.value.args.some(args => args instanceof Array ? args.some(isStopped) : isStopped(args))
@@ -355,7 +353,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
     let subscription: Subscription;
 
     if (old === undefined) {
-      let destroyed = false;
       const temp: Subscription[] = [];
       const clear = function (this: Subscription) {
         temp.forEach(this.add.bind(this));
@@ -379,7 +376,6 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
       const teardown = () => {
         unload?.({ id } as GlobalRef<V>);
         this.map.delete(id);
-        destroyed = true;
         const local = this.locals.get(id)?.[1];
         if ((!local || local.out) && this.pushed.delete(obs)) {
           this._pushes.next([obs, id, false]);
@@ -387,13 +383,7 @@ export class Store<RH extends RHConstraint<RH, ECtx>, ECtx,
         clear.call(Subscription.EMPTY);
       };
       if ($local?.closed !== false) {
-        wrapped = defineProperty(
-          Object.assign(eagerCombineAll([obs, asubj]).pipe(
-            finalize(teardown),
-            map(([v]) => v), shareReplay({ bufferSize: 1, refCount: true }),
-          ), { origin: obs.origin, parent: obs }),
-          'destroyed', { get() { return destroyed } }
-        );
+        wrapped = wrap(obs, teardown, ()=>asubj.subscribe(() => { }));
       } else {
         if (!$local[nodeps]) $local.add(asubj.subscribe(() => { }));
         $local.add(teardown);

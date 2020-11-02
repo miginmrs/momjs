@@ -1,7 +1,7 @@
 import type { AppX, KeysOfType } from 'dependent-type';
 import type { TVCDA_CIM, TVCDADepConstaint, TeardownAction } from './types/basic';
 import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs } from './types/serial';
-import { BehaviorSubject, Observable, PartialObserver, Subscription, TeardownLogic } from 'rxjs';
+import { BehaviorSubject, Observable, PartialObserver, ReplaySubject, Subscription, TeardownLogic } from 'rxjs';
 export declare const compareEntries: <dom, cim extends TVCDA_CIM, k extends import("dependent-type").DepConstaint<"T" | "V" | "C" | "D" | "A", dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>({ compareData, compareObs }?: {
     compareData?: (<X extends dom>(x: AppX<"D", cim, k, X>, y: AppX<"D", cim, k, X>) => boolean) | undefined;
     compareObs?: (<X_1 extends dom, i extends number>(x: TSerialObs<AppX<"A", cim, k, X_1>[i], EH, ECtx>, y: TSerialObs<AppX<"A", cim, k, X_1>[i], EH, ECtx>) => boolean) | undefined;
@@ -11,6 +11,7 @@ export declare class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConsta
     readonly key: KeysOfType<EHConstraint<EH, ECtx>, CtxEH<dom, cim, k, n, EH, ECtx>> & string;
     readonly c: AppX<'C', cim, k, X>;
     readonly subject: BehaviorSubject<EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>>;
+    protected replay?: ReplaySubject<Parameters<$V>[0]>;
     private teardown;
     get destroyed(): boolean;
     source: Observable<Parameters<$V>[0]>;

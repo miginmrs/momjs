@@ -1,20 +1,20 @@
 {
   "name": "rxrmi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./dist/cjs/source/index.js",
   "module": "./dist/esm/index.js",
   "source": "./source",
   "sideEffects": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/miginmrs/momjs.git"
+    "url": "git+https://github.com/miginmrs/rxrmi.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/miginmrs/rx-momjs/issues"
+    "url": "https://github.com/miginmrs/rxrmi/issues"
   },
-  "homepage": "https://github.com/miginmrs/momjs#readme",
+  "homepage": "https://github.com/miginmrs/rxrmi#readme",
   "directories": {
     "lib": "lib"
   },

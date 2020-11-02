@@ -1,10 +1,10 @@
 import type { AppX, KeysOfType } from 'dependent-type';
 import type { TVCDA_CIM, TVCDADepConstaint, TeardownAction } from './types/basic';
-import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs, SerialArray } from './types/serial';
-import { BehaviorSubject, Observable, PartialObserver, Subscription, TeardownLogic } from 'rxjs';
+import type { EHConstraint, CtxEH, RequestHandlerCompare, TSerialObs, EntryObs, SerialArray, SerialObs } from './types/serial';
+import { BehaviorSubject, Observable, PartialObserver, ReplaySubject, Subscription, TeardownLogic } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { eagerCombineAll } from '../utils/rx-utils';
-import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
+import { map, shareReplay, distinctUntilChanged, scan, tap, refCount, multicast } from 'rxjs/operators';
 
 
 export const compareEntries = <dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx>({
@@ -27,6 +27,7 @@ export const compareEntries = <dom, cim extends TVCDA_CIM, k extends TVCDADepCon
 export class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx, $V extends (v: AppX<'V', cim, k, X>) => void = (v: AppX<'V', cim, k, X>) => void>
   extends Observable<Parameters<$V>[0]> implements TSerialObs<Parameters<$V>[0], EH, ECtx> {
   readonly subject: BehaviorSubject<EntryObs<AppX<'D', cim, k, X>, AppX<'A', cim, k, X>, n, EH, ECtx>>;
+  protected replay?: ReplaySubject<Parameters<$V>[0]>;
   private teardown: Subscription;
   get destroyed() { return this.teardown.closed }
   source: Observable<Parameters<$V>[0]>;
@@ -68,6 +69,7 @@ export class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom,
     this.teardown = new Subscription();
     teardownList.forEach(this.teardown.add.bind(this.teardown));
     this.source = new Observable<V>(subjectSubscriber => {
+      if (this.destroyed) throw new Error('Subscription to a destroyed observable');
       subjectSubscriber.add(this.teardown);
       subjectSubscriber.add(() => {
         handler.destroy?.(current);
@@ -83,7 +85,6 @@ export class Origin<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom,
         scan<[A, D, C], V, null>((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null),
       );
       (observer ? tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
-    });
-    this.operator = shareReplay({ bufferSize: 1, refCount: true })(this).operator;
+    }).pipe(multicast(() => this.replay = new ReplaySubject(1)), refCount());
   }
 }

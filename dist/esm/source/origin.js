@@ -1,7 +1,7 @@
-import { BehaviorSubject, Observable, Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, ReplaySubject, Subscription } from 'rxjs';
 import { alternMap } from 'altern-map';
 import { eagerCombineAll } from '../utils/rx-utils';
-import { map, shareReplay, distinctUntilChanged, scan, tap } from 'rxjs/operators';
+import { map, distinctUntilChanged, scan, tap, refCount, multicast } from 'rxjs/operators';
 export const compareEntries = ({ compareData = (x, y) => x === y, compareObs = (x, y) => x === y } = {}) => (x, y) => x.args.length === y.args.length && x.args.every((v, i) => {
     const vItem = v, yItem = y.args[i];
     if (vItem instanceof Array) {
@@ -27,6 +27,8 @@ export class Origin extends Observable {
         this.teardown = new Subscription();
         teardownList.forEach(this.teardown.add.bind(this.teardown));
         this.source = new Observable(subjectSubscriber => {
+            if (this.destroyed)
+                throw new Error('Subscription to a destroyed observable');
             subjectSubscriber.add(this.teardown);
             subjectSubscriber.add(() => {
                 handler.destroy?.(current);
@@ -37,8 +39,7 @@ export class Origin extends Observable {
             });
             const obs = this.subject.pipe(distinctUntilChanged(compare), alternMap(({ args, data }) => eagerCombineAll(args.map(args => args instanceof Array ? eagerCombineAll(args) : args)).pipe(map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null));
             (observer ? tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
-        });
-        this.operator = shareReplay({ bufferSize: 1, refCount: true })(this).operator;
+        }).pipe(multicast(() => this.replay = new ReplaySubject(1)), refCount());
     }
     get destroyed() { return this.teardown.closed; }
     add(teardown) {

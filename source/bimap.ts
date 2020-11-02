@@ -1,5 +1,8 @@
-import { Observable, Subject } from 'rxjs';
+import { identity, Observable, ReplaySubject, Subject } from 'rxjs';
+import { multicast, refCount } from 'rxjs/operators';
+import { defineProperty } from '../utils';
 import { TSerialObs, EHConstraint, TOrigin } from './types/serial'
+import { wrap } from './wrap';
 
 
 export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
@@ -34,19 +37,18 @@ export class BiMap<EH extends EHConstraint<EH, ECtx>, ECtx, D, k = string> {
     const origin = obs.origin, id = this.byObs.get(origin);
     if (id === undefined) return undefined;
     const entry = this.byId.get(id)!, found = entry[0];
-    let upfound = found, upobs = obs;
     if (found === obs) return [id, 'exact'];
-    const foundParents = new Set([upfound]), obsParents = new Set([upobs]);
+    const foundParents = new Set([found]), obsParents = new Set([obs]);
+    let upfound = [found], upobs = [obs];
     while (true) {
-      const done = !obsParents.add(upobs = upobs.parent) && !foundParents.add(upfound = upfound.parent);
-      if (obsParents.has(upfound) || foundParents.has(upobs)) {
-        if (upfound === obs) return [id, 'down'];
-        if (upobs !== found) entry[0] = upobs;
-        return [id, 'up'];
+      upfound = upfound.flatMap(o => o.parent); upobs = upobs.flatMap(o => o.parent);
+      const done = upobs.every(o => obsParents.has(o) || void obsParents.add(o)) && upfound.every(o => foundParents.has(o) || void foundParents.add(o));
+      if (upfound.some(o => obsParents.has(o)) || upobs.some(o => foundParents.has(o))) {
+        if (upobs.indexOf(found) !== -1) return [id, 'up'];
+        if (upfound.indexOf(obs) === -1) entry[0] = wrap(found, () => entry[0] = found, obs.subscribe.bind(obs), [found, obs]);
+        return [id, 'down'];
       }
       if (done) throw new Error('Another observable with the same origin is in the store');
-      upobs = upobs.parent;
-      upfound = upfound.parent;
     }
   }
   find(obs: TSerialObs<unknown, EH, ECtx>, any = false) {

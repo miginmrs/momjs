@@ -30,6 +30,8 @@ class Origin extends rxjs_1.Observable {
         this.teardown = new rxjs_1.Subscription();
         teardownList.forEach(this.teardown.add.bind(this.teardown));
         this.source = new rxjs_1.Observable(subjectSubscriber => {
+            if (this.destroyed)
+                throw new Error('Subscription to a destroyed observable');
             subjectSubscriber.add(this.teardown);
             subjectSubscriber.add(() => {
                 handler.destroy?.(current);
@@ -40,8 +42,7 @@ class Origin extends rxjs_1.Observable {
             });
             const obs = this.subject.pipe(operators_1.distinctUntilChanged(compare), altern_map_1.alternMap(({ args, data }) => rx_utils_1.eagerCombineAll(args.map(args => args instanceof Array ? rx_utils_1.eagerCombineAll(args) : args)).pipe(operators_1.map(args => [args, data, c])), { completeWithInner: true, completeWithSource: true }), operators_1.tap({ error: err => this.subject.error(err), complete: () => this.subject.complete() }), operators_1.scan((old, [args, data, c]) => handler.ctr(args, current = data, c, old, this), null));
             (observer ? operators_1.tap(observer(this))(obs) : obs).subscribe(subjectSubscriber);
-        });
-        this.operator = operators_1.shareReplay({ bufferSize: 1, refCount: true })(this).operator;
+        }).pipe(operators_1.multicast(() => this.replay = new rxjs_1.ReplaySubject(1)), operators_1.refCount());
     }
     get destroyed() { return this.teardown.closed; }
     add(teardown) {

@@ -31,6 +31,7 @@ __exportStar(require("./types/basic"), exports);
 __exportStar(require("./async"), exports);
 __exportStar(require("./origin"), exports);
 __exportStar(require("./types/serial"), exports);
+__exportStar(require("./wrap"), exports);
 __exportStar(require("./types/store"), exports);
 __exportStar(require("./bimap"), exports);
 __exportStar(require("./types/params"), exports);

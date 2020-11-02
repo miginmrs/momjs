@@ -5,12 +5,12 @@ const rxjs_1 = require("rxjs");
 const dependent_type_1 = require("dependent-type");
 const origin_1 = require("./origin");
 const rx_utils_1 = require("../utils/rx-utils");
-const global_1 = require("../utils/global");
 const operators_1 = require("rxjs/operators");
 const altern_map_1 = require("altern-map");
 const rx_async_1 = require("rx-async");
 const bimap_1 = require("./bimap");
 const constants_1 = require("./constants");
+const wrap_1 = require("./wrap");
 const { depMap } = dependent_type_1.map;
 const one = BigInt(1);
 class Store {
@@ -31,11 +31,6 @@ class Store {
                 else {
                     // console.log('remove', this.map.find(obs));
                     const isStopped = (obs) => {
-                        const set = new Set([obs]);
-                        while (!set.has(obs = obs.parent))
-                            set.add(obs);
-                        if (!set.has(obs.origin))
-                            return false;
                         const subject = obs.origin.subject;
                         if (subject.isStopped)
                             return true;
@@ -236,7 +231,6 @@ class Store {
         let wrapped = obs;
         let subscription;
         if (old === undefined) {
-            let destroyed = false;
             const temp = [];
             const clear = function () {
                 temp.forEach(this.add.bind(this));
@@ -257,7 +251,6 @@ class Store {
             const teardown = () => {
                 unload?.({ id });
                 this.map.delete(id);
-                destroyed = true;
                 const local = this.locals.get(id)?.[1];
                 if ((!local || local.out) && this.pushed.delete(obs)) {
                     this._pushes.next([obs, id, false]);
@@ -265,7 +258,7 @@ class Store {
                 clear.call(rxjs_1.Subscription.EMPTY);
             };
             if ($local?.closed !== false) {
-                wrapped = global_1.defineProperty(Object.assign(rx_utils_1.eagerCombineAll([obs, asubj]).pipe(operators_1.finalize(teardown), operators_1.map(([v]) => v), operators_1.shareReplay({ bufferSize: 1, refCount: true })), { origin: obs.origin, parent: obs }), 'destroyed', { get() { return destroyed; } });
+                wrapped = wrap_1.wrap(obs, teardown, () => asubj.subscribe(() => { }));
             }
             else {
                 if (!$local[constants_1.nodeps])

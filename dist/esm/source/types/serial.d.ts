@@ -104,12 +104,12 @@ export declare type RequestHandlerDestroy<dom, cim extends Pick<TVCDA_CIM, 'D'>,
 };
 export declare type TOrigin<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Origin<any, any, any, any, any, EH, ECtx, (v: V) => void>;
 export declare type TSerialObs<V, EH extends EHConstraint<EH, ECtx>, ECtx> = Observable<V> & {
-    parent: TSerialObs<V, EH, ECtx>;
+    parent: TSerialObs<V, EH, ECtx> | TSerialObs<V, EH, ECtx>[];
     origin: TOrigin<V, EH, ECtx>;
     readonly destroyed: boolean;
 };
 export declare type SerialObs<dom, cim extends TVCDA_CIM, k extends TVCDADepConstaint<dom, cim>, X extends dom, n extends 1 | 2, EH extends EHConstraint<EH, ECtx>, ECtx, $V extends (v: AppX<'V', cim, k, X>) => void = (v: AppX<'V', cim, k, X>) => void> = Observable<Parameters<$V>[0]> & {
-    parent: SerialObs<dom, cim, k, X, n, EH, ECtx, $V>;
+    parent: SerialObs<dom, cim, k, X, n, EH, ECtx, $V> | SerialObs<dom, cim, k, X, n, EH, ECtx, $V>[];
     origin: Origin<dom, cim, k, X, n, EH, ECtx, $V>;
     readonly destroyed: boolean;
 };
